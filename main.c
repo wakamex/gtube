@@ -6,8 +6,12 @@
 //   --data DIR                                  where tools live (default: the user's app data folder)
 //   --demo                                      a queue of sample titles in many scripts, nothing played
 //   --shot F.png [--at S]                       render one frame at S seconds, headless, and quit
+//   --import-cookies FILE                       sign in with a cookies.txt exported from a browser
+//   --refresh                                   renew the saved session once, report, and quit
+//   --sign-in                                   open the sign-in window at start
+//   --sign-out                                  forget the saved session
 // Keys: Ctrl+V pastes a link, Space pauses, Left/Right previous/next, Up/Down and Enter or a click
-// pick a track, -/+ volume, F1 performance overlay, Esc quits.
+// pick a track, -/+ volume, S signs in (only needed when YouTube asks), F1 performance overlay, Esc quits.
 #define SDL_MAIN_USE_CALLBACKS
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
@@ -21,13 +25,22 @@
 #include "gs_stats.h"
 #include "gs_text.h"
 #include "stb_image_write.h"
+#include "account.h"
 #include "player.h"
+#include "signin.h"
 #include "tools.h"
 
 #define RATE 48000
+#define REFRESH_MS (10 * 60 * 1000)  // how often a signed-in session is renewed
 
 typedef struct {
     tools tools;
+    account account;
+    signin *signin;
+    char dir[1024];
+    uint64_t next_refresh;
+    char note[160], seen[160];  // a message for a few seconds, and the account status last shown
+    uint64_t note_until;
     gs_jobs *jobs;
     player *player;
     SDL_Window *win;
@@ -45,6 +58,8 @@ typedef struct {
     SDL_FRect rows[64];
     int row_track[64], nrows;
 } app;
+
+static void sign_in(app *a);
 
 static void data_dir(const char *data, char *out, size_t size) {
 #ifdef _WIN32
@@ -81,10 +96,10 @@ static bool write_wav(const char *path, const float *lr, int frames) {
 SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
     app *a = SDL_calloc(1, sizeof *a);
     *state = a;
-    const char *data = NULL, *probe = NULL, *wav = NULL, *urls[16];
+    const char *data = NULL, *probe = NULL, *wav = NULL, *import = NULL, *urls[16];
     int nurls = 0;
     double seconds = 30;
-    bool tools_only = false, demo = false;
+    bool tools_only = false, demo = false, refresh = false, sign_out = false, open_signin = false;
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--data") && i + 1 < argc) data = argv[++i];
         else if (!strcmp(argv[i], "--probe") && i + 1 < argc) probe = argv[++i];
@@ -94,12 +109,25 @@ SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
         else if (!strcmp(argv[i], "--demo")) demo = a->demo = true;
         else if (!strcmp(argv[i], "--shot") && i + 1 < argc) a->shot = argv[++i];
         else if (!strcmp(argv[i], "--at") && i + 1 < argc) a->shot_at = SDL_atof(argv[++i]);
+        else if (!strcmp(argv[i], "--import-cookies") && i + 1 < argc) import = argv[++i];
+        else if (!strcmp(argv[i], "--refresh")) refresh = true;
+        else if (!strcmp(argv[i], "--sign-out")) sign_out = true;
+        else if (!strcmp(argv[i], "--sign-in")) open_signin = true;
         else if (nurls < 16) urls[nurls++] = argv[i];
     }
-    char dir[1024];
-    data_dir(data, dir, sizeof dir);
+    char *dir = a->dir;
+    data_dir(data, dir, sizeof a->dir);
     tools_init(&a->tools, dir);
+    account_init(&a->account, dir);
     a->jobs = gs_jobs_new(2);
+    if (sign_out) account_sign_out(&a->account);
+    if (import && !account_import(&a->account, import)) return printf("%s\n", a->account.status), SDL_APP_FAILURE;
+    if (refresh) {
+        bool ok = account_signed_in(&a->account) && account_refresh(&a->account);
+        printf("%s\n", a->account.status);
+        return ok ? SDL_APP_SUCCESS : SDL_APP_FAILURE;
+    }
+    if (sign_out || import) return SDL_APP_SUCCESS;
 
     if (tools_only) {
         uint64_t start = SDL_GetTicks();
@@ -109,20 +137,25 @@ SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
         if (SDL_GetAtomicInt(&a->tools.state) != 1) return SDL_APP_FAILURE;
         if (probe) {
             const char *args[] = { "-f", "251", "--print", "%(title)s | %(artist,uploader)s | format %(format_id)s %(ext)s %(acodec)s %(abr)s kbit/s | %(duration)s s", probe, NULL };
-            SDL_Process *p = tools_ytdlp(&a->tools, args);
+            char jar[1200];
+            bool signed_in = account_jar_file(&a->account, jar, sizeof jar);
+            SDL_Process *p = tools_ytdlp(&a->tools, args, signed_in ? jar : NULL);
             size_t n;
             int code;
             char *out = p ? SDL_ReadProcess(p, &n, &code) : NULL;
-            printf("probe (exit %d): %s", p ? code : -1, out ? out : "\n");
+            char errors[2048];
+            tools_errors(p, errors, sizeof errors, 0);
+            printf("probe (exit %d%s): %s%s", p ? code : -1, signed_in ? ", signed in" : "", out ? out : "\n", errors);
             SDL_free(out);
             SDL_DestroyProcess(p);
+            if (signed_in) account_jar_done(jar);
         }
         return SDL_APP_SUCCESS;
     }
 
     gs_jobs_add(a->jobs, tools_prepare, &a->tools);
     if (wav) {  // offline: the first track, as fast as it arrives
-        a->player = player_new(&a->tools, a->jobs, false);
+        a->player = player_new(&a->tools, &a->account, a->jobs, false);
         if (nurls) player_add(a->player, urls[0]);
         int frames = (int)(seconds * RATE), done = 0;
         float *lr = SDL_calloc((size_t)frames * 2, sizeof *lr);
@@ -153,10 +186,12 @@ SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
     a->audio = !a->shot && gs_mix_open(RATE);
     a->started = SDL_GetTicks();
     a->volume = 1;
-    a->player = player_new(&a->tools, a->jobs, a->audio);
+    a->player = player_new(&a->tools, &a->account, a->jobs, a->audio);
     a->glyphs = gs_glyphs_new(a->ren, 1024);
     a->fonts = gs_fontset_system();
     for (int i = 0; i < nurls; i++) player_add(a->player, urls[i]);
+    if (!a->shot && !demo && account_signed_in(&a->account)) a->next_refresh = SDL_GetTicks();  // renew at launch
+    if (open_signin) sign_in(a);
     if (demo) {
         static const track samples[] = {
             { "d1", "\xE3\x82\xA2\xE3\x82\xA4\xE3\x83\x89\xE3\x83\xAB", "YOASOBI", 213 },                                 // アイドル
@@ -183,11 +218,26 @@ static void paste(app *a, const char *text) {
     if (strstr(s, "youtube.com/") || strstr(s, "youtu.be/")) player_add(a->player, s);
 }
 
+static void note(app *a, const char *msg) {
+    SDL_strlcpy(a->note, msg, sizeof a->note);
+    a->note_until = SDL_GetTicks() + 8000;
+}
+
+static void sign_in(app *a) {
+    if (a->signin) return;
+    char why[200];
+    a->signin = signin_open(a->dir, why, sizeof why);
+    note(a, a->signin ? "Sign in to YouTube Music in the new window" : why);
+}
+
 SDL_AppResult SDL_AppEvent(void *state, SDL_Event *e) {
     app *a = state;
     if (!a->ren) return SDL_APP_CONTINUE;
+    signin_event(a->signin, e);
+    if (e->type >= SDL_EVENT_WINDOW_FIRST && e->type <= SDL_EVENT_WINDOW_LAST && e->window.windowID != SDL_GetWindowID(a->win)) return SDL_APP_CONTINUE;
+    if ((e->type == SDL_EVENT_KEY_DOWN || e->type == SDL_EVENT_MOUSE_BUTTON_DOWN) && e->key.windowID != SDL_GetWindowID(a->win)) return SDL_APP_CONTINUE;
     SDL_ConvertEventToRenderCoordinates(a->ren, e);
-    if (e->type == SDL_EVENT_QUIT) return SDL_APP_SUCCESS;
+    if (e->type == SDL_EVENT_QUIT || e->type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) return SDL_APP_SUCCESS;
     if (e->type == SDL_EVENT_DROP_TEXT) paste(a, e->drop.data);
     if (e->type == SDL_EVENT_KEY_DOWN) {
         bool ctrl = e->key.mod & (SDL_KMOD_CTRL | SDL_KMOD_GUI);
@@ -202,6 +252,7 @@ SDL_AppResult SDL_AppEvent(void *state, SDL_Event *e) {
         case SDLK_RETURN: case SDLK_KP_ENTER: player_play(a->player, a->selected); break;
         case SDLK_MINUS: case SDLK_KP_MINUS: a->volume = fmaxf(0, a->volume - 0.1f), gs_mix_set_volume(a->volume); break;
         case SDLK_EQUALS: case SDLK_PLUS: case SDLK_KP_PLUS: a->volume = fminf(1.5f, a->volume + 0.1f), gs_mix_set_volume(a->volume); break;
+        case SDLK_S: if (!ctrl) sign_in(a); break;
         case SDLK_F1: case SDLK_GRAVE: a->show_stats = !a->show_stats; break;
         }
     } else if (e->type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
@@ -242,6 +293,34 @@ SDL_AppResult SDL_AppIterate(void *state) {
     app *a = state;
     gs_stats_frame_begin(&a->stats);
     if (!a->demo) player_update(a->player);
+    if (a->signin) {  // signing in: done when the page reaches YouTube signed in, or the window is closed
+        char *jar = NULL;
+        int r = signin_poll(a->signin, &jar);
+        if (r) {
+            signin_close(a->signin);
+            a->signin = NULL;
+            if (r > 0 && account_store(&a->account, jar)) {
+                a->next_refresh = SDL_GetTicks() + REFRESH_MS;
+                int cur;
+                player_queue(a->player, NULL, 0, &cur);
+                if (!player_stream(a->player) && cur >= 0) player_play(a->player, cur);  // what YouTube refused, again
+            }
+            note(a, r > 0 ? a->account.status : "Sign-in closed");
+            SDL_free(jar);
+        }
+    }
+    if (a->next_refresh && SDL_GetTicks() >= a->next_refresh) {
+        a->next_refresh = account_signed_in(&a->account) ? SDL_GetTicks() + REFRESH_MS : 0;
+        gs_jobs_add(a->jobs, account_refresh_job, &a->account);
+    }
+    char account_status[160];
+    SDL_LockMutex(a->account.lock);
+    SDL_strlcpy(account_status, a->account.status, sizeof account_status);
+    SDL_UnlockMutex(a->account.lock);
+    if (strcmp(account_status, a->seen)) {
+        if (a->seen[0]) note(a, account_status);
+        SDL_strlcpy(a->seen, account_status, sizeof a->seen);
+    }
     int ow, oh;
     SDL_GetCurrentRenderOutputSize(a->ren, &ow, &oh);
     float u = oh / 560.0f;  // scale everything with the window
@@ -303,7 +382,8 @@ SDL_AppResult SDL_AppIterate(void *state) {
         fit(a, 15 * u, x, ry, w - tw - 16 * u, line, c);
         if (q[i].duration > 0) gs_fontset_draw(a->glyphs, a->fonts, 14 * u, x + w - tw, ry, buf, faint);
     }
-    fit(a, 13 * u, x, oh - 16 * u, w, status[0] ? status : "Ctrl+V link   Space pause   \xE2\x86\x90 \xE2\x86\x92 track   \xE2\x86\x91 \xE2\x86\x93 Enter pick   -/+ volume   F1 stats", faint);
+    const char *footer = SDL_GetTicks() < a->note_until ? a->note : status;
+    fit(a, 13 * u, x, oh - 16 * u, w, footer[0] ? footer : "Ctrl+V link   Space pause   \xE2\x86\x90 \xE2\x86\x92 track   \xE2\x86\x91 \xE2\x86\x93 Enter pick   -/+ volume   S sign in   F1 stats", faint);
 
     gs_stats_frame_end(&a->stats);
     if (a->show_stats) {
@@ -327,6 +407,7 @@ void SDL_AppQuit(void *state, SDL_AppResult result) {
     (void)result;
     if (!a) return;
     gs_mix_close();
+    signin_close(a->signin);
     player_free(a->player);
     if (a->jobs) gs_jobs_wait(a->jobs), gs_jobs_free(a->jobs);
     gs_fontset_free(a->fonts);

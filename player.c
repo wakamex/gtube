@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "account.h"
 #include "gs_mix.h"
 #include "gs_opus.h"
 #include "gs_webm.h"
@@ -20,14 +21,18 @@ typedef struct {
     SDL_AtomicInt stop, got_audio, failed;
     gs_opus *opus;
     gs_webm *webm;
-    bool bad;
+    bool bad, signed_in;
     int preskip;
     double duration;
-    char url[256];
+    char url[256], cookies[1200];
+    char errors[2048];
+    size_t nerrors;
 } playback;
 
 struct player {
     tools *tools;
+    account *account;
+    SDL_AtomicInt use_cookies;  // YouTube asked for a sign-in this session: skip the anonymous try
     gs_jobs *jobs;
     bool audio;
     SDL_Mutex *lock;  // guards the queue and status
@@ -51,6 +56,50 @@ static void set_status(player *p, const char *fmt, const char *arg) {
     SDL_UnlockMutex(p->lock);
 }
 
+// Runs yt-dlp to completion, collecting its output and error output (read together, so neither
+// pipe fills and stalls it). Returns the output, malloc'd, or NULL.
+static char *collect(player *p, const char *const *args, const char *cookies, char *errors, size_t esize, int *code) {
+    SDL_Process *proc = tools_ytdlp(p->tools, args, cookies);
+    errors[0] = 0;
+    *code = -1;
+    if (!proc) return NULL;
+    SDL_IOStream *out = SDL_GetProcessOutput(proc);
+    size_t n = 0, cap = 65536, used = 0;
+    char *data = malloc(cap);
+    for (;;) {
+        if (n + 4096 > cap) data = realloc(data, cap *= 2);
+        size_t got = SDL_ReadIO(out, data + n, cap - n - 1);
+        used = tools_errors(proc, errors, esize, used);
+        if (got) { n += got; continue; }
+        if (SDL_GetIOStatus(out) != SDL_IO_STATUS_NOT_READY) break;
+        SDL_Delay(5);
+    }
+    data[n] = 0;
+    SDL_WaitProcess(proc, true, code);
+    tools_errors(proc, errors, esize, used);
+    SDL_DestroyProcess(proc);
+    return data;
+}
+
+// Runs yt-dlp anonymously, then once more signed in if YouTube refused it without a session.
+static char *collect_signed(player *p, const char *const *args, char *errors, size_t esize, int *code) {
+    char *out = NULL;
+    if (!SDL_GetAtomicInt(&p->use_cookies) || !account_signed_in(p->account)) {
+        out = collect(p, args, NULL, errors, esize, code);
+        if (!account_needed(errors)) return out;
+        SDL_free(out), out = NULL;
+        SDL_SetAtomicInt(&p->use_cookies, 1);
+    }
+    char jar[1200];
+    if (!account_jar_file(p->account, jar, sizeof jar)) {
+        SDL_strlcpy(errors, "YouTube wants a signed-in session: press S to sign in", esize);
+        return NULL;
+    }
+    out = collect(p, args, jar, errors, esize, code);
+    account_jar_done(jar);
+    return out;
+}
+
 static void list_tracks(void *user) {
     list_job *j = user;
     player *p = j->p;
@@ -59,11 +108,10 @@ static void list_tracks(void *user) {
         set_status(p, "%s", p->tools->status);
     } else {
         const char *args[] = { "--flat-playlist", "--print", "%(id)s\t%(title)s\t%(artist,uploader,channel)s\t%(duration)s", j->url, NULL };
-        SDL_Process *proc = tools_ytdlp(p->tools, args);
-        size_t n = 0;
-        int code = -1;
-        char *out = proc ? SDL_ReadProcess(proc, &n, &code) : NULL;
-        SDL_DestroyProcess(proc);
+        char errors[2048];
+        int code;
+        char *out = collect_signed(p, args, errors, sizeof errors, &code);
+        if (errors[0]) SDL_Log("yt-dlp: %s", errors);
         int added = 0;
         SDL_LockMutex(p->lock);
         for (char *line = out ? strtok(out, "\n") : NULL; line; line = strtok(NULL, "\n")) {
@@ -81,13 +129,11 @@ static void list_tracks(void *user) {
             t->duration = f[3] && strcmp(f[3], "NA") ? SDL_atof(f[3]) : 0;
             added++;
         }
-        if (!added) SDL_snprintf(p->status, sizeof p->status, "no tracks found at that link (yt-dlp exit %d)", code);
-        else SDL_snprintf(p->status, sizeof p->status, "added %d track%s", added, added == 1 ? "" : "s");
-        p->listing--;
+        if (added) SDL_snprintf(p->status, sizeof p->status, "added %d track%s", added, added == 1 ? "" : "s");
+        else if (account_needed(errors) || strstr(errors, "press S")) SDL_strlcpy(p->status, "YouTube wants a signed-in session: press S to sign in", sizeof p->status);
+        else SDL_snprintf(p->status, sizeof p->status, "no tracks found at that link (yt-dlp exit %d)", code);
         SDL_UnlockMutex(p->lock);
         SDL_free(out);
-        free(j);
-        return;
     }
     SDL_LockMutex(p->lock);
     p->listing--;
@@ -170,6 +216,7 @@ static int SDLCALL play_thread(void *user) {
     bool bad = !out;
     while (!bad && !SDL_GetAtomicInt(&pb->stop)) {
         size_t n = SDL_ReadIO(out, buf, 65536);
+        pb->nerrors = tools_errors(pb->proc, pb->errors, sizeof pb->errors, pb->nerrors);
         if (!n) {
             SDL_IOStatus st = SDL_GetIOStatus(out);
             if (st == SDL_IO_STATUS_NOT_READY) { SDL_Delay(5); continue; }
@@ -178,6 +225,9 @@ static int SDLCALL play_thread(void *user) {
         if (!gs_webm_feed(w, buf, n) || pb->bad) bad = true;
     }
     free(buf);
+    if (pb->proc && !SDL_GetAtomicInt(&pb->stop)) SDL_WaitProcess(pb->proc, true, NULL);
+    pb->nerrors = tools_errors(pb->proc, pb->errors, sizeof pb->errors, pb->nerrors);
+    if (pb->errors[0] && !SDL_GetAtomicInt(&pb->stop)) SDL_Log("yt-dlp: %s", pb->errors);
     gs_webm_free(w);
     pb->webm = NULL;
     if (bad || !SDL_GetAtomicInt(&pb->got_audio)) SDL_SetAtomicInt(&pb->failed, 1);
@@ -195,12 +245,13 @@ static void stop_playback(player *p) {
     if (pb->proc) SDL_KillProcess(pb->proc, true);
     SDL_WaitThread(pb->thread, NULL);
     SDL_DestroyProcess(pb->proc);
+    if (pb->cookies[0]) account_jar_done(pb->cookies);
     gs_opus_free(pb->opus);
     gs_stream_free(pb->stream);
     free(pb);
 }
 
-void player_play(player *p, int index) {
+static void play(player *p, int index, bool signed_in) {
     stop_playback(p);
     SDL_LockMutex(p->lock);
     if (index < 0 || index >= p->n) { SDL_UnlockMutex(p->lock); return; }
@@ -213,11 +264,14 @@ void player_play(player *p, int index) {
     pb->stream = gs_stream_new(RATE, 8, 0.4);
     // yt-dlp starts here, not on the thread, so stopping can always kill it.
     const char *args[] = { "-f", "251/bestaudio[acodec=opus]", "-o", "-", "--quiet", pb->url, NULL };
-    pb->proc = SDL_GetAtomicInt(&p->tools->state) == 1 ? tools_ytdlp(p->tools, args) : NULL;
+    pb->signed_in = signed_in && account_jar_file(p->account, pb->cookies, sizeof pb->cookies);
+    pb->proc = SDL_GetAtomicInt(&p->tools->state) == 1 ? tools_ytdlp(p->tools, args, pb->signed_in ? pb->cookies : NULL) : NULL;
     pb->thread = SDL_CreateThread(play_thread, "gtube play", pb);
     p->now = pb;
     if (p->audio) gs_mix_add(gs_stream_render, pb->stream);
 }
+
+void player_play(player *p, int index) { play(p, index, SDL_GetAtomicInt(&p->use_cookies)); }
 
 void player_next(player *p) {
     if (p->current + 1 < p->n) player_play(p, p->current + 1);
@@ -241,7 +295,20 @@ void player_update(player *p) {
         return;
     }
     if (p->now && gs_stream_finished(p->now->stream)) {
-        if (SDL_GetAtomicInt(&p->now->failed)) set_status(p, "could not play %s; skipping", p->queue[p->current].title);
+        playback *pb = p->now;
+        if (SDL_GetAtomicInt(&pb->failed) && account_needed(pb->errors)) {
+            SDL_SetAtomicInt(&p->use_cookies, 1);
+            if (!pb->signed_in && account_signed_in(p->account)) {  // once more, signed in
+                play(p, p->current, true);
+                return;
+            }
+            if (!account_signed_in(p->account)) {
+                set_status(p, "%s", "YouTube wants a signed-in session: press S to sign in");
+                stop_playback(p);
+                return;
+            }
+        }
+        if (SDL_GetAtomicInt(&pb->failed)) set_status(p, "could not play %s; skipping", p->queue[p->current].title);
         if (p->current + 1 < n) player_play(p, p->current + 1);
         else stop_playback(p);
     }
@@ -249,9 +316,9 @@ void player_update(player *p) {
 
 // ---- Setup and display ----
 
-player *player_new(tools *t, gs_jobs *jobs, bool audio) {
+player *player_new(tools *t, account *a, gs_jobs *jobs, bool audio) {
     player *p = calloc(1, sizeof *p);
-    p->tools = t, p->jobs = jobs, p->audio = audio;
+    p->tools = t, p->account = a, p->jobs = jobs, p->audio = audio;
     p->lock = SDL_CreateMutex();
     p->queue = calloc(MAX_TRACKS, sizeof *p->queue);
     p->current = -1;
@@ -270,7 +337,7 @@ void player_free(player *p) {
 int player_queue(player *p, track *out, int max, int *current) {
     SDL_LockMutex(p->lock);
     int n = p->n < max ? p->n : max;
-    memcpy(out, p->queue, sizeof *out * (size_t)n);
+    if (n > 0) memcpy(out, p->queue, sizeof *out * (size_t)n);
     *current = p->current;
     SDL_UnlockMutex(p->lock);
     return n;

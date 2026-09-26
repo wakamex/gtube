@@ -4,6 +4,7 @@
 #include <SDL3/SDL.h>
 #include <stdbool.h>
 
+#include "account.h"
 #include "gs_jobs.h"
 #include "gs_stream.h"
 #include "tools.h"
@@ -15,7 +16,7 @@ typedef struct {
 
 typedef struct player player;
 
-player *player_new(tools *t, gs_jobs *jobs, bool audio);
+player *player_new(tools *t, account *a, gs_jobs *jobs, bool audio);
 void player_free(player *p);
 void player_add(player *p, const char *url);  // lists the link's tracks in the background, then plays if idle
 void player_add_track(player *p, const track *t);  // (for display tests: queues without listing or playing)

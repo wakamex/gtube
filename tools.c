@@ -76,15 +76,23 @@ static SDL_Environment *trimmed_env(void) {
     return env;
 }
 
-static SDL_Process *start(const char *const *args, bool pipe) {
+SDL_Process *tools_spawn(SDL_PropertiesID props) {
+    static SDL_SpinLock lock;
+    SDL_LockSpinlock(&lock);
+    SDL_Process *proc = SDL_CreateProcessWithProperties(props);
+    SDL_UnlockSpinlock(&lock);
+    return proc;
+}
+
+static SDL_Process *start(const char *const *args, bool pipe, bool errors) {
     SDL_Environment *env = trimmed_env();
     SDL_PropertiesID p = SDL_CreateProperties();
     SDL_SetPointerProperty(p, SDL_PROP_PROCESS_CREATE_ARGS_POINTER, (void *)args);
     SDL_SetPointerProperty(p, SDL_PROP_PROCESS_CREATE_ENVIRONMENT_POINTER, env);
     SDL_SetNumberProperty(p, SDL_PROP_PROCESS_CREATE_STDIN_NUMBER, SDL_PROCESS_STDIO_NULL);
     SDL_SetNumberProperty(p, SDL_PROP_PROCESS_CREATE_STDOUT_NUMBER, pipe ? SDL_PROCESS_STDIO_APP : SDL_PROCESS_STDIO_NULL);
-    SDL_SetNumberProperty(p, SDL_PROP_PROCESS_CREATE_STDERR_NUMBER, SDL_PROCESS_STDIO_INHERITED);
-    SDL_Process *proc = SDL_CreateProcessWithProperties(p);
+    SDL_SetNumberProperty(p, SDL_PROP_PROCESS_CREATE_STDERR_NUMBER, errors ? SDL_PROCESS_STDIO_APP : SDL_PROCESS_STDIO_INHERITED);
+    SDL_Process *proc = tools_spawn(p);
     SDL_DestroyProperties(p);
     SDL_DestroyEnvironment(env);
     return proc;
@@ -92,7 +100,7 @@ static SDL_Process *start(const char *const *args, bool pipe) {
 
 // Runs a program to completion; its output (if wanted) is returned malloc'd. True on exit code 0.
 static bool run(const char *const *args, char **out) {
-    SDL_Process *proc = start(args, true);
+    SDL_Process *proc = start(args, true, false);
     if (!proc) return false;
     size_t n;
     int code = -1;
@@ -270,14 +278,24 @@ void tools_prepare(void *arg) {
     SDL_SetAtomicInt(&t->state, 1);
 }
 
-SDL_Process *tools_ytdlp(tools *t, const char *const *args) {
+SDL_Process *tools_ytdlp(tools *t, const char *const *args, const char *cookies) {
     const char *all[64];
     int n = 0;
     all[n++] = t->ytdlp;
     all[n++] = "--js-runtimes";
     all[n++] = t->js;
     all[n++] = "--no-warnings";
+    if (cookies) all[n++] = "--cookies", all[n++] = cookies;
     for (int i = 0; args[i] && n < 63; i++) all[n++] = args[i];
     all[n] = NULL;
-    return start(all, true);
+    return start(all, true, true);
+}
+
+size_t tools_errors(SDL_Process *proc, char *out, size_t size, size_t used) {
+    SDL_IOStream *err = proc ? SDL_GetPointerProperty(SDL_GetProcessProperties(proc), SDL_PROP_PROCESS_STDERR_POINTER, NULL) : NULL;
+    char scratch[4096];
+    for (size_t n; err && (n = SDL_ReadIO(err, used + 1 < size ? out + used : scratch, used + 1 < size ? size - 1 - used : sizeof scratch));)
+        if (used + 1 < size) used += n;
+    if (size) out[used] = 0;
+    return used;
 }

@@ -15,7 +15,16 @@ typedef struct {
     SDL_AtomicInt state;  // 0 working, 1 ready, -1 failed (status says why)
 } tools;
 
+// Every program the app starts goes through here. On Windows a child inherits every inheritable
+// handle open at that moment, including another thread's half-made pipes, which then never report
+// end of output; starting one process at a time closes that window.
+SDL_Process *tools_spawn(SDL_PropertiesID props);
+
 void tools_init(tools *t, const char *dir);
 void tools_prepare(void *t);  // blocking; a gs_job_fn
-// Starts yt-dlp with `args` (NULL-terminated, without the program), its output piped to the caller.
-SDL_Process *tools_ytdlp(tools *t, const char *const *args);
+// Starts yt-dlp with `args` (NULL-terminated, without the program), signed in with a Netscape
+// `cookies` file if not NULL. Its output and error output are piped to the caller.
+SDL_Process *tools_ytdlp(tools *t, const char *const *args, const char *cookies);
+// Appends what yt-dlp has written to its error output so far to out[used..], which stays a string
+// (the rest is drained and dropped when full, so the pipe never blocks yt-dlp). Returns the new length.
+size_t tools_errors(SDL_Process *proc, char *out, size_t size, size_t used);
