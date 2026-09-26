@@ -79,6 +79,34 @@ static char *load_bytes(account *a) {
 #endif
 }
 
+// ---- Throwaway copies for yt-dlp and curl ----
+
+typedef struct { const char *dir; SDL_Time before; } sweep_ctx;
+
+static SDL_EnumerationResult SDLCALL sweep_one(void *user, const char *dir, const char *name) {
+    sweep_ctx *c = user;
+    size_t n = strlen(name);
+    if (strncmp(name, "run-", 4) || n < 8 || strcmp(name + n - 4, ".txt")) return SDL_ENUM_CONTINUE;
+    char path[1300];
+    SDL_PathInfo info;
+    snprintf(path, sizeof path, "%s%s", dir, name);
+    if (SDL_GetPathInfo(path, &info) && info.modify_time < c->before) SDL_RemovePath(path);
+    return SDL_ENUM_CONTINUE;
+}
+
+// Removes copies last written more than `age_s` ago. Each copy is deleted when its run ends, but
+// yt-dlp's release build is a launcher and a child: stopping a track ends the launcher, and the
+// child exits a moment later, saving the cookie file again after it was deleted. yt-dlp reads its
+// copy within seconds of starting, so an old copy is never still needed.
+static void sweep(account *a, double age_s) {
+    char dir[1200];
+    snprintf(dir, sizeof dir, "%saccount", a->dir);
+    sweep_ctx c = { dir, 0 };
+    SDL_GetCurrentTime(&c.before);
+    c.before -= (SDL_Time)(age_s * 1e9);
+    SDL_EnumerateDirectory(dir, sweep_one, &c);
+}
+
 // ---- The session ----
 
 static bool has_session(const char *jar) {
@@ -90,6 +118,7 @@ void account_init(account *a, const char *data_dir) {
     memset(a, 0, sizeof *a);
     SDL_strlcpy(a->dir, data_dir, sizeof a->dir);
     a->lock = SDL_CreateMutex();
+    sweep(a, 0);  // anything a previous run left
     char *jar = load_bytes(a);
     if (has_session(jar)) a->jar = jar, say(a, "signed in");
     else SDL_free(jar), say(a, "not signed in");
@@ -137,6 +166,7 @@ bool account_jar_file(account *a, char *path, size_t size) {
     SDL_LockMutex(a->lock);
     bool ok = a->jar != NULL;
     if (ok) {
+        sweep(a, 60);
         char dir[1200];
         snprintf(dir, sizeof dir, "%saccount", a->dir);
         SDL_CreateDirectory(dir);
