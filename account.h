@@ -28,6 +28,9 @@ bool account_import(account *a, const char *netscape_file);  // a cookies.txt ex
 bool account_jar_file(account *a, char *path, size_t size);
 void account_jar_done(const char *path);
 
+// A youtube.com cookie's value (such as SAPISID, for signing API requests); false if absent.
+bool account_cookie(account *a, const char *name, char *out, size_t size);
+
 // Renews the session (blocking; run it as a job). False, and signed out, if Google refused it.
 bool account_refresh(account *a);
 void account_refresh_job(void *a);  // a gs_job_fn that skips if a refresh is already running

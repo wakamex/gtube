@@ -171,6 +171,18 @@ void player_add_track(player *p, const track *t) {
     SDL_UnlockMutex(p->lock);
 }
 
+void player_set_queue(player *p, const track *tracks, int n, int start) {
+    if (n > MAX_TRACKS) n = MAX_TRACKS;
+    if (start < 0 || start >= n) return;
+    SDL_LockMutex(p->lock);
+    bool same = p->now && p->current >= 0 && !strcmp(p->queue[p->current].id, tracks[start].id);
+    memcpy(p->queue, tracks, sizeof *tracks * (size_t)n);
+    p->n = n;
+    if (same) p->current = start;
+    SDL_UnlockMutex(p->lock);
+    if (!same) player_play(p, start);
+}
+
 // ---- Playing a track ----
 
 static void on_frame(void *user, const uint8_t *data, size_t len, double seconds) {

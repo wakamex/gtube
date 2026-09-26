@@ -188,17 +188,6 @@ bool account_needed(const char *e) {
 
 // ---- Keeping it alive ----
 
-static const char *curl_program(void) {
-#ifdef _WIN32
-    static char p[512];
-    const char *root = SDL_getenv("SystemRoot");
-    snprintf(p, sizeof p, "%s\\System32\\curl.exe", root ? root : "C:\\Windows");
-    return p;
-#else
-    return SDL_GetPathInfo("/usr/bin/curl", NULL) ? "/usr/bin/curl" : "/bin/curl";
-#endif
-}
-
 // Runs curl with a cookie jar it reads and rewrites; returns the HTTP status, or 0.
 static int curl_status(const char *const *args) {
     SDL_PropertiesID p = SDL_CreateProperties();
@@ -236,8 +225,16 @@ static void cookie_value(const char *jar, const char *domain_suffix, const char 
     }
 }
 
+bool account_cookie(account *a, const char *name, char *out, size_t size) {
+    SDL_LockMutex(a->lock);
+    cookie_value(a->jar, "youtube.com", name, out, size);
+    SDL_UnlockMutex(a->lock);
+    return out[0] != 0;
+}
+
 bool account_refresh(account *a) {
-    char jar[1200];
+    char jar[1200], curl[512];
+    tools_program("curl", curl, sizeof curl);
     if (!account_jar_file(a, jar, sizeof jar)) return false;
     char before[512], after_google[512], after_youtube[512];
     SDL_LockMutex(a->lock);
@@ -245,12 +242,12 @@ bool account_refresh(account *a) {
     SDL_UnlockMutex(a->lock);
 
     // 1. Renew the session's short-lived cookies at accounts.google.com.
-    const char *rotate[] = { curl_program(), "-sS", "-o", NULL_DEVICE, "-w", "%{http_code}", "-b", jar, "-c", jar, "-A", USER_AGENT,
+    const char *rotate[] = { curl, "-sS", "-o", NULL_DEVICE, "-w", "%{http_code}", "-b", jar, "-c", jar, "-A", USER_AGENT,
         "-H", "Content-Type: application/json", "-H", "Origin: https://accounts.google.com",
         "--data", "[000,\"-0000000000000000000\"]", "https://accounts.google.com/RotateCookies", NULL };
     int status = curl_status(rotate);
     // 2. Carry the renewed session over to youtube.com (the redirect chain ends at accounts.youtube.com/SetSID).
-    const char *carry[] = { curl_program(), "-sS", "-L", "-o", NULL_DEVICE, "-w", "%{http_code}", "-b", jar, "-c", jar, "-A", USER_AGENT, PASSIVE_SIGNIN, NULL };
+    const char *carry[] = { curl, "-sS", "-L", "-o", NULL_DEVICE, "-w", "%{http_code}", "-b", jar, "-c", jar, "-A", USER_AGENT, PASSIVE_SIGNIN, NULL };
     int status2 = status == 200 ? curl_status(carry) : 0;
 
     char *text = SDL_LoadFile(jar, NULL);

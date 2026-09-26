@@ -115,22 +115,26 @@ static bool exists(const char *path) {
     return SDL_GetPathInfo(path, &info) && info.type == SDL_PATHTYPE_FILE;
 }
 
-// A system program by full path, so the launcher never searches the user's PATH for it.
+void tools_program(const char *name, char *out, size_t size) {
+#ifdef _WIN32
+    const char *root = SDL_getenv("SystemRoot");
+    snprintf(out, size, "%s\\System32\\%s.exe", root ? root : "C:\\Windows", name);
+#else
+    static const char *const dirs[] = { "/usr/local/bin", "/usr/bin", "/bin" };
+    for (int i = 0; i < 3; i++) {
+        snprintf(out, size, "%s/%s", dirs[i], name);
+        if (exists(out)) return;
+    }
+    snprintf(out, size, "%s", name);
+#endif
+}
+
+// (for tools_prepare's own steps, which run one at a time)
 static const char *system_program(const char *name) {
     static char p[4][512];
     static int k;
     char *out = p[k++ % 4];
-#ifdef _WIN32
-    const char *root = SDL_getenv("SystemRoot");
-    snprintf(out, 512, "%s\\System32\\%s.exe", root ? root : "C:\\Windows", name);
-#else
-    static const char *const dirs[] = { "/usr/local/bin", "/usr/bin", "/bin" };
-    for (int i = 0; i < 3; i++) {
-        snprintf(out, 512, "%s/%s", dirs[i], name);
-        if (exists(out)) return out;
-    }
-    snprintf(out, 512, "%s", name);
-#endif
+    tools_program(name, out, 512);
     return out;
 }
 

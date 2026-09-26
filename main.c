@@ -8,10 +8,15 @@
 //   --shot F.png [--at S]                       render one frame at S seconds, headless, and quit
 //   --import-cookies FILE                       sign in with a cookies.txt exported from a browser
 //   --refresh                                   renew the saved session once, report, and quit
+//   --api search|albums|playlists|browse|radio ARG   print one YouTube Music API answer (every page for browse)
+//   --view 1-4, --search QUERY, --radio VIDEO   start on a view, with a search, or playing a radio
 //   --sign-in                                   open the sign-in window at start
 //   --sign-out                                  forget the saved session
-// Keys: Ctrl+V pastes a link, Space pauses, Left/Right previous/next, Up/Down and Enter or a click
-// pick a track, -/+ volume, S signs in (only needed when YouTube asks), F1 performance overlay, Esc quits.
+// Views: 1 queue, 2 liked music, 3 playlists, 4 search (/ or Ctrl+F types a search). Up/Down, Page
+// Up/Down, Home/End and Enter or a click pick; a song plays its whole list from there, an album or
+// playlist opens (Esc or Backspace goes back). R starts a radio from the selected song, L likes or
+// unlikes it. Space pauses, Left/Right previous/next, Ctrl+V pastes a link, -/+ volume, S signs in,
+// F1 performance overlay. Closing the window quits.
 #define SDL_MAIN_USE_CALLBACKS
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
@@ -26,6 +31,8 @@
 #include "gs_text.h"
 #include "stb_image_write.h"
 #include "account.h"
+#include "api.h"
+#include "library.h"
 #include "player.h"
 #include "signin.h"
 #include "tools.h"
@@ -33,8 +40,19 @@
 #define RATE 48000
 #define REFRESH_MS (10 * 60 * 1000)  // how often a signed-in session is renewed
 
+enum { V_QUEUE, V_LIKED, V_PLAYLISTS, V_SEARCH, V_OPEN, VIEWS };
+
 typedef struct {
     tools tools;
+    library library;
+    int view, back;  // the view shown, and the one an opened album or playlist goes back to
+    int selected[VIEWS], scroll[VIEWS], visible;
+    uint64_t wheel_until;
+    bool typing;     // the search box has the keyboard
+    char query[256];
+    bool radio;      // the queue is a radio, extended as it plays
+    int radio_gen, radio_taken;
+    SDL_FRect tabs[4], header;
     account account;
     signin *signin;
     char dir[1024];
@@ -54,12 +72,36 @@ typedef struct {
     double shot_at;
     uint64_t started;
     float volume;
-    int selected, scroll;
     SDL_FRect rows[64];
-    int row_track[64], nrows;
+    int row_index[64], nrows;
 } app;
 
 static void sign_in(app *a);
+static void start_radio(app *a);
+
+static bool api_test(account *acc, const char *kind, const char *arg) {
+    static const char *const kinds[] = { "song", "album", "playlist", "heading" };
+    page pg;
+    char more[2048] = "";
+    int total = 0, pages = 0;
+    uint64_t start = SDL_GetTicks();
+    do {
+        bool ok = !strcmp(kind, "search") ? api_search(acc, arg, SEARCH_SONGS, &pg)
+                : !strcmp(kind, "albums") ? api_search(acc, arg, SEARCH_ALBUMS, &pg)
+                : !strcmp(kind, "playlists") ? api_search(acc, arg, SEARCH_PLAYLISTS, &pg)
+                : !strcmp(kind, "radio") ? api_radio(acc, arg, more[0] ? more : NULL, &pg)
+                : api_browse(acc, arg, more[0] ? more : NULL, &pg);
+        if (!ok) { printf("failed: %s\n", pg.error); page_free(&pg); return false; }
+        for (int i = 0; i < pg.n; i++, total++)
+            if (total < 8 || i == pg.n - 1)
+                printf("%4d %-8s %-24s %s | %s | %.0f s\n", total, kinds[pg.items[i].kind], pg.items[i].id, pg.items[i].title, pg.items[i].artist, pg.items[i].duration);
+        SDL_strlcpy(more, !strcmp(kind, "browse") || (!strcmp(kind, "radio") && pages < 2) ? pg.more : "", sizeof more);
+        pages++;
+        page_free(&pg);
+    } while (more[0]);
+    printf("%d items in %d page%s, %.2f s\n", total, pages, pages == 1 ? "" : "s", (SDL_GetTicks() - start) / 1000.0);
+    return true;
+}
 
 static void data_dir(const char *data, char *out, size_t size) {
 #ifdef _WIN32
@@ -96,7 +138,7 @@ static bool write_wav(const char *path, const float *lr, int frames) {
 SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
     app *a = SDL_calloc(1, sizeof *a);
     *state = a;
-    const char *data = NULL, *probe = NULL, *wav = NULL, *import = NULL, *urls[16];
+    const char *data = NULL, *probe = NULL, *wav = NULL, *import = NULL, *api_kind = NULL, *api_arg = NULL, *radio = NULL, *urls[16];
     int nurls = 0;
     double seconds = 30;
     bool tools_only = false, demo = false, refresh = false, sign_out = false, open_signin = false;
@@ -113,13 +155,21 @@ SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
         else if (!strcmp(argv[i], "--refresh")) refresh = true;
         else if (!strcmp(argv[i], "--sign-out")) sign_out = true;
         else if (!strcmp(argv[i], "--sign-in")) open_signin = true;
+        else if (!strcmp(argv[i], "--view") && i + 1 < argc) {
+            int v = SDL_atoi(argv[++i]) - 1;  // (SDL_clamp is a macro that evaluates its argument more than once)
+            a->view = SDL_clamp(v, 0, 3);
+        }
+        else if (!strcmp(argv[i], "--search") && i + 1 < argc) SDL_strlcpy(a->query, argv[++i], sizeof a->query), a->view = V_SEARCH;
+        else if (!strcmp(argv[i], "--radio") && i + 1 < argc) radio = argv[++i];
+        else if (!strcmp(argv[i], "--api") && i + 2 < argc) api_kind = argv[++i], api_arg = argv[++i];
         else if (nurls < 16) urls[nurls++] = argv[i];
     }
     char *dir = a->dir;
     data_dir(data, dir, sizeof a->dir);
     tools_init(&a->tools, dir);
     account_init(&a->account, dir);
-    a->jobs = gs_jobs_new(2);
+    a->jobs = gs_jobs_new(4);
+    library_init(&a->library, &a->account, a->jobs);
     if (sign_out) account_sign_out(&a->account);
     if (import && !account_import(&a->account, import)) return printf("%s\n", a->account.status), SDL_APP_FAILURE;
     if (refresh) {
@@ -128,6 +178,7 @@ SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
         return ok ? SDL_APP_SUCCESS : SDL_APP_FAILURE;
     }
     if (sign_out || import) return SDL_APP_SUCCESS;
+    if (api_kind) return api_test(&a->account, api_kind, api_arg) ? SDL_APP_SUCCESS : SDL_APP_FAILURE;
 
     if (tools_only) {
         uint64_t start = SDL_GetTicks();
@@ -192,6 +243,15 @@ SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
     for (int i = 0; i < nurls; i++) player_add(a->player, urls[i]);
     if (!a->shot && !demo && account_signed_in(&a->account)) a->next_refresh = SDL_GetTicks();  // renew at launch
     if (open_signin) sign_in(a);
+    if (!demo && account_signed_in(&a->account)) library_signed_in(&a->library);
+    if (a->query[0]) library_search(&a->library, a->query);
+    if (radio) {
+        track seed = { 0 };
+        SDL_strlcpy(seed.id, radio, sizeof seed.id);
+        player_add_track(a->player, &seed);
+        a->selected[V_QUEUE] = 0;
+        start_radio(a);
+    }
     if (demo) {
         static const track samples[] = {
             { "d1", "\xE3\x82\xA2\xE3\x82\xA4\xE3\x83\x89\xE3\x83\xAB", "YOASOBI", 213 },                                 // アイドル
@@ -230,6 +290,158 @@ static void sign_in(app *a) {
     note(a, a->signin ? "Sign in to YouTube Music in the new window" : why);
 }
 
+// ---- Views ----
+
+static const int view_shelf[VIEWS] = { -1, SHELF_LIKED, SHELF_PLAYLISTS, SHELF_SEARCH, SHELF_OPEN };
+static track queue_copy[2000];
+
+static void song_from_track(const track *t, item *out) {
+    memset(out, 0, sizeof *out);
+    out->kind = ITEM_SONG, out->duration = t->duration;
+    SDL_strlcpy(out->id, t->id, sizeof out->id);
+    SDL_strlcpy(out->title, t->title, sizeof out->title);
+    SDL_strlcpy(out->artist, t->artist, sizeof out->artist);
+}
+
+static void track_from_song(const item *s, track *out) {
+    memset(out, 0, sizeof *out);
+    out->duration = s->duration;
+    SDL_strlcpy(out->id, s->id, sizeof out->id);
+    SDL_strlcpy(out->title, s->title, sizeof out->title);
+    SDL_strlcpy(out->artist, s->artist, sizeof out->artist);
+}
+
+// The song selected in the current view, or else the one playing.
+static bool chosen_song(app *a, item *out) {
+    int cur, n = player_queue(a->player, queue_copy, 2000, &cur), sel = a->selected[a->view];
+    if (a->view == V_QUEUE && sel < n) return song_from_track(&queue_copy[sel], out), true;
+    if (a->view != V_QUEUE) {
+        library *l = &a->library;
+        SDL_LockMutex(l->lock);
+        shelf *s = &l->shelves[view_shelf[a->view]];
+        bool ok = sel < s->n && s->items[sel].kind == ITEM_SONG;
+        if (ok) *out = s->items[sel];
+        SDL_UnlockMutex(l->lock);
+        if (ok) return true;
+    }
+    if (cur >= 0 && cur < n) return song_from_track(&queue_copy[cur], out), true;
+    return false;
+}
+
+static void show(app *a, int view) {
+    a->view = view;
+    a->typing = false;
+    SDL_StopTextInput(a->win);
+}
+
+static void start_typing(app *a) {
+    a->view = V_SEARCH, a->typing = true;
+    SDL_StartTextInput(a->win);
+}
+
+// Enter or a click on row i: play a song (its whole list becomes the queue), or open an album or playlist.
+static void activate(app *a, int i) {
+    if (a->view == V_QUEUE) { player_play(a->player, i); return; }
+    library *l = &a->library;
+    SDL_LockMutex(l->lock);
+    shelf *s = &l->shelves[view_shelf[a->view]];
+    if (i < 0 || i >= s->n) { SDL_UnlockMutex(l->lock); return; }
+    item it = s->items[i];
+    track *tracks = NULL;
+    int n = 0, start = 0;
+    if (it.kind == ITEM_SONG) {
+        tracks = SDL_malloc(sizeof *tracks * (size_t)s->n);
+        for (int k = 0; k < s->n; k++)
+            if (s->items[k].kind == ITEM_SONG) {
+                if (k == i) start = n;
+                track_from_song(&s->items[k], &tracks[n++]);
+            }
+    }
+    SDL_UnlockMutex(l->lock);
+    if (tracks) {
+        a->radio = false;
+        player_set_queue(a->player, tracks, n, start);
+        SDL_free(tracks);
+    } else if (it.kind == ITEM_ALBUM || it.kind == ITEM_PLAYLIST) {
+        if (a->view != V_OPEN) a->back = a->view;
+        library_open(l, SHELF_OPEN, it.id, it.title);
+        a->selected[V_OPEN] = a->scroll[V_OPEN] = 0;
+        show(a, V_OPEN);
+    }
+}
+
+static void start_radio(app *a) {
+    item song;
+    if (!chosen_song(a, &song)) { note(a, "Pick a song to start a radio from"); return; }
+    library_radio(&a->library, song.id, song.title);
+    SDL_LockMutex(a->library.lock);
+    a->radio_gen = a->library.shelves[SHELF_RADIO].gen;
+    SDL_UnlockMutex(a->library.lock);
+    a->radio = true, a->radio_taken = 0;
+    char msg[320];
+    snprintf(msg, sizeof msg, "Radio from %s", song.title[0] ? song.title : "this song");
+    note(a, msg);
+    show(a, V_QUEUE);
+}
+
+static void toggle_like(app *a) {
+    item song;
+    if (!account_signed_in(&a->account)) { note(a, "Sign in (S) to like songs"); return; }
+    if (!chosen_song(a, &song)) return;
+    SDL_LockMutex(a->library.lock);
+    bool liked = library_liked(&a->library, song.id);
+    SDL_UnlockMutex(a->library.lock);
+    library_like(&a->library, &song, !liked);
+    char msg[320];
+    snprintf(msg, sizeof msg, "%s %s", liked ? "Unliked" : "Liked", song.title);
+    note(a, msg);
+}
+
+// Moves a radio's newly loaded tracks into the queue, and asks for more near its end.
+static void follow_radio(app *a) {
+    library *l = &a->library;
+    SDL_LockMutex(l->lock);
+    shelf *s = &l->shelves[SHELF_RADIO];
+    int from = a->radio_taken, n = s->gen == a->radio_gen ? s->n : 0;
+    track *fresh = n > from ? SDL_malloc(sizeof *fresh * (size_t)(n - from)) : NULL;
+    for (int i = from; i < n; i++) track_from_song(&s->items[i], &fresh[i - from]);
+    if (n && !s->title[0]) SDL_strlcpy(s->title, s->items[0].title, sizeof s->title);  // started from a bare link
+    char error[160];
+    SDL_strlcpy(error, !n && !s->loading ? s->error : "", sizeof error);
+    SDL_UnlockMutex(l->lock);
+    if (fresh) {
+        if (from == 0) player_set_queue(a->player, fresh, n, 0);
+        else for (int i = 0; i < n - from; i++) player_add_track(a->player, &fresh[i]);
+        a->radio_taken = n;
+        SDL_free(fresh);
+    }
+    if (error[0]) {
+        note(a, error);
+        a->radio = false;
+        return;
+    }
+    int cur, len = player_queue(a->player, queue_copy, 2000, &cur);
+    if (a->radio_taken && cur >= len - 5) library_radio_more(l);
+}
+
+static void paste_query(app *a, const char *text) {
+    size_t n = strlen(a->query);
+    for (; text && *text && n + 1 < sizeof a->query; text++)
+        if (*text != '\n' && *text != '\r') a->query[n++] = *text;
+    a->query[n] = 0;
+}
+
+static bool heading_at(app *a, int i) {
+    if (a->view == V_QUEUE) return false;
+    SDL_LockMutex(a->library.lock);
+    shelf *s = &a->library.shelves[view_shelf[a->view]];
+    bool h = i >= 0 && i < s->n && s->items[i].kind == ITEM_HEADING;
+    SDL_UnlockMutex(a->library.lock);
+    return h;
+}
+
+static bool inside(SDL_FRect r, float x, float y) { return x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h; }
+
 SDL_AppResult SDL_AppEvent(void *state, SDL_Event *e) {
     app *a = state;
     if (!a->ren) return SDL_APP_CONTINUE;
@@ -239,30 +451,73 @@ SDL_AppResult SDL_AppEvent(void *state, SDL_Event *e) {
     SDL_ConvertEventToRenderCoordinates(a->ren, e);
     if (e->type == SDL_EVENT_QUIT || e->type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) return SDL_APP_SUCCESS;
     if (e->type == SDL_EVENT_DROP_TEXT) paste(a, e->drop.data);
-    if (e->type == SDL_EVENT_KEY_DOWN) {
+    int *sel = &a->selected[a->view];
+    if (e->type == SDL_EVENT_TEXT_INPUT && a->typing) paste_query(a, e->text.text);
+    if (e->type == SDL_EVENT_KEY_DOWN && a->typing) {  // the search box has the keyboard
         bool ctrl = e->key.mod & (SDL_KMOD_CTRL | SDL_KMOD_GUI);
         switch (e->key.key) {
-        case SDLK_ESCAPE: return SDL_APP_SUCCESS;
+        case SDLK_RETURN: case SDLK_KP_ENTER:
+            if (a->query[0]) library_search(&a->library, a->query), *sel = a->scroll[V_SEARCH] = 0;
+            show(a, V_SEARCH);
+            break;
+        case SDLK_ESCAPE: case SDLK_DOWN: show(a, V_SEARCH); break;
+        case SDLK_BACKSPACE: {
+            size_t n = strlen(a->query);
+            while (n > 0 && (a->query[--n] & 0xC0) == 0x80) {}
+            a->query[n] = 0;
+            break;
+        }
+        case SDLK_V: if (ctrl) { char *t = SDL_GetClipboardText(); paste_query(a, t); SDL_free(t); } break;
+        }
+        return SDL_APP_CONTINUE;
+    }
+    if (e->type == SDL_EVENT_KEY_DOWN) {
+        bool ctrl = e->key.mod & (SDL_KMOD_CTRL | SDL_KMOD_GUI);
+        int page = a->visible > 1 ? a->visible - 1 : 1;
+        switch (e->key.key) {
+        case SDLK_ESCAPE: case SDLK_BACKSPACE: if (a->view == V_OPEN) show(a, a->back); break;
         case SDLK_V: if (ctrl) { char *t = SDL_GetClipboardText(); paste(a, t); SDL_free(t); } break;
+        case SDLK_F: if (ctrl) start_typing(a); break;
+        case SDLK_SLASH: start_typing(a); break;
+        case SDLK_1: case SDLK_2: case SDLK_3: show(a, (int)(e->key.key - SDLK_1)); break;
+        case SDLK_4: if (a->view == V_SEARCH || !a->query[0]) start_typing(a); else show(a, V_SEARCH); break;
         case SDLK_SPACE: player_toggle_pause(a->player); break;
         case SDLK_RIGHT: player_next(a->player); break;
         case SDLK_LEFT: player_previous(a->player); break;
-        case SDLK_UP: if (a->selected > 0) a->selected--; break;
-        case SDLK_DOWN: a->selected++; break;
-        case SDLK_RETURN: case SDLK_KP_ENTER: player_play(a->player, a->selected); break;
+        case SDLK_UP:
+            if (*sel > 0) (*sel)--;
+            if (heading_at(a, *sel)) {  // headings are passed over
+                if (*sel > 0) (*sel)--;
+                else if (a->view == V_SEARCH) start_typing(a);
+            }
+            break;
+        case SDLK_DOWN: (*sel)++; break;
+        case SDLK_PAGEUP: *sel = *sel > page ? *sel - page : 0; break;
+        case SDLK_PAGEDOWN: *sel += page; break;
+        case SDLK_HOME: *sel = 0; break;
+        case SDLK_END: *sel = 1 << 30; break;
+        case SDLK_RETURN: case SDLK_KP_ENTER: activate(a, *sel); break;
+        case SDLK_R: if (!ctrl) start_radio(a); break;
+        case SDLK_L: if (!ctrl) toggle_like(a); break;
         case SDLK_MINUS: case SDLK_KP_MINUS: a->volume = fmaxf(0, a->volume - 0.1f), gs_mix_set_volume(a->volume); break;
         case SDLK_EQUALS: case SDLK_PLUS: case SDLK_KP_PLUS: a->volume = fminf(1.5f, a->volume + 0.1f), gs_mix_set_volume(a->volume); break;
         case SDLK_S: if (!ctrl) sign_in(a); break;
         case SDLK_F1: case SDLK_GRAVE: a->show_stats = !a->show_stats; break;
         }
     } else if (e->type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
-        for (int i = 0; i < a->nrows; i++) {
-            SDL_FRect r = a->rows[i];
-            if (e->button.x >= r.x && e->button.x < r.x + r.w && e->button.y >= r.y && e->button.y < r.y + r.h)
-                a->selected = a->row_track[i], player_play(a->player, a->row_track[i]);
-        }
+        float x = e->button.x, y = e->button.y;
+        for (int i = 0; i < 4; i++)
+            if (inside(a->tabs[i], x, y)) {
+                if (i == V_SEARCH) start_typing(a); else show(a, i);
+                return SDL_APP_CONTINUE;
+            }
+        if (a->view == V_SEARCH && inside(a->header, x, y)) start_typing(a);
+        else if (a->view == V_OPEN && inside(a->header, x, y)) show(a, a->back);
+        for (int i = 0; i < a->nrows; i++)
+            if (inside(a->rows[i], x, y)) *sel = a->row_index[i], activate(a, a->row_index[i]);
     } else if (e->type == SDL_EVENT_MOUSE_WHEEL) {
-        a->scroll -= (int)e->wheel.y * 3;
+        a->scroll[a->view] -= (int)e->wheel.y * 3;
+        a->wheel_until = SDL_GetTicks() + 1500;  // the list stays where it was scrolled for a moment
     }
     return SDL_APP_CONTINUE;
 }
@@ -289,6 +544,8 @@ static void clock_text(double s, char *out, size_t size) {
     else snprintf(out, size, "%d:%02d", t / 60, t % 60);
 }
 
+#define HEART "\xE2\x99\xA5"
+
 SDL_AppResult SDL_AppIterate(void *state) {
     app *a = state;
     gs_stats_frame_begin(&a->stats);
@@ -301,6 +558,7 @@ SDL_AppResult SDL_AppIterate(void *state) {
             a->signin = NULL;
             if (r > 0 && account_store(&a->account, jar)) {
                 a->next_refresh = SDL_GetTicks() + REFRESH_MS;
+                library_signed_in(&a->library);
                 int cur;
                 player_queue(a->player, NULL, 0, &cur);
                 if (!player_stream(a->player) && cur >= 0) player_play(a->player, cur);  // what YouTube refused, again
@@ -321,6 +579,12 @@ SDL_AppResult SDL_AppIterate(void *state) {
         if (a->seen[0]) note(a, account_status);
         SDL_strlcpy(a->seen, account_status, sizeof a->seen);
     }
+    if (a->radio) follow_radio(a);
+    library *l = &a->library;
+    SDL_LockMutex(l->lock);
+    if (l->note[0]) note(a, l->note), l->note[0] = 0;
+    SDL_UnlockMutex(l->lock);
+
     int ow, oh;
     SDL_GetCurrentRenderOutputSize(a->ren, &ow, &oh);
     float u = oh / 560.0f;  // scale everything with the window
@@ -330,19 +594,23 @@ SDL_AppResult SDL_AppIterate(void *state) {
     SDL_RenderClear(a->ren);
     SDL_SetRenderDrawBlendMode(a->ren, SDL_BLENDMODE_BLEND);
 
-    static track q[2000];
-    int cur, n = player_queue(a->player, q, 2000, &cur);
-    if (a->demo && cur < 0 && n) cur = 0;  // shown as playing
-    if (a->selected >= n) a->selected = n ? n - 1 : 0;
+    int cur, qn = player_queue(a->player, queue_copy, 2000, &cur);
+    if (a->demo && cur < 0 && qn) cur = 0;  // shown as playing
     float x = 24 * u, w = ow - 48 * u, y = 44 * u;
-    char buf[64], status[256];
+    char buf[400], status[256];
     player_status(a->player, status, sizeof status);
 
-    if (cur >= 0 && cur < n) {
-        fit(a, 26 * u, x, y, w, q[cur].title[0] ? q[cur].title : "\xE2\x80\xA6", ink);
-        fit(a, 17 * u, x, y + 30 * u, w, q[cur].artist[0] ? q[cur].artist : " ", dim);
+    // Now playing.
+    SDL_LockMutex(l->lock);
+    if (cur >= 0 && cur < qn) {
+        track *t = &queue_copy[cur];
+        bool liked = library_liked(l, t->id);
+        float hw = liked ? gs_fontset_width(a->fonts, 22 * u, HEART) + 10 * u : 0;
+        fit(a, 26 * u, x, y, w - hw, t->title[0] ? t->title : "\xE2\x80\xA6", ink);
+        if (liked) gs_fontset_draw(a->glyphs, a->fonts, 22 * u, x + w - hw + 10 * u, y, HEART, accent);
+        fit(a, 17 * u, x, y + 30 * u, w, t->artist[0] ? t->artist : " ", dim);
         double pos = player_position(a->player), dur = player_duration(a->player);
-        if (!dur) dur = q[cur].duration;
+        if (!dur) dur = t->duration;
         float by = y + 52 * u;
         SDL_SetRenderDrawColor(a->ren, 60, 57, 54, 255);
         SDL_RenderFillRect(a->ren, &(SDL_FRect){ x, by, w, 4 * u });
@@ -353,37 +621,98 @@ SDL_AppResult SDL_AppIterate(void *state) {
         snprintf(buf, sizeof buf, "%s / %s%s%s", t1, t2, player_paused(a->player) ? "   paused" : "", player_loading(a->player) ? "   loading" : "");
         gs_fontset_draw(a->glyphs, a->fonts, 14 * u, x, by + 22 * u, buf, dim);
     } else {
-        gs_fontset_draw(a->glyphs, a->fonts, 22 * u, x, y, player_loading(a->player) ? "Loading..." : "Paste a YouTube Music link (Ctrl+V)", ink);
-        fit(a, 14 * u, x, y + 28 * u, w, a->tools.status[0] && SDL_GetAtomicInt(&a->tools.state) != 1 ? a->tools.status : "a track, an album or a playlist", dim);
+        gs_fontset_draw(a->glyphs, a->fonts, 22 * u, x, y, player_loading(a->player) ? "Loading..." : "Nothing playing", ink);
+        fit(a, 14 * u, x, y + 28 * u, w, a->tools.status[0] && SDL_GetAtomicInt(&a->tools.state) != 1 ? a->tools.status : "Search with /, open your liked music or playlists, or paste a link (Ctrl+V)", dim);
     }
 
-    // The queue, scrolled to keep the selected track in view.
-    float qy = 150 * u, rh = 26 * u, bottom = oh - 40 * u;
+    // Tabs.
+    static const char *const tab_names[4] = { "Queue", "Liked", "Playlists", "Search" };
+    float tx = x, ty = 150 * u;
+    for (int i = 0; i < 4; i++) {
+        bool on = a->view == i || (a->view == V_OPEN && a->back == i);
+        snprintf(buf, sizeof buf, "%d  %s", i + 1, tab_names[i]);
+        float tw = gs_fontset_width(a->fonts, 15 * u, buf);
+        gs_fontset_draw(a->glyphs, a->fonts, 15 * u, tx, ty, buf, on ? ink : faint);
+        if (on) {
+            SDL_SetRenderDrawColor(a->ren, 255, 92, 70, 255);
+            SDL_RenderFillRect(a->ren, &(SDL_FRect){ tx, ty + 8 * u, tw, 2 * u });
+        }
+        a->tabs[i] = (SDL_FRect){ tx - 6 * u, ty - 18 * u, tw + 12 * u, 30 * u };
+        tx += tw + 28 * u;
+    }
+
+    // The view's header line.
+    shelf *s = a->view == V_QUEUE ? NULL : &l->shelves[view_shelf[a->view]];
+    bool signed_out = !account_signed_in(&a->account) && (a->view == V_LIKED || a->view == V_PLAYLISTS);
+    float hy = 190 * u;
+    a->header = (SDL_FRect){ x - 8 * u, hy - 20 * u, w + 16 * u, 28 * u };
+    const char *more = s && s->loading ? ", loading\xE2\x80\xA6" : "";
+    if (a->view == V_SEARCH) {
+        SDL_SetRenderDrawColor(a->ren, a->typing ? 52 : 36, a->typing ? 48 : 34, a->typing ? 45 : 32, 255);
+        SDL_RenderFillRect(a->ren, &a->header);
+        bool blink = a->typing && SDL_GetTicks() / 500 % 2 == 0;
+        snprintf(buf, sizeof buf, "%s%s", a->query, blink ? "|" : "");
+        fit(a, 16 * u, x, hy, w, a->query[0] || a->typing ? buf : "Press / to search songs, albums and playlists", a->query[0] ? ink : dim);
+    } else if (signed_out) {
+        fit(a, 15 * u, x, hy, w, a->view == V_LIKED ? "Sign in with S to see your liked music" : "Sign in with S to see your playlists", dim);
+    } else if (a->view == V_QUEUE) {
+        snprintf(buf, sizeof buf, "%d track%s%s%s", qn, qn == 1 ? "" : "s", a->radio ? "   radio from " : "", a->radio ? l->shelves[SHELF_RADIO].title : "");
+        fit(a, 14 * u, x, hy, w, buf, dim);
+    } else {
+        int songs = 0;
+        for (int i = 0; i < s->n; i++) songs += s->items[i].kind == ITEM_SONG;
+        if (a->view == V_OPEN) snprintf(buf, sizeof buf, "\xE2\x80\xB9  %s   %d song%s%s", s->title, songs, songs == 1 ? "" : "s", more);
+        else if (a->view == V_LIKED) snprintf(buf, sizeof buf, "%d liked song%s%s", songs, songs == 1 ? "" : "s", more);
+        else snprintf(buf, sizeof buf, "%d playlist%s%s", s->n, s->n == 1 ? "" : "s", more);
+        fit(a, 14 * u, x, hy, w, s->error[0] ? s->error : buf, s->error[0] ? accent : dim);
+    }
+
+    // The list, scrolled to keep the selection in view (unless the wheel just moved it).
+    int n = signed_out ? 0 : s ? s->n : qn, *sel = &a->selected[a->view], *scroll = &a->scroll[a->view];
+    float qy = 226 * u, rh = 26 * u, bottom = oh - 40 * u;
     int visible = (int)((bottom - qy) / rh);
     if (visible < 1) visible = 1;
-    if (a->selected < a->scroll) a->scroll = a->selected;
-    if (a->selected >= a->scroll + visible) a->scroll = a->selected - visible + 1;
-    if (a->scroll > n - visible) a->scroll = n - visible;
-    if (a->scroll < 0) a->scroll = 0;
+    a->visible = visible;
+    if (*sel >= n) *sel = n ? n - 1 : 0;
+    if (s && *sel + 1 < n && s->items[*sel].kind == ITEM_HEADING) (*sel)++;  // a heading is never selected
+    if (SDL_GetTicks() > a->wheel_until) {
+        if (*sel < *scroll) *scroll = *sel;
+        if (*sel >= *scroll + visible) *scroll = *sel - visible + 1;
+    }
+    if (*scroll > n - visible) *scroll = n - visible;
+    if (*scroll < 0) *scroll = 0;
     a->nrows = 0;
-    for (int i = a->scroll; i < n && a->nrows < visible && a->nrows < 64; i++) {
+    for (int i = *scroll; i < n && a->nrows < visible && a->nrows < 64; i++) {
         float ry = qy + a->nrows * rh;
         SDL_FRect row = { x - 8 * u, ry - 18 * u, w + 16 * u, rh };
-        if (i == a->selected) {
+        item it;
+        if (s) it = s->items[i];
+        else song_from_track(&queue_copy[i], &it);
+        if (i == *sel && !a->typing) {
             SDL_SetRenderDrawColor(a->ren, 44, 41, 38, 255);
             SDL_RenderFillRect(a->ren, &row);
         }
-        a->rows[a->nrows] = row, a->row_track[a->nrows++] = i;
-        SDL_FColor c = i == cur ? accent : ink;
-        clock_text(q[i].duration, buf, sizeof buf);
-        float tw = gs_fontset_width(a->fonts, 14 * u, buf);
+        a->rows[a->nrows] = row, a->row_index[a->nrows++] = i;
+        if (it.kind == ITEM_HEADING) {
+            gs_fontset_draw(a->glyphs, a->fonts, 13 * u, x, ry, it.title, accent);
+            continue;
+        }
+        bool playing = cur >= 0 && cur < qn && (s ? !strcmp(it.id, queue_copy[cur].id) : i == cur);
+        SDL_FColor c = playing ? accent : ink;
+        char right[32] = "";
+        if (it.kind == ITEM_SONG && it.duration > 0) clock_text(it.duration, right, sizeof right);
+        if (it.kind != ITEM_SONG) SDL_strlcpy(right, "\xE2\x80\xBA", sizeof right);  // ›
+        float rw = gs_fontset_width(a->fonts, 14 * u, right), hw = gs_fontset_width(a->fonts, 14 * u, HEART);
+        bool liked = it.kind == ITEM_SONG && library_liked(l, it.id);
         char line[500];
-        snprintf(line, sizeof line, "%s%s%s", q[i].title[0] ? q[i].title : q[i].id, q[i].artist[0] ? "  \xC2\xB7  " : "", q[i].artist);
-        fit(a, 15 * u, x, ry, w - tw - 16 * u, line, c);
-        if (q[i].duration > 0) gs_fontset_draw(a->glyphs, a->fonts, 14 * u, x + w - tw, ry, buf, faint);
+        snprintf(line, sizeof line, "%s%s%s", it.title[0] ? it.title : it.id, it.artist[0] ? "  \xC2\xB7  " : "", it.artist);
+        fit(a, 15 * u, x, ry, w - rw - hw - 28 * u, line, c);
+        if (liked) gs_fontset_draw(a->glyphs, a->fonts, 14 * u, x + w - rw - hw - 12 * u, ry, HEART, accent);
+        if (right[0]) gs_fontset_draw(a->glyphs, a->fonts, 14 * u, x + w - rw, ry, right, faint);
     }
+    SDL_UnlockMutex(l->lock);
     const char *footer = SDL_GetTicks() < a->note_until ? a->note : status;
-    fit(a, 13 * u, x, oh - 16 * u, w, footer[0] ? footer : "Ctrl+V link   Space pause   \xE2\x86\x90 \xE2\x86\x92 track   \xE2\x86\x91 \xE2\x86\x93 Enter pick   -/+ volume   S sign in   F1 stats", faint);
+    fit(a, 13 * u, x, oh - 16 * u, w, footer[0] ? footer : "/ search   Enter play   R radio   L like   Space pause   \xE2\x86\x90 \xE2\x86\x92 track   1-4 views   Ctrl+V link   -/+ volume   S sign in   F1 stats", faint);
 
     gs_stats_frame_end(&a->stats);
     if (a->show_stats) {
@@ -410,6 +739,7 @@ void SDL_AppQuit(void *state, SDL_AppResult result) {
     signin_close(a->signin);
     player_free(a->player);
     if (a->jobs) gs_jobs_wait(a->jobs), gs_jobs_free(a->jobs);
+    library_free(&a->library);
     gs_fontset_free(a->fonts);
     gs_glyphs_free(a->glyphs);
     if (a->ren) SDL_DestroyRenderer(a->ren);

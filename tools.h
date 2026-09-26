@@ -19,6 +19,8 @@ typedef struct {
 // handle open at that moment, including another thread's half-made pipes, which then never report
 // end of output; starting one process at a time closes that window.
 SDL_Process *tools_spawn(SDL_PropertiesID props);
+// A system program such as curl by full path, so the user's PATH is never searched for it.
+void tools_program(const char *name, char *out, size_t size);
 
 void tools_init(tools *t, const char *dir);
 void tools_prepare(void *t);  // blocking; a gs_job_fn

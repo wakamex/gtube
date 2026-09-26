@@ -19,7 +19,9 @@ typedef struct player player;
 player *player_new(tools *t, account *a, gs_jobs *jobs, bool audio);
 void player_free(player *p);
 void player_add(player *p, const char *url);  // lists the link's tracks in the background, then plays if idle
-void player_add_track(player *p, const track *t);  // (for display tests: queues without listing or playing)
+void player_add_track(player *p, const track *t);  // queues a known track without listing it
+// Replaces the queue and plays tracks[start], unless that song is already playing, which goes on.
+void player_set_queue(player *p, const track *tracks, int n, int start);
 void player_play(player *p, int index);
 void player_next(player *p);
 void player_previous(player *p);  // restarts the track if more than 3 s in
