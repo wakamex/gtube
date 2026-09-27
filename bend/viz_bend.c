@@ -4654,7 +4654,8 @@ static u32*            bv_copy;                        // a staging copy for the
 static size_t          bv_cap;                         // pixels each of those holds
 static int             bv_done_w, bv_done_h;
 static bool            bv_fresh, bv_done_gpu;
-static double          bv_ms;                          // how long the last frame took to draw
+static double          bv_ms;                          // how long the last frame took, all told
+static double          bv_draw_ms, bv_copy_ms;          // of which drawing, and bringing it to the host
 static u64             bv_began;
 
 // ---- The effects ----
@@ -4691,6 +4692,7 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
   u32*   px = (u32*)blk_ptr(e.mem, blk_loc(e.mem, a), 0);
   int    fw = (int)(bv_now_word & 8191), fh = (int)(bv_now_word >> 13 & 8191);
   size_t n  = (size_t)fw * (size_t)fh;
+  u64    drawn = io_tick();  // the bang (or the CPU's work) is done
   pthread_mutex_lock(&bv_lock);
   if (n > bv_cap) {
     free(bv_pixels), free(bv_copy);
@@ -4705,7 +4707,9 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
     }
 #endif
     memcpy(bv_pixels, from, n * 4);
-    double ms = (double)(io_tick() - bv_began) / 1e6;  // drawing and bringing it to the host
+    u64 now = io_tick();
+    bv_draw_ms = (double)(drawn - bv_began) / 1e6, bv_copy_ms = (double)(now - drawn) / 1e6;
+    double ms = (double)(now - bv_began) / 1e6;
     bv_done_w = fw, bv_done_h = fh;
     bv_done_gpu = bv_now_word >> 31 != 0 && io_gpu;  // asked for, and there to use
     bv_ms       = ms;
@@ -4787,6 +4791,13 @@ bool bendviz_take(u32* out, size_t cap, int* w, int* h, bool* gpu, double* ms) {
   }
   pthread_mutex_unlock(&bv_lock);
   return fresh;
+}
+
+// How the last frame's time divides: drawing it, and bringing it to the host.
+void bendviz_times(double* draw_ms, double* copy_ms) {
+  pthread_mutex_lock(&bv_lock);
+  *draw_ms = bv_draw_ms, *copy_ms = bv_copy_ms;
+  pthread_mutex_unlock(&bv_lock);
 }
 
 // Whether the GPU is in use (false until the program has started and probed it).

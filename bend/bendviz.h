@@ -14,3 +14,4 @@ void bendviz_request(const float params[5], int w, int h, bool gpu);  // time, b
 // either way, so a bigger out can follow.
 bool bendviz_take(uint32_t *out, size_t cap, int *w, int *h, bool *gpu, double *ms);
 bool bendviz_gpu(void);  // the GPU is in use
+void bendviz_times(double *draw_ms, double *copy_ms);  // the last frame's time: drawing, and copying it back
