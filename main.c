@@ -9,10 +9,10 @@
 //   --import-cookies FILE                       sign in with a cookies.txt exported from a browser
 //   --refresh                                   renew the saved session once, report, and quit
 //   --api search|albums|playlists|browse|radio ARG   print one YouTube Music API answer (every page for browse)
-//   --view 1-4, --search QUERY, --radio VIDEO   start on a view, with a search, or playing a radio
+//   --view 1-3, --search QUERY, --radio VIDEO   start on a view, with a search, or playing a radio
 //   --sign-in                                   open the sign-in window at start
 //   --sign-out                                  forget the saved session
-// Views: 1 queue, 2 liked music, 3 playlists, 4 search (/ or Ctrl+F types a search). Up/Down, Page
+// Views: 1 queue, 2 liked music, 3 playlists; / or Ctrl+F opens search with its box ready to type. Up/Down, Page
 // Up/Down, Home/End and Enter or a click pick; a song plays its whole list from there, an album or
 // playlist opens (Esc or Backspace goes back). R starts a radio from the selected song, L likes or
 // unlikes it. Space pauses, Left/Right previous/next, Ctrl+V pastes a link, -/+ volume, S signs in,
@@ -52,7 +52,7 @@ typedef struct {
     char query[256];
     bool radio;      // the queue is a radio, extended as it plays
     int radio_gen, radio_taken;
-    SDL_FRect tabs[4], header;
+    SDL_FRect tabs[3], header;
     account account;
     signin *signin;
     char dir[1024];
@@ -157,7 +157,7 @@ SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
         else if (!strcmp(argv[i], "--sign-in")) open_signin = true;
         else if (!strcmp(argv[i], "--view") && i + 1 < argc) {
             int v = SDL_atoi(argv[++i]) - 1;  // (SDL_clamp is a macro that evaluates its argument more than once)
-            a->view = SDL_clamp(v, 0, 3);
+            a->view = SDL_clamp(v, 0, 2);
         }
         else if (!strcmp(argv[i], "--search") && i + 1 < argc) SDL_strlcpy(a->query, argv[++i], sizeof a->query), a->view = V_SEARCH;
         else if (!strcmp(argv[i], "--radio") && i + 1 < argc) radio = argv[++i];
@@ -480,7 +480,6 @@ SDL_AppResult SDL_AppEvent(void *state, SDL_Event *e) {
         case SDLK_F: if (ctrl) start_typing(a); break;
         case SDLK_SLASH: start_typing(a); break;
         case SDLK_1: case SDLK_2: case SDLK_3: show(a, (int)(e->key.key - SDLK_1)); break;
-        case SDLK_4: if (a->view == V_SEARCH || !a->query[0]) start_typing(a); else show(a, V_SEARCH); break;
         case SDLK_SPACE: player_toggle_pause(a->player); break;
         case SDLK_RIGHT: player_next(a->player); break;
         case SDLK_LEFT: player_previous(a->player); break;
@@ -506,9 +505,9 @@ SDL_AppResult SDL_AppEvent(void *state, SDL_Event *e) {
         }
     } else if (e->type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
         float x = e->button.x, y = e->button.y;
-        for (int i = 0; i < 4; i++)
+        for (int i = 0; i < 3; i++)
             if (inside(a->tabs[i], x, y)) {
-                if (i == V_SEARCH) start_typing(a); else show(a, i);
+                show(a, i);
                 return SDL_APP_CONTINUE;
             }
         if (a->view == V_SEARCH && inside(a->header, x, y)) start_typing(a);
@@ -626,9 +625,9 @@ SDL_AppResult SDL_AppIterate(void *state) {
     }
 
     // Tabs.
-    static const char *const tab_names[4] = { "Queue", "Liked", "Playlists", "Search" };
+    static const char *const tab_names[3] = { "Queue", "Liked", "Playlists" };  // search opens with /
     float tx = x, ty = 150 * u;
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 3; i++) {
         bool on = a->view == i || (a->view == V_OPEN && a->back == i);
         snprintf(buf, sizeof buf, "%d  %s", i + 1, tab_names[i]);
         float tw = gs_fontset_width(a->fonts, 15 * u, buf);
@@ -712,7 +711,7 @@ SDL_AppResult SDL_AppIterate(void *state) {
     }
     SDL_UnlockMutex(l->lock);
     const char *footer = SDL_GetTicks() < a->note_until ? a->note : status;
-    fit(a, 13 * u, x, oh - 16 * u, w, footer[0] ? footer : "/ search   Enter play   R radio   L like   Space pause   \xE2\x86\x90 \xE2\x86\x92 track   1-4 views   Ctrl+V link   -/+ volume   S sign in   F1 stats", faint);
+    fit(a, 13 * u, x, oh - 16 * u, w, footer[0] ? footer : "/ search   Enter play   R radio   L like   Space pause   \xE2\x86\x90 \xE2\x86\x92 track   1-3 views   Ctrl+V link   -/+ volume   S sign in   F1 stats", faint);
 
     gs_stats_frame_end(&a->stats);
     if (a->show_stats) {
