@@ -17,6 +17,21 @@ static const char *const fx_names[FX_COUNT] = { "Spectrum", "Plasma", "Tunnel", 
 
 typedef struct { float x, y, z; } vec3;
 
+// Triangles gathered for one SDL_RenderGeometry call: everything is drawn by the GPU at the
+// screen's own resolution, as meshes, lines made of quads, and textured sprites.
+typedef struct {
+    SDL_Vertex *v;
+    int *i;
+    int nv, ni, cv, ci;
+} mesh;
+
+// A picture worked out on the CPU and drawn smoothly scaled (for the effects that are grids).
+typedef struct {
+    SDL_Texture *tex;
+    uint32_t *px;
+    int w, h;
+} canvas;
+
 struct viz {
     SDL_Renderer *ren;
     int rate;
@@ -30,15 +45,20 @@ struct viz {
     int beats;
     double since_beat;
     // Drawing.
-    int fx, w, h;
-    uint32_t *px, *prev;
+    int fx;
+    mesh m;
+    SDL_Texture *pattern, *ball, *glow;  // the tunnel's wall, a lit sphere, a soft light
+    SDL_Texture *feed[2];                // the feedback's last frame and the one being drawn
+    int feed_w, feed_h;
+    canvas fire, plasma;
     uint8_t *heat;
-    uint16_t *tunnel;       // per pixel: angle and depth into the texture
-    uint32_t texture[256 * 256];
-    SDL_Texture *tex;
+    float *radius;          // the plasma's distance from the centre, per pixel
+    float fuel[BANDS];      // the fire's fuel per band, following the spectrum slowly
+    float sine[4096];       // a sine table over one turn
+    float travel, turn;
     vec3 stars[STARS];
     float hue;              // drifts, and jumps on beats
-    double t, fx_since, name_until;
+    double t, dt, fx_since, name_until;
     char last_title[256];
     bool automatic, scroller;
     uint32_t seed;
@@ -46,54 +66,97 @@ struct viz {
 
 // ---- Small helpers ----
 
-static uint32_t rgb(float r, float g, float b) {
-    int R = r < 0 ? 0 : r > 255 ? 255 : (int)r, G = g < 0 ? 0 : g > 255 ? 255 : (int)g, B = b < 0 ? 0 : b > 255 ? 255 : (int)b;
-    return (uint32_t)R << 16 | (uint32_t)G << 8 | (uint32_t)B;
-}
-
-static uint32_t hsv(float h, float s, float v) {
+static SDL_FColor hsv(float h, float s, float v, float a) {
     h = (h - floorf(h)) * 6;
     int i = (int)h;
     float f = h - i, p = v * (1 - s), q = v * (1 - s * f), u = v * (1 - s * (1 - f));
-    float r, g, b;
     switch (i) {
-    case 0: r = v, g = u, b = p; break;
-    case 1: r = q, g = v, b = p; break;
-    case 2: r = p, g = v, b = u; break;
-    case 3: r = p, g = q, b = v; break;
-    case 4: r = u, g = p, b = v; break;
-    default: r = v, g = p, b = q; break;
+    case 0: return (SDL_FColor){ v, u, p, a };
+    case 1: return (SDL_FColor){ q, v, p, a };
+    case 2: return (SDL_FColor){ p, v, u, a };
+    case 3: return (SDL_FColor){ p, q, v, a };
+    case 4: return (SDL_FColor){ u, p, v, a };
+    default: return (SDL_FColor){ v, p, q, a };
     }
-    return rgb(r * 255, g * 255, b * 255);
 }
 
-static uint32_t add(uint32_t a, uint32_t b) {
-    uint32_t r = ((a >> 16) & 255) + ((b >> 16) & 255), g = ((a >> 8) & 255) + ((b >> 8) & 255), bl = (a & 255) + (b & 255);
-    return (r > 255 ? 255 : r) << 16 | (g > 255 ? 255 : g) << 8 | (bl > 255 ? 255 : bl);
-}
-
-static uint32_t scale(uint32_t c, float k) { return rgb(((c >> 16) & 255) * k, ((c >> 8) & 255) * k, (c & 255) * k); }
+static SDL_FColor gray(float k, float a) { return (SDL_FColor){ k, k, k, a }; }
 
 static float rnd(viz *v) {
     v->seed = v->seed * 1664525u + 1013904223u;
     return (v->seed >> 8) / 16777216.0f;
 }
 
-static void plot(viz *v, int x, int y, uint32_t c) {
-    if (x >= 0 && y >= 0 && x < v->w && y < v->h) v->px[y * v->w + x] = add(v->px[y * v->w + x], c);
+static int vert(mesh *m, float x, float y, SDL_FColor c, float u, float w) {
+    if (m->nv == m->cv) m->v = realloc(m->v, sizeof *m->v * (size_t)(m->cv = m->cv ? m->cv * 2 : 4096));
+    m->v[m->nv] = (SDL_Vertex){ { x, y }, c, { u, w } };
+    return m->nv++;
 }
 
-static void line(viz *v, float x0, float y0, float x1, float y1, uint32_t c) {
-    int n = (int)fmaxf(fabsf(x1 - x0), fabsf(y1 - y0)) + 1;
-    for (int i = 0; i <= n; i++) plot(v, (int)(x0 + (x1 - x0) * i / n), (int)(y0 + (y1 - y0) * i / n), c);
+static void tri(mesh *m, int a, int b, int c) {
+    if (m->ni + 3 > m->ci) m->i = realloc(m->i, sizeof *m->i * (size_t)(m->ci = m->ci ? m->ci * 2 : 8192));
+    m->i[m->ni++] = a, m->i[m->ni++] = b, m->i[m->ni++] = c;
 }
 
-static void disc(viz *v, float cx, float cy, float r, uint32_t c) {
-    for (int y = (int)(cy - r); y <= (int)(cy + r); y++)
-        for (int x = (int)(cx - r); x <= (int)(cx + r); x++) {
-            float d = ((x - cx) * (x - cx) + (y - cy) * (y - cy)) / (r * r);
-            if (d <= 1 && x >= 0 && y >= 0 && x < v->w && y < v->h) v->px[y * v->w + x] = scale(c, 1.15f - 0.55f * d);  // a lit ball
+static void quad(mesh *m, int a, int b, int c, int d) { tri(m, a, b, c), tri(m, a, c, d); }
+
+static void rect(mesh *m, float x, float y, float w, float h, SDL_FColor top, SDL_FColor bottom) {
+    quad(m, vert(m, x, y, top, 0, 0), vert(m, x + w, y, top, 1, 0), vert(m, x + w, y + h, bottom, 1, 1), vert(m, x, y + h, bottom, 0, 1));
+}
+
+// A line as a quad `width` wide, its colour running from c0 to c1.
+static void seg(mesh *m, float x0, float y0, float x1, float y1, float width, SDL_FColor c0, SDL_FColor c1) {
+    float dx = x1 - x0, dy = y1 - y0, len = sqrtf(dx * dx + dy * dy);
+    if (len < 1e-4f) return;
+    float nx = -dy / len * width / 2, ny = dx / len * width / 2;
+    // Stretched along the line by half a width at each end, so a polyline's joints close up.
+    float ex = dx / len * width / 2, ey = dy / len * width / 2;
+    quad(m, vert(m, x0 + nx - ex, y0 + ny - ey, c0, 0, 0), vert(m, x1 + nx + ex, y1 + ny + ey, c1, 1, 0),
+         vert(m, x1 - nx + ex, y1 - ny + ey, c1, 1, 1), vert(m, x0 - nx - ex, y0 - ny - ey, c0, 0, 1));
+}
+
+static void sprite(mesh *m, float cx, float cy, float r, SDL_FColor c) { rect(m, cx - r, cy - r, 2 * r, 2 * r, c, c); }
+
+static void draw(viz *v, SDL_Texture *tex, SDL_BlendMode blend) {
+    if (!v->m.ni) return;
+    if (tex) SDL_SetTextureBlendMode(tex, blend);
+    else SDL_SetRenderDrawBlendMode(v->ren, blend);
+    SDL_RenderGeometry(v->ren, tex, v->m.v, v->m.nv, v->m.i, v->m.ni);
+    v->m.nv = v->m.ni = 0;
+}
+
+// Makes the canvas w by h (clearing it) if it is not already; returns whether it changed.
+static bool fit(viz *v, canvas *c, int w, int h) {
+    if (w == c->w && h == c->h) return false;
+    free(c->px);
+    c->px = calloc((size_t)(w * h), sizeof *c->px);
+    if (c->tex) SDL_DestroyTexture(c->tex);
+    c->tex = SDL_CreateTexture(v->ren, SDL_PIXELFORMAT_XRGB8888, SDL_TEXTUREACCESS_STREAMING, w, h);
+    SDL_SetTextureScaleMode(c->tex, SDL_SCALEMODE_LINEAR);
+    c->w = w, c->h = h;
+    return true;
+}
+
+static void show(viz *v, canvas *c, SDL_FRect a) {
+    SDL_UpdateTexture(c->tex, NULL, c->px, c->w * 4);
+    SDL_SetTextureBlendMode(c->tex, SDL_BLENDMODE_NONE);
+    SDL_RenderTexture(v->ren, c->tex, NULL, &a);
+}
+
+static float fast_sin(const viz *v, float x) { return v->sine[(int)(x * (4096 / 6.2832f)) & 4095]; }
+
+static uint32_t pack(SDL_FColor c) { return (uint32_t)(c.r * 255) << 16 | (uint32_t)(c.g * 255) << 8 | (uint32_t)(c.b * 255); }
+
+// The waveform's last `n` samples across a rectangle, glowing: a wide faint stroke under a thin one.
+static void scope(viz *v, float x, float y, float w, float amp, int n, float width, float hue) {
+    for (int pass = 0; pass < 2; pass++) {
+        for (int i = 0; i < n - 1; i++) {
+            float s0 = v->wave[FFT_N - n + i], s1 = v->wave[FFT_N - n + i + 1];
+            SDL_FColor c = hsv(hue + (float)i / n * 0.3f, pass ? 0.35f : 0.7f, 1, pass ? 1 : 0.28f);
+            seg(&v->m, x + w * i / (n - 1), y - s0 * amp, x + w * (i + 1) / (n - 1), y - s1 * amp, pass ? width : width * 4, c, c);
         }
+        draw(v, NULL, SDL_BLENDMODE_ADD);
+    }
 }
 
 // ---- Analysis ----
@@ -137,146 +200,199 @@ void viz_feed(viz *v, const float *lr, int frames, double dt) {
 
 // ---- Effects ----
 
-static void fx_spectrum(viz *v) {
-    int w = v->w, h = v->h, base = (int)(h * 0.78f);
-    for (int i = 0; i < w * h; i++) v->px[i] = 0;
-    for (int y = 4; y < base; y += 6)  // a faint dotted grid
-        for (int x = 2; x < w; x += 6) v->px[y * w + x] = 0x1a1a1a;
-    int bars = 32, gap = 1, bw = (w - 8) / bars - gap, x0 = (w - bars * (bw + gap)) / 2;
-    float top = h * 0.36f;
+// Winamp's spectrum: LED-segment bars from green through yellow to red, peaks that hold and fall,
+// a reflection on the floor, and its oscilloscope above.
+static void fx_spectrum(viz *v, SDL_FRect a) {
+    float u = a.h / 200, base = a.y + a.h * 0.78f, top = a.y + a.h * 0.36f, span = base - top;
+    for (float y = a.y + 4 * u; y < base; y += 6 * u)  // a faint dotted grid
+        for (float x = a.x + 2 * u; x < a.x + a.w; x += 6 * u) rect(&v->m, x, y, u * 0.7f, u * 0.7f, gray(0.12f, 1), gray(0.12f, 1));
+    draw(v, NULL, SDL_BLENDMODE_BLEND);
+    int bars = 32;
+    float slot = (a.w - 16 * u) / bars, bw = slot * 0.82f, x0 = a.x + 8 * u, led = 3 * u, gap = u;
     for (int b = 0; b < bars; b++) {
-        float val = fmaxf(v->band[2 * b], v->band[2 * b + 1]), pk = fmaxf(v->peak[2 * b], v->peak[2 * b + 1]);
-        int bh = (int)(val * (base - top)), ph = (int)(pk * (base - top)), x = x0 + b * (bw + gap);
-        for (int y = 0; y < bh; y++) {
-            float f = (float)y / (base - top);  // Winamp's green, through yellow, to red
-            uint32_t c = f < 0.5f ? rgb(40 + f * 2 * 215, 200 + f * 55, 30) : rgb(255, 255 - (f - 0.5f) * 2 * 215, 30);
-            for (int k = 0; k < bw; k++) {
-                v->px[(base - 1 - y) * w + x + k] = c;
-                int ry = base + 1 + y / 2;  // a dim reflection on the floor
-                if (ry < h && y % 2 == 0) v->px[ry * w + x + k] = scale(c, 0.22f * (1 - (float)(ry - base) / (h - base)));
-            }
+        float val = fmaxf(v->band[2 * b], v->band[2 * b + 1]), pk = fmaxf(v->peak[2 * b], v->peak[2 * b + 1]), x = x0 + b * slot;
+        for (float y = 0; y < val * span; y += led + gap) {
+            float f = y / span;
+            SDL_FColor c = f < 0.5f ? (SDL_FColor){ 0.16f + f * 1.7f, 0.78f + f * 0.4f, 0.12f, 1 } : (SDL_FColor){ 1, 1 - (f - 0.5f) * 1.7f, 0.12f, 1 };
+            rect(&v->m, x, base - y - led, bw, led, c, c);
+            SDL_FColor r = c;  // the reflection, fading into the floor
+            r.a = 0.22f * (1 - y / (a.y + a.h - base) / 2);
+            if (r.a > 0 && y / 2 < a.y + a.h - base) rect(&v->m, x, base + 2 * u + y / 2, bw, led / 2, r, r);
         }
-        for (int k = 0; k < bw; k++) plot(v, x + k, base - 1 - ph, 0xd0d0d0);
+        rect(&v->m, x, base - pk * span - 2 * u, bw, 1.5f * u, gray(0.85f, 1), gray(0.85f, 1));
     }
-    // The oscilloscope above, 576 samples wide like Winamp's.
-    float cy = h * 0.19f, amp = h * 0.15f;
-    for (int x = 0; x < w; x++) {
-        float s0 = v->wave[FFT_N - 576 + (x * 575) / w], s1 = v->wave[FFT_N - 576 + ((x + 1) * 575) / w];
-        uint32_t c = hsv(v->hue + x / (float)w * 0.3f, 0.6f, 1);
-        line(v, x, cy - s0 * amp * 2, x + 1, cy - s1 * amp * 2, c);
-    }
+    draw(v, NULL, SDL_BLENDMODE_BLEND);
+    scope(v, a.x, a.y + a.h * 0.19f, a.w, a.h * 0.3f, 576, 1.2f * u, v->hue);
 }
 
-static void fx_plasma(viz *v) {
-    int w = v->w, h = v->h;
-    float t = (float)v->t, zoom = 0.045f * (1 + v->bass * 0.5f), cx = w / 2.0f, cy = h / 2.0f;
+// A classic sine plasma at half the screen's height, smoothly scaled. Of its four waves, three are
+// split into per-row and per-column tables (sin(a + b) = sin a cos b + cos a sin b), so each pixel
+// costs a few multiplications and one table lookup.
+static void fx_plasma(viz *v, SDL_FRect a) {
+    int h = (int)(a.h / 2);
+    h = h < 100 ? 100 : h > 540 ? 540 : h;
+    int w = (int)(h * a.w / a.h);
+    canvas *c = &v->plasma;
+    if (fit(v, c, w, h)) {
+        free(v->radius);
+        v->radius = malloc(sizeof *v->radius * (size_t)(w * h));
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++) {
+                float dx = (x - w / 2.0f) * 200 / h, dy = (y - h / 2.0f) * 200 / h;
+                v->radius[y * w + x] = sqrtf(dx * dx + dy * dy);
+            }
+    }
+    float t = (float)v->t, zoom = 0.045f * (1 + v->bass * 0.5f), unit = 200.0f / h * zoom;
     uint32_t pal[256];
     for (int i = 0; i < 256; i++) {
         float f = i / 256.0f;
-        pal[i] = hsv(v->hue + f * 0.6f + t * 0.03f, 0.75f, 0.35f + 0.5f * (0.5f + 0.5f * sinf(f * 6.2832f * 2 + t)) + v->beat * 0.25f);
+        pal[i] = pack(hsv(v->hue + f * 0.6f + t * 0.03f, 0.75f, fminf(1, 0.35f + 0.5f * (0.5f + 0.5f * sinf(f * 12.566f + t)) + v->beat * 0.25f), 1));
     }
-    for (int y = 0; y < h; y++)
+    float *col = malloc(sizeof *col * (size_t)w * 3), *row = malloc(sizeof *row * (size_t)h * 3);
+    for (int x = 0; x < w; x++) {
+        float dx = (x - w / 2.0f) * unit;
+        col[3 * x] = sinf(dx + t), col[3 * x + 1] = sinf(dx * 0.7f + t * 0.7f), col[3 * x + 2] = cosf(dx * 0.7f + t * 0.7f);
+    }
+    for (int y = 0; y < h; y++) {
+        float dy = (y - h / 2.0f) * unit;
+        row[3 * y] = sinf(dy * 1.3f + t * 1.1f), row[3 * y + 1] = cosf(dy * 0.7f), row[3 * y + 2] = sinf(dy * 0.7f);
+    }
+    float rz = zoom * 1.5f, phase = t * 2 + v->mid * 3, shift = t * 40;
+    for (int y = 0; y < h; y++) {
+        const float *r = row + 3 * y, *rad = v->radius + y * w;
+        uint32_t *out = c->px + y * w;
         for (int x = 0; x < w; x++) {
-            float dx = (x - cx) * zoom, dy = (y - cy) * zoom;
-            float s = sinf(dx + t) + sinf(dy * 1.3f + t * 1.1f) + sinf((dx + dy) * 0.7f + t * 0.7f) + sinf(sqrtf(dx * dx + dy * dy) * 1.5f - t * 2 - v->mid * 3);
-            v->px[y * w + x] = pal[(int)((s + 4) * 32 + t * 40) & 255];
+            const float *k = col + 3 * x;
+            float s = k[0] + r[0] + k[1] * r[1] + k[2] * r[2] + fast_sin(v, rad[x] * rz - phase);
+            out[x] = pal[(int)((s + 4) * 32 + shift) & 255];
         }
-    for (int x = 0; x < w; x++) {  // the waveform, glowing across the middle
-        float s0 = v->wave[FFT_N - 1024 + x * 1023 / w], s1 = v->wave[FFT_N - 1024 + (x + 1) * 1023 / w];
-        line(v, x, cy - s0 * h * 0.6f, x + 1, cy - s1 * h * 0.6f, 0x606060);
     }
+    free(col), free(row);
+    show(v, c, a);
+    scope(v, a.x, a.y + a.h / 2, a.w, a.h * 0.6f, 1024, a.h / 200 * 1.2f, v->hue + 0.5f);
 }
 
-static void make_texture(viz *v) {
-    for (int y = 0; y < 256; y++)
-        for (int x = 0; x < 256; x++) {
-            int xr = (x ^ y) & 255, band = ((x >> 5) + (y >> 5)) & 1;
-            float f = xr / 255.0f;
-            v->texture[y * 256 + x] = rgb(60 + 150 * f + band * 40, 30 + 90 * f * f, 90 + 160 * (1 - f) + band * 30);
+// A tunnel of textured rings that bends as it goes, the texture flowing toward you with the bass.
+static void fx_tunnel(viz *v, SDL_FRect a) {
+    const int rings = 60, sides = 48;
+    const float dz = 0.22f, focal = a.h * 0.5f;
+    float t = (float)v->t, cx = a.x + a.w / 2, cy = a.y + a.h / 2;
+    v->travel += (float)v->dt * (0.9f + v->bass * 5);
+    v->turn += (float)v->dt * (0.05f + (v->mid - v->treble) * 0.6f);
+    float first = dz - fmodf(v->travel, dz);  // the nearest ring moves toward you, then the next takes its place
+    SDL_FColor tint = hsv(v->hue, 0.45f, 1, 1);
+    for (int k = rings - 1; k >= 0; k--) {  // far to near
+        float z0 = first + k * dz, z1 = z0 + dz;
+        float w0 = v->travel + z0, w1 = v->travel + z1;  // depth in the world, for the bends and the texture
+        float bx0 = (sinf(w0 * 0.9f + t * 0.3f) - sinf(v->travel * 0.9f + t * 0.3f)) * 0.8f, by0 = (cosf(w0 * 0.7f) - cosf(v->travel * 0.7f)) * 0.6f;
+        float bx1 = (sinf(w1 * 0.9f + t * 0.3f) - sinf(v->travel * 0.9f + t * 0.3f)) * 0.8f, by1 = (cosf(w1 * 0.7f) - cosf(v->travel * 0.7f)) * 0.6f;
+        float fog0 = fminf(1, powf(fmaxf(0, 1 - z0 / (rings * dz)), 1.6f) * 1.4f + v->beat * 0.2f), fog1 = fminf(1, powf(fmaxf(0, 1 - z1 / (rings * dz)), 1.6f) * 1.4f + v->beat * 0.2f);
+        SDL_FColor c0 = { tint.r * fog0, tint.g * fog0, tint.b * fog0, 1 }, c1 = { tint.r * fog1, tint.g * fog1, tint.b * fog1, 1 };
+        for (int s = 0; s < sides; s++) {
+            float a0 = s * 6.2832f / sides, a1 = (s + 1) * 6.2832f / sides, u0 = (float)s / sides * 4 + v->turn, u1 = (float)(s + 1) / sides * 4 + v->turn;
+            quad(&v->m, vert(&v->m, cx + (bx1 + cosf(a0)) / z1 * focal, cy + (by1 + sinf(a0)) / z1 * focal, c1, u0, w1),
+                 vert(&v->m, cx + (bx1 + cosf(a1)) / z1 * focal, cy + (by1 + sinf(a1)) / z1 * focal, c1, u1, w1),
+                 vert(&v->m, cx + (bx0 + cosf(a1)) / z0 * focal, cy + (by0 + sinf(a1)) / z0 * focal, c0, u1, w0),
+                 vert(&v->m, cx + (bx0 + cosf(a0)) / z0 * focal, cy + (by0 + sinf(a0)) / z0 * focal, c0, u0, w0));
         }
+    }
+    draw(v, v->pattern, SDL_BLENDMODE_NONE);
+    // The light at the end, where the far rings meet.
+    float zf = first + (rings - 1) * dz, wf = v->travel + zf;
+    float bx = (sinf(wf * 0.9f + t * 0.3f) - sinf(v->travel * 0.9f + t * 0.3f)) * 0.8f, by = (cosf(wf * 0.7f) - cosf(v->travel * 0.7f)) * 0.6f;
+    sprite(&v->m, cx + bx / zf * focal, cy + by / zf * focal, a.h * (0.05f + v->bass * 0.12f + v->beat * 0.05f), hsv(v->hue + 0.5f, 0.3f, 1, 1));
+    draw(v, v->glow, SDL_BLENDMODE_ADD);
 }
 
-static void fx_tunnel(viz *v) {
-    int w = v->w, h = v->h;
-    if (!v->tunnel) {
-        v->tunnel = malloc(sizeof *v->tunnel * 2 * (size_t)(w * h));
-        for (int y = 0; y < h; y++)
-            for (int x = 0; x < w; x++) {
-                float dx = x - w / 2.0f, dy = y - h / 2.0f, d = sqrtf(dx * dx + dy * dy) + 0.5f;
-                v->tunnel[2 * (y * w + x)] = (uint16_t)((int)(atan2f(dy, dx) / 6.2832f * 512 + 512) & 255);
-                v->tunnel[2 * (y * w + x) + 1] = (uint16_t)fminf(65535, 36 * h / d);
-            }
+// Milkdrop's feedback: each frame is the last one seen through a warp mesh (zoomed in, turned and
+// rippled, a little darker), with a ring scope drawn on top, so everything leaves trails.
+static void fx_feedback(viz *v, SDL_FRect a) {
+    int w = (int)a.w, h = (int)a.h;
+    if (w != v->feed_w || h != v->feed_h) {
+        for (int i = 0; i < 2; i++) {
+            if (v->feed[i]) SDL_DestroyTexture(v->feed[i]);
+            v->feed[i] = SDL_CreateTexture(v->ren, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, w, h);
+            SDL_SetRenderTarget(v->ren, v->feed[i]);
+            SDL_SetRenderDrawColor(v->ren, 0, 0, 0, 255);
+            SDL_RenderClear(v->ren);
+        }
+        SDL_SetRenderTarget(v->ren, NULL);
+        v->feed_w = w, v->feed_h = h;
     }
-    static float depth, turn;
-    depth += (float)(0.016 * (70 + v->bass * 420));
-    turn += (float)(0.016 * (8 + (v->mid - v->treble) * 60));
-    uint32_t tint = hsv(v->hue, 0.5f, 1);
-    float tr = ((tint >> 16) & 255) / 255.0f, tg = ((tint >> 8) & 255) / 255.0f, tb = (tint & 255) / 255.0f;
-    for (int i = 0; i < w * h; i++) {
-        int a = v->tunnel[2 * i], d = v->tunnel[2 * i + 1];
-        uint32_t c = v->texture[((d + (int)depth) & 255) * 256 + ((a + (int)turn) & 255)];
-        float fog = fminf(1, 1.9f * h / (d + 1.0f) * 0.12f + v->beat * 0.3f);  // dark in the distance
-        v->px[i] = rgb(((c >> 16) & 255) * fog * (0.5f + tr), ((c >> 8) & 255) * fog * (0.5f + tg), (c & 255) * fog * (0.5f + tb));
-    }
-    disc(v, w / 2.0f, h / 2.0f, 3 + v->bass * h * 0.12f, hsv(v->hue + 0.5f, 0.3f, 0.6f + v->beat * 0.4f));  // light at the end
-}
-
-static void fx_feedback(viz *v) {
-    int w = v->w, h = v->h;
-    memcpy(v->prev, v->px, sizeof *v->px * (size_t)(w * h));
+    SDL_Texture *last = v->feed[0], *next = v->feed[1];
+    SDL_Rect clip;
+    bool clipped = SDL_GetRenderClipRect(v->ren, &clip) && !SDL_RectEmpty(&clip);
+    SDL_SetRenderTarget(v->ren, next);
     float t = (float)v->t, zoom = 1.02f + v->beat * 0.06f + v->bass * 0.01f, rot = 0.006f + (v->mid - v->treble) * 0.02f;
-    float cs = cosf(rot) / zoom, sn = sinf(rot) / zoom, cx = w / 2.0f, cy = h / 2.0f;
-    for (int y = 0; y < h; y++)
-        for (int x = 0; x < w; x++) {
-            // Where this pixel was last frame: zoomed in, turned, and rippled.
-            float dx = x - cx, dy = y - cy;
-            float sx = cx + dx * cs - dy * sn + sinf(y * 0.06f + t * 1.7f) * 0.6f, sy = cy + dx * sn + dy * cs + cosf(x * 0.05f + t * 1.3f) * 0.6f;
-            int ix = (int)sx, iy = (int)sy;
-            if (ix < 0 || iy < 0 || ix >= w - 1 || iy >= h - 1) { v->px[y * w + x] = 0; continue; }
-            float fx = sx - ix, fy = sy - iy;
-            uint32_t a = v->prev[iy * w + ix], b = v->prev[iy * w + ix + 1], c = v->prev[(iy + 1) * w + ix], d = v->prev[(iy + 1) * w + ix + 1];
-            float k[4] = { (1 - fx) * (1 - fy), fx * (1 - fy), (1 - fx) * fy, fx * fy }, out[3];
-            for (int ch = 0; ch < 3; ch++) {
-                int sh = 16 - 8 * ch;
-                out[ch] = (((a >> sh) & 255) * k[0] + ((b >> sh) & 255) * k[1] + ((c >> sh) & 255) * k[2] + ((d >> sh) & 255) * k[3]) * 0.955f;
-            }
-            v->px[y * w + x] = rgb(out[0], out[1], out[2]);
+    float cs = cosf(rot) / zoom, sn = sinf(rot) / zoom, cx = w / 2.0f, cy = h / 2.0f, u = h / 200.0f;
+    const int gx = 48, gy = 27;
+    SDL_FColor fade = gray(0.955f, 1);
+    for (int j = 0; j <= gy; j++)
+        for (int i = 0; i <= gx; i++) {
+            float x = (float)w * i / gx, y = (float)h * j / gy, dx = x - cx, dy = y - cy;
+            float sx = cx + dx * cs - dy * sn + sinf(y / u * 0.06f + t * 1.7f) * 0.6f * u, sy = cy + dx * sn + dy * cs + cosf(x / u * 0.05f + t * 1.3f) * 0.6f * u;
+            vert(&v->m, x, y, fade, sx / w, sy / h);
         }
+    for (int j = 0; j < gy; j++)
+        for (int i = 0; i < gx; i++) {
+            int k = j * (gx + 1) + i;
+            quad(&v->m, k, k + 1, k + gx + 2, k + gx + 1);
+        }
+    SDL_SetRenderTextureAddressMode(v->ren, SDL_TEXTURE_ADDRESS_CLAMP, SDL_TEXTURE_ADDRESS_CLAMP);
+    draw(v, last, SDL_BLENDMODE_NONE);
+    SDL_SetRenderTextureAddressMode(v->ren, SDL_TEXTURE_ADDRESS_AUTO, SDL_TEXTURE_ADDRESS_AUTO);
     // A ring scope: the waveform wrapped around a circle that swells with the bass.
-    float r = h * (0.18f + v->bass * 0.12f);
+    float r = h * (0.18f + v->bass * 0.12f), px0 = 0, py0 = 0;
     int n = 360;
-    float px0 = 0, py0 = 0;
     for (int i = 0; i <= n; i++) {
         float ang = i * 6.2832f / n + t * 0.4f, s = v->wave[FFT_N - 1440 + (i % n) * 4] * h * 0.35f;
         float x = cx + cosf(ang) * (r + s), y = cy + sinf(ang) * (r + s);
-        if (i) line(v, px0, py0, x, y, hsv(v->hue + i / (float)n, 0.8f, 1));
+        SDL_FColor c = hsv(v->hue + (float)i / n, 0.8f, 1, 1);
+        if (i) seg(&v->m, px0, py0, x, y, 1.3f * u, c, c);
         px0 = x, py0 = y;
     }
     if (v->beat > 0.9f)  // sparks on the beat
-        for (int i = 0; i < 40; i++) plot(v, (int)(rnd(v) * w), (int)(rnd(v) * h), 0xffffff);
+        for (int i = 0; i < 40; i++) sprite(&v->m, rnd(v) * w, rnd(v) * h, u, gray(1, 1));
+    draw(v, NULL, SDL_BLENDMODE_ADD);
+    SDL_SetRenderTarget(v->ren, NULL);
+    if (clipped) SDL_SetRenderClipRect(v->ren, &clip);
+    SDL_SetTextureBlendMode(next, SDL_BLENDMODE_NONE);
+    SDL_RenderTexture(v->ren, next, NULL, &a);
+    v->feed[0] = next, v->feed[1] = last;
 }
 
-static void fx_fire(viz *v) {
-    int w = v->w, h = v->h;
+// Fire fed by the spectrum. A cellular effect, so it is worked out on a grid a third of the height
+// and drawn smoothly scaled.
+static void fx_fire(viz *v, SDL_FRect a) {
+    int h = (int)(a.h / 3), w;
+    h = h < 120 ? 120 : h > 360 ? 360 : h;
+    w = (int)(h * a.w / a.h);
+    if (fit(v, &v->fire, w, h)) free(v->heat), v->heat = calloc((size_t)(w * (h + 2)), 1);
     uint8_t *heat = v->heat;
-    for (int x = 0; x < w; x++) {  // the fuel: each column burns as loud as its part of the spectrum
+    // Fuel follows each band over about a quarter of a second, so the columns do not all flare on
+    // every kick at once (which rises as horizontal stripes).
+    for (int b = 0; b < BANDS; b++) v->fuel[b] += (v->band[b] - v->fuel[b]) * fminf(1, (float)v->dt * 4);
+    for (int x = 0; x < w; x++) {
         // Embers on or off at random, more often where it is louder: flames rather than stripes.
-        float s = v->band[x * BANDS / w], chance = 0.15f + 0.85f * s + v->beat * 0.2f;
+        float s = v->fuel[x * BANDS / w], chance = 0.15f + 0.85f * s + v->beat * 0.1f;
         heat[(h + 1) * w + x] = heat[h * w + x] = rnd(v) < chance ? 255 : 0;
     }
     // Heat rises, averaged from below and sampled a step to either side at random so the flames
-    // lick, and cools by 1 a row on average: the loudest columns reach about two thirds up.
+    // lick, and cools a little each row (scaled so the flames reach as high at any grid size).
+    float cool = 200.0f / h;
     for (int y = 0; y < h; y++)
         for (int x = 0; x < w; x++) {
             int j = x + (int)(rnd(v) * 3) - 1, l = j > 0 ? j - 1 : 0, c = j < 0 ? 0 : j >= w ? w - 1 : j, r = c < w - 1 ? c + 1 : c;
             int sum = heat[(y + 1) * w + l] + heat[(y + 1) * w + c] + heat[(y + 1) * w + r] + heat[(y + 2) * w + c];
-            int k = (sum + (int)(rnd(v) * 4)) / 4 - (rnd(v) < 0.5f) - (rnd(v) < 0.5f);
+            int k = (sum + (int)(rnd(v) * 4)) / 4 - (rnd(v) < 0.5f * cool) - (rnd(v) < 0.5f * cool);
             heat[y * w + x] = (uint8_t)(k < 0 ? 0 : k);
         }
     for (int i = 0; i < w * h; i++) {
         float f = heat[i] / 255.0f;  // black, red, orange, yellow, white
-        v->px[i] = rgb(f * 3 * 255, (f - 0.33f) * 2.2f * 255, (f - 0.7f) * 3.3f * 255);
+        float r = fminf(1, f * 3), g = fminf(1, fmaxf(0, (f - 0.33f) * 2.2f)), b = fminf(1, fmaxf(0, (f - 0.7f) * 3.3f));
+        v->fire.px[i] = (uint32_t)(r * 255) << 16 | (uint32_t)(g * 255) << 8 | (uint32_t)(b * 255);
     }
+    show(v, &v->fire, a);
 }
 
 static int by_z(const void *a, const void *b) {
@@ -284,22 +400,21 @@ static int by_z(const void *a, const void *b) {
     return (za < zb) - (za > zb);
 }
 
-static void fx_bobs(viz *v) {
-    int w = v->w, h = v->h;
-    for (int i = 0; i < w * h; i++) v->px[i] = scale(v->px[i], 0.55f);  // short trails
-    float cx = w / 2.0f, cy = h / 2.0f, speed = 0.4f + v->bass * 4 + v->beat * 3, fov = h * 0.9f;
+// A warp starfield around a turning sphere of bobs, each pushed out by its own band.
+static void fx_bobs(viz *v, SDL_FRect a) {
+    float cx = a.x + a.w / 2, cy = a.y + a.h / 2, u = a.h / 200, speed = 0.4f + v->bass * 4 + v->beat * 3, fov = a.h * 0.45f;
     for (int i = 0; i < STARS; i++) {
         vec3 *s = &v->stars[i];
         float z0 = s->z;
-        s->z -= speed * 0.016f;
+        s->z -= speed * (float)v->dt;
         if (s->z < 0.05f) s->x = rnd(v) * 2 - 1, s->y = rnd(v) * 2 - 1, s->z = z0 = 1 + rnd(v);
-        float x0 = cx + s->x / z0 * fov * 0.5f, y0 = cy + s->y / z0 * fov * 0.5f, x1 = cx + s->x / s->z * fov * 0.5f, y1 = cy + s->y / s->z * fov * 0.5f;
         float b = fminf(1, (2 - s->z) * 0.6f);
-        line(v, x0, y0, x1, y1, rgb(b * 200, b * 210, b * 255));
+        seg(&v->m, cx + s->x / z0 * fov, cy + s->y / z0 * fov, cx + s->x / s->z * fov, cy + s->y / s->z * fov, u * (0.4f + b * 0.8f),
+            (SDL_FColor){ 0.8f, 0.85f, 1, 0 }, (SDL_FColor){ 0.8f, 0.85f, 1, b });
     }
-    // A sphere of bobs, turning, each pushed out by its own band.
+    draw(v, NULL, SDL_BLENDMODE_ADD);
     vec3 p[BOBS];
-    float t = (float)v->t, ay = t * 0.7f, ax = t * 0.43f, R = h * (0.26f + v->beat * 0.05f);
+    float t = (float)v->t, ay = t * 0.7f, ax = t * 0.43f, R = a.h * (0.26f + v->beat * 0.05f);
     for (int i = 0; i < BOBS; i++) {
         float lat = acosf(1 - 2 * (i + 0.5f) / BOBS), lon = i * 2.39996f;  // evenly spread (a Fibonacci sphere)
         float r = 1 + v->band[(int)(lat / 3.1416f * (BANDS - 1))] * 0.6f;
@@ -310,25 +425,13 @@ static void fx_bobs(viz *v) {
     }
     qsort(p, BOBS, sizeof *p, by_z);  // far ones first
     for (int i = 0; i < BOBS; i++) {
-        float persp = 3 / (3 + p[i].z), size = (1.2f + v->beat) * persp * h / 120;
-        disc(v, cx + p[i].x * R * persp, cy + p[i].y * R * persp, size, hsv(v->hue + p[i].y * 0.15f, 0.7f, 0.5f + 0.5f * persp));
+        float persp = 3 / (3 + p[i].z);
+        sprite(&v->m, cx + p[i].x * R * persp, cy + p[i].y * R * persp, (1.6f + v->beat) * persp * u * 1.6f, hsv(v->hue + p[i].y * 0.15f, 0.7f, 0.5f + 0.5f * persp, 1));
     }
+    draw(v, v->ball, SDL_BLENDMODE_BLEND);
 }
 
 // ---- Drawing ----
-
-static void resize(viz *v, int w, int h) {
-    if (w == v->w && h == v->h) return;
-    v->w = w, v->h = h;
-    free(v->px), free(v->prev), free(v->heat), free(v->tunnel);
-    v->px = calloc((size_t)(w * h), sizeof *v->px);
-    v->prev = calloc((size_t)(w * h), sizeof *v->prev);
-    v->heat = calloc((size_t)(w * (h + 2)), 1);
-    v->tunnel = NULL;
-    if (v->tex) SDL_DestroyTexture(v->tex);
-    v->tex = SDL_CreateTexture(v->ren, SDL_PIXELFORMAT_XRGB8888, SDL_TEXTUREACCESS_STREAMING, w, h);
-    if (!SDL_SetTextureScaleMode(v->tex, SDL_SCALEMODE_PIXELART)) SDL_SetTextureScaleMode(v->tex, SDL_SCALEMODE_NEAREST);
-}
 
 // Each character of the text on its own, riding a sine wave, in a rolling rainbow.
 static void scroller(viz *v, SDL_FRect a, const char *text, gs_glyphs *g, gs_fontset *f) {
@@ -343,18 +446,17 @@ static void scroller(viz *v, SDL_FRect a, const char *text, gs_glyphs *g, gs_fon
         float cw = gs_fontset_width(f, px, ch);
         if (x + cw > a.x) {
             float y = base + sinf(x * 0.012f + (float)v->t * 3.2f) * px * 0.55f;
-            uint32_t c = hsv(x / a.w * 0.8f - (float)v->t * 0.2f, 0.55f, 1);
             gs_fontset_draw(g, f, px, x + 2, y + 2, ch, (SDL_FColor){ 0, 0, 0, 0.6f });  // a drop shadow
-            gs_fontset_draw(g, f, px, x, y, ch, (SDL_FColor){ ((c >> 16) & 255) / 255.0f, ((c >> 8) & 255) / 255.0f, (c & 255) / 255.0f, 1 });
+            gs_fontset_draw(g, f, px, x, y, ch, hsv(x / a.w * 0.8f - (float)v->t * 0.2f, 0.55f, 1, 1));
         }
         x += cw;
     }
 }
 
 void viz_draw(viz *v, SDL_FRect a, double t, const char *title, const char *artist, gs_glyphs *g, gs_fontset *f) {
-    double dt = v->t ? t - v->t : 0;
+    v->dt = v->t ? fmin(0.1, t - v->t) : 0;
     v->t = t;
-    v->hue += (float)dt * 0.02f;
+    v->hue += (float)v->dt * 0.02f;
     if (strcmp(title, v->last_title)) {  // a new track: a new effect, in auto mode
         if (v->last_title[0] && v->automatic) viz_step(v, 1);
         SDL_strlcpy(v->last_title, title, sizeof v->last_title);
@@ -362,20 +464,20 @@ void viz_draw(viz *v, SDL_FRect a, double t, const char *title, const char *arti
     if (v->automatic && t - v->fx_since > AUTO_SECONDS) viz_step(v, 1);
     if (!v->fx_since) v->fx_since = t;
 
-    // A VGA-ish 200 lines, as wide as the area's shape asks.
-    int h = 200, w = (int)(h * a.w / fmaxf(1, a.h));
-    w = w < 160 ? 160 : w > 720 ? 720 : w;
-    resize(v, w, h);
+    a.x = floorf(a.x), a.y = floorf(a.y), a.w = floorf(a.w), a.h = floorf(a.h);
+    SDL_SetRenderClipRect(v->ren, &(SDL_Rect){ (int)a.x, (int)a.y, (int)a.w, (int)a.h });
+    SDL_SetRenderDrawColor(v->ren, 0, 0, 0, 255);
+    SDL_SetRenderDrawBlendMode(v->ren, SDL_BLENDMODE_NONE);
+    SDL_RenderFillRect(v->ren, &a);
     switch (v->fx) {
-    case FX_SPECTRUM: fx_spectrum(v); break;
-    case FX_PLASMA: fx_plasma(v); break;
-    case FX_TUNNEL: fx_tunnel(v); break;
-    case FX_FEEDBACK: fx_feedback(v); break;
-    case FX_FIRE: fx_fire(v); break;
-    default: fx_bobs(v); break;
+    case FX_SPECTRUM: fx_spectrum(v, a); break;
+    case FX_PLASMA: fx_plasma(v, a); break;
+    case FX_TUNNEL: fx_tunnel(v, a); break;
+    case FX_FEEDBACK: fx_feedback(v, a); break;
+    case FX_FIRE: fx_fire(v, a); break;
+    default: fx_bobs(v, a); break;
     }
-    SDL_UpdateTexture(v->tex, NULL, v->px, w * 4);
-    SDL_RenderTexture(v->ren, v->tex, NULL, &a);
+    SDL_SetRenderDrawBlendMode(v->ren, SDL_BLENDMODE_BLEND);
 
     if (t < v->name_until) {  // the effect's name, big, for a moment after it changes
         float px = a.h * 0.09f, alpha = (float)fmin(1, (v->name_until - t) / 0.6);
@@ -388,9 +490,45 @@ void viz_draw(viz *v, SDL_FRect a, double t, const char *title, const char *arti
                      title, artist[0] ? "  \xC2\xB7  " : "", artist);
         scroller(v, a, text, g, f);
     }
+    SDL_SetRenderClipRect(v->ren, NULL);
 }
 
 // ---- Setup and settings ----
+
+// A texture from a function of (x, y) in 0..1 giving RGBA.
+static SDL_Texture *make(viz *v, int size, void (*fn)(float x, float y, float out[4])) {
+    uint32_t *p = malloc(sizeof *p * (size_t)(size * size));
+    for (int y = 0; y < size; y++)
+        for (int x = 0; x < size; x++) {
+            float c[4];
+            fn((x + 0.5f) / size, (y + 0.5f) / size, c);
+            p[y * size + x] = (uint32_t)(c[0] * 255) << 24 | (uint32_t)(c[1] * 255) << 16 | (uint32_t)(c[2] * 255) << 8 | (uint32_t)(c[3] * 255);
+        }
+    SDL_Texture *t = SDL_CreateTexture(v->ren, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STATIC, size, size);
+    SDL_UpdateTexture(t, NULL, p, size * 4);
+    SDL_SetTextureScaleMode(t, SDL_SCALEMODE_LINEAR);
+    free(p);
+    return t;
+}
+
+static void pattern(float x, float y, float out[4]) {  // the XOR texture of a thousand intros, in bands
+    int xi = (int)(x * 256), yi = (int)(y * 256), band = ((xi >> 5) + (yi >> 5)) & 1;
+    float f = ((xi ^ yi) & 255) / 255.0f;
+    out[0] = fminf(1, (60 + 150 * f + band * 40) / 255), out[1] = (30 + 90 * f * f) / 255, out[2] = fminf(1, (90 + 160 * (1 - f) + band * 30) / 255), out[3] = 1;
+}
+
+static void ball(float x, float y, float out[4]) {  // a sphere lit from the top left, white, to be tinted
+    float dx = x * 2 - 1, dy = y * 2 - 1, d = dx * dx + dy * dy;
+    if (d > 1) { out[0] = out[1] = out[2] = out[3] = 0; return; }
+    float z = sqrtf(1 - d), light = fmaxf(0, (-dx * 0.5f - dy * 0.6f + z * 0.62f)), spec = powf(light, 24);
+    float k = fminf(1, 0.25f + light * 0.85f + spec);
+    out[0] = out[1] = out[2] = k, out[3] = fminf(1, (1 - d) * 12);  // a soft edge
+}
+
+static void glow(float x, float y, float out[4]) {
+    float dx = x * 2 - 1, dy = y * 2 - 1, d = fmaxf(0, 1 - sqrtf(dx * dx + dy * dy));
+    out[0] = out[1] = out[2] = 1, out[3] = d * d;
+}
 
 viz *viz_new(SDL_Renderer *ren, int rate) {
     viz *v = calloc(1, sizeof *v);
@@ -398,14 +536,19 @@ viz *viz_new(SDL_Renderer *ren, int rate) {
     v->automatic = v->scroller = true;
     for (int i = 0; i < FFT_N; i++) v->window[i] = 0.5 - 0.5 * cos(6.283185307179586 * i / (FFT_N - 1));  // Hann
     for (int i = 0; i < STARS; i++) v->stars[i] = (vec3){ rnd(v) * 2 - 1, rnd(v) * 2 - 1, 0.05f + rnd(v) * 2 };
-    make_texture(v);
+    v->pattern = make(v, 256, pattern);
+    v->ball = make(v, 64, ball);
+    v->glow = make(v, 64, glow);
+    for (int i = 0; i < 4096; i++) v->sine[i] = sinf(i * 6.2831853f / 4096);
     return v;
 }
 
 void viz_free(viz *v) {
     if (!v) return;
-    free(v->px), free(v->prev), free(v->heat), free(v->tunnel);
-    if (v->tex) SDL_DestroyTexture(v->tex);
+    SDL_Texture *all[] = { v->pattern, v->ball, v->glow, v->feed[0], v->feed[1], v->fire.tex, v->plasma.tex };
+    for (size_t i = 0; i < sizeof all / sizeof *all; i++)
+        if (all[i]) SDL_DestroyTexture(all[i]);
+    free(v->heat), free(v->radius), free(v->fire.px), free(v->plasma.px), free(v->m.v), free(v->m.i);
     free(v);
 }
 
@@ -413,7 +556,7 @@ void viz_step(viz *v, int dir) {
     v->fx = (v->fx + dir + FX_COUNT) % FX_COUNT;
     v->fx_since = v->t;
     v->name_until = v->t + 2.5;
-    if (v->px) memset(v->px, 0, sizeof *v->px * (size_t)(v->w * v->h));
+    v->feed_w = 0;  // feedback starts from black
 }
 
 const char *viz_name(const viz *v) { return fx_names[v->fx]; }
