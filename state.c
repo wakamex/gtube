@@ -37,13 +37,20 @@ static void field(char *out, size_t *n, size_t cap, const char *s) {
     for (; *s && *n + 2 < cap; s++) out[(*n)++] = *s == '\t' || *s == '\n' || *s == '\r' ? ' ' : *s;
 }
 
-// queue.txt: "current N", then one track per line: id, title, artist and duration, tab-separated.
-void state_save_queue(const char *dir, player *p) {
+// queue.txt: "current N", then "radio SEED<tab>TITLE<tab>TOKEN" if the queue is a radio, then one
+// track per line: id, title, artist and duration, tab-separated.
+void state_save_queue(const char *dir, player *p, const radio_state *radio) {
     track *q = malloc(sizeof *q * MAX_TRACKS);
     int current, n = player_queue(p, q, MAX_TRACKS, &current);
-    size_t cap = 64 + (size_t)n * (sizeof *q + 16), len = 0;
+    size_t cap = 64 + sizeof *radio + (size_t)n * (sizeof *q + 16), len = 0;
     char *text = malloc(cap);
     len += (size_t)snprintf(text, cap, "current %d\n", current);
+    if (radio->on && radio->more[0]) {
+        memcpy(text + len, "radio ", 6), len += 6;
+        field(text, &len, cap, radio->seed), text[len++] = '\t';
+        field(text, &len, cap, radio->title), text[len++] = '\t';
+        field(text, &len, cap, radio->more), text[len++] = '\n';
+    }
     for (int i = 0; i < n; i++) {
         field(text, &len, cap, q[i].id), text[len++] = '\t';
         field(text, &len, cap, q[i].title), text[len++] = '\t';
@@ -54,7 +61,8 @@ void state_save_queue(const char *dir, player *p) {
     free(text), free(q);
 }
 
-void state_load_queue(const char *dir, player *p) {
+void state_load_queue(const char *dir, player *p, radio_state *radio) {
+    memset(radio, 0, sizeof *radio);
     char file[1200];
     path(dir, "queue.txt", file, sizeof file);
     char *text = SDL_LoadFile(file, NULL);
@@ -64,6 +72,17 @@ void state_load_queue(const char *dir, player *p) {
     char *save_line;
     for (char *line = SDL_strtok_r(text, "\n", &save_line); line && n < MAX_TRACKS; line = SDL_strtok_r(NULL, "\n", &save_line)) {
         if (!strncmp(line, "current ", 8)) { current = atoi(line + 8); continue; }
+        if (!strncmp(line, "radio ", 6)) {
+            char *f[3] = { line + 6, NULL, NULL };
+            for (int k = 1; k < 3; k++) f[k] = f[k - 1] ? strchr(f[k - 1], '\t') : NULL, f[k] ? (*f[k]++ = 0) : 0;
+            if (f[2] && f[2][0]) {
+                radio->on = true;
+                SDL_strlcpy(radio->seed, f[0], sizeof radio->seed);
+                SDL_strlcpy(radio->title, f[1], sizeof radio->title);
+                SDL_strlcpy(radio->more, f[2], sizeof radio->more);
+            }
+            continue;
+        }
         char *f[4] = { line, NULL, NULL, NULL };
         for (int k = 1; k < 4; k++) f[k] = f[k - 1] ? strchr(f[k - 1], '\t') : NULL, f[k] ? (*f[k]++ = 0) : 0;
         if (!f[3] || !f[0][0] || strlen(f[0]) >= sizeof q->id) continue;

@@ -54,6 +54,7 @@ typedef struct {
     char query[256];
     bool radio;      // the queue is a radio, extended as it plays
     int radio_gen, radio_taken;
+    bool radio_replace;  // the radio's first tracks become the queue (a restored radio appends instead)
     SDL_FRect tabs[3], header;
     account account;
     signin *signin;
@@ -268,7 +269,12 @@ SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
     a->glyphs = gs_glyphs_new(a->ren, 1024);
     a->fonts = gs_fontset_system();
     if (a->persist && !nurls && !radio) {  // links given to play take its place
-        state_load_queue(dir, a->player);
+        radio_state r;
+        state_load_queue(dir, a->player, &r);
+        if (r.on) {  // a radio goes on where it left off
+            a->radio_gen = library_radio_resume(&a->library, r.seed, r.title, r.more);
+            a->radio = true, a->radio_taken = 0, a->radio_replace = false;
+        }
         int cur;
         player_queue(a->player, NULL, 0, &cur);
         a->selected[V_QUEUE] = cur > 0 ? cur : 0;
@@ -411,7 +417,7 @@ static void start_radio(app *a) {
     SDL_LockMutex(a->library.lock);
     a->radio_gen = a->library.shelves[SHELF_RADIO].gen;
     SDL_UnlockMutex(a->library.lock);
-    a->radio = true, a->radio_taken = 0;
+    a->radio = true, a->radio_taken = 0, a->radio_replace = true;
     char msg[320];
     snprintf(msg, sizeof msg, "Radio from %s", song.title[0] ? song.title : "this song");
     note(a, msg);
@@ -441,21 +447,35 @@ static void follow_radio(app *a) {
     for (int i = from; i < n; i++) track_from_song(&s->items[i], &fresh[i - from]);
     if (n && !s->title[0]) SDL_strlcpy(s->title, s->items[0].title, sizeof s->title);  // started from a bare link
     char error[160];
-    SDL_strlcpy(error, !n && !s->loading ? s->error : "", sizeof error);
+    SDL_strlcpy(error, s->gen == a->radio_gen && !s->loading ? s->error : "", sizeof error);
     SDL_UnlockMutex(l->lock);
     if (fresh) {
-        if (from == 0) player_set_queue(a->player, fresh, n, 0);
+        if (a->radio_replace) player_set_queue(a->player, fresh, n, 0);
         else for (int i = 0; i < n - from; i++) player_add_track(a->player, &fresh[i]);
+        a->radio_replace = false;
         a->radio_taken = n;
         SDL_free(fresh);
     }
     if (error[0]) {
-        note(a, error);
+        char msg[220];
+        snprintf(msg, sizeof msg, "Radio stopped: %s", error);
+        note(a, msg);
         a->radio = false;
         return;
     }
     int cur, len = player_queue(a->player, queue_copy, 2000, &cur);
-    if (a->radio_taken && cur >= len - 5) library_radio_more(l);
+    if (cur >= len - 5) library_radio_more(l);  // (does nothing while a page is loading)
+}
+
+static void save_queue(app *a) {
+    radio_state r = { .on = a->radio };
+    SDL_LockMutex(a->library.lock);
+    shelf *s = &a->library.shelves[SHELF_RADIO];
+    SDL_strlcpy(r.seed, s->source, sizeof r.seed);
+    SDL_strlcpy(r.title, s->title, sizeof r.title);
+    SDL_strlcpy(r.more, s->more, sizeof r.more);
+    SDL_UnlockMutex(a->library.lock);
+    state_save_queue(a->dir, a->player, &r);
 }
 
 static void paste_query(app *a, const char *text) {
@@ -633,7 +653,7 @@ SDL_AppResult SDL_AppIterate(void *state) {
         a->next_save = SDL_GetTicks() + 2000;
         if (a->window_changed) state_save_window(a->dir, &a->window), a->window_changed = false;
         int v = player_version(a->player);
-        if (v != a->saved_version) state_save_queue(a->dir, a->player), a->saved_version = v;
+        if (v != a->saved_version) save_queue(a), a->saved_version = v;
     }
     library *l = &a->library;
     SDL_LockMutex(l->lock);
@@ -791,7 +811,7 @@ void SDL_AppQuit(void *state, SDL_AppResult result) {
     (void)result;
     if (!a) return;
     if (a->persist && a->win) state_save_window(a->dir, &a->window);
-    if (a->persist && a->player) state_save_queue(a->dir, a->player);
+    if (a->persist && a->player) save_queue(a);
     gs_mix_close();
     signin_close(a->signin);
     player_free(a->player);

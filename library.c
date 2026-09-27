@@ -160,6 +160,18 @@ void library_open(library *l, int which, const char *id, const char *title) { st
 void library_search(library *l, const char *query) { start(l, SHELF_SEARCH, LOAD_SEARCH, query, query); }
 void library_radio(library *l, const char *id, const char *title) { start(l, SHELF_RADIO, LOAD_RADIO, id, title); }
 
+int library_radio_resume(library *l, const char *id, const char *title, const char *more) {
+    SDL_LockMutex(l->lock);
+    shelf *s = &l->shelves[SHELF_RADIO];
+    s->n = 0, s->loading = false, s->error[0] = 0;
+    SDL_strlcpy(s->source, id, sizeof s->source);
+    SDL_strlcpy(s->title, title, sizeof s->title);
+    SDL_strlcpy(s->more, more, sizeof s->more);
+    int gen = ++s->gen;
+    SDL_UnlockMutex(l->lock);
+    return gen;
+}
+
 void library_radio_more(library *l) {
     SDL_LockMutex(l->lock);
     shelf *s = &l->shelves[SHELF_RADIO];

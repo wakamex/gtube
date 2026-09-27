@@ -41,6 +41,8 @@ void library_open(library *l, int shelf, const char *browse_id, const char *titl
 void library_search(library *l, const char *query);
 void library_radio(library *l, const char *video_id, const char *title);
 void library_radio_more(library *l);  // the radio's next page, if it has one and is not loading
+// A radio saved from an earlier run: nothing loaded yet, continued from `more`. Returns its generation.
+int library_radio_resume(library *l, const char *video_id, const char *title, const char *more);
 
 bool library_liked(library *l, const char *video_id);  // call under the lock
 void library_like(library *l, const item *song, bool like);
