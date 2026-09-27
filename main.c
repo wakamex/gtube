@@ -9,10 +9,12 @@
 //   --import-cookies FILE                       sign in with a cookies.txt exported from a browser
 //   --refresh                                   renew the saved session once, report, and quit
 //   --api search|albums|playlists|browse|radio ARG   print one YouTube Music API answer (every page for browse)
-//   --view 1-3, --search QUERY, --radio VIDEO   start on a view, with a search, or playing a radio
+//   --view 1-4, --search QUERY, --radio VIDEO   start on a view, with a search, or playing a radio
+//   --effect N                                  start the visualizer on its Nth effect
 //   --sign-in                                   open the sign-in window at start
 //   --sign-out                                  forget the saved session
-// Views: 1 queue, 2 liked music, 3 playlists; / or Ctrl+F opens search with its box ready to type. Up/Down, Page
+// Views: 1 queue, 2 liked music, 3 playlists, 4 visualizer (Up/Down effect, Enter auto, t scroller,
+// f full screen); / or Ctrl+F opens search with its box ready to type. Up/Down, Page
 // Up/Down, Home/End and Enter or a click pick; a song plays its whole list from there, an album or
 // playlist opens (Esc or Backspace goes back). r starts a radio from the selected song, l likes or
 // unlikes it. Left/Right switch views. Space pauses (or starts), n and p or the media keys next and
@@ -37,12 +39,13 @@
 #include "player.h"
 #include "signin.h"
 #include "state.h"
+#include "viz.h"
 #include "tools.h"
 
 #define RATE 48000
 #define REFRESH_MS (10 * 60 * 1000)  // how often a signed-in session is renewed
 
-enum { V_QUEUE, V_LIKED, V_PLAYLISTS, V_SEARCH, V_OPEN, VIEWS };
+enum { V_QUEUE, V_LIKED, V_PLAYLISTS, V_VIZ, V_SEARCH, V_OPEN, VIEWS };  // the tabs come before V_SEARCH
 
 typedef struct {
     tools tools;
@@ -55,7 +58,12 @@ typedef struct {
     bool radio;      // the queue is a radio, extended as it plays
     int radio_gen, radio_taken;
     bool radio_replace;  // the radio's first tracks become the queue (a restored radio appends instead)
-    SDL_FRect tabs[3], header;
+    SDL_FRect tabs[4], header;
+    viz *viz;
+    bool fullscreen;
+    double pace_cap;
+    float audio_buf[2048 * 2];
+    double last_frame;
     account account;
     signin *signin;
     char dir[1024];
@@ -161,7 +169,7 @@ SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
     app *a = SDL_calloc(1, sizeof *a);
     *state = a;
     const char *data = NULL, *probe = NULL, *wav = NULL, *import = NULL, *api_kind = NULL, *api_arg = NULL, *radio = NULL, *urls[16];
-    int nurls = 0;
+    int nurls = 0, effect = 1;
     double seconds = 30;
     bool tools_only = false, demo = false, refresh = false, sign_out = false, open_signin = false;
     for (int i = 1; i < argc; i++) {
@@ -179,10 +187,11 @@ SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
         else if (!strcmp(argv[i], "--sign-in")) open_signin = true;
         else if (!strcmp(argv[i], "--view") && i + 1 < argc) {
             int v = SDL_atoi(argv[++i]) - 1;  // (SDL_clamp is a macro that evaluates its argument more than once)
-            a->view = SDL_clamp(v, 0, 2);
+            a->view = SDL_clamp(v, 0, 3);
         }
         else if (!strcmp(argv[i], "--search") && i + 1 < argc) SDL_strlcpy(a->query, argv[++i], sizeof a->query), a->view = V_SEARCH;
         else if (!strcmp(argv[i], "--radio") && i + 1 < argc) radio = argv[++i];
+        else if (!strcmp(argv[i], "--effect") && i + 1 < argc) effect = SDL_atoi(argv[++i]);
         else if (!strcmp(argv[i], "--api") && i + 2 < argc) api_kind = argv[++i], api_arg = argv[++i];
         else if (nurls < 16) urls[nurls++] = argv[i];
     }
@@ -261,7 +270,9 @@ SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
     if (on_a_display(a->window.x, a->window.y)) SDL_SetWindowPosition(a->win, a->window.x, a->window.y);
     if (a->window.maximized) SDL_MaximizeWindow(a->win);
     SDL_ShowWindow(a->win);
-    gs_pace_set(&a->pace, a->win, a->ren, true, 30);
+    gs_pace_set(&a->pace, a->win, a->ren, true, a->pace_cap = 30);
+    a->viz = viz_new(a->ren, RATE);
+    for (int i = 1; i < effect; i++) viz_step(a->viz, 1);
     a->audio = !a->shot && gs_mix_open(RATE);
     a->started = SDL_GetTicks();
     a->volume = 1;
@@ -332,7 +343,7 @@ static void sign_in(app *a) {
 
 // ---- Views ----
 
-static const int view_shelf[VIEWS] = { -1, SHELF_LIKED, SHELF_PLAYLISTS, SHELF_SEARCH, SHELF_OPEN };
+static const int view_shelf[VIEWS] = { -1, SHELF_LIKED, SHELF_PLAYLISTS, -1, SHELF_SEARCH, SHELF_OPEN };
 static track queue_copy[2000];
 
 static void song_from_track(const track *t, item *out) {
@@ -355,7 +366,7 @@ static void track_from_song(const item *s, track *out) {
 static bool chosen_song(app *a, item *out) {
     int cur, n = player_queue(a->player, queue_copy, 2000, &cur), sel = a->selected[a->view];
     if (a->view == V_QUEUE && sel < n) return song_from_track(&queue_copy[sel], out), true;
-    if (a->view != V_QUEUE) {
+    if (view_shelf[a->view] >= 0) {
         library *l = &a->library;
         SDL_LockMutex(l->lock);
         shelf *s = &l->shelves[view_shelf[a->view]];
@@ -369,6 +380,7 @@ static bool chosen_song(app *a, item *out) {
 }
 
 static void show(app *a, int view) {
+    if (view != V_VIZ && a->fullscreen) SDL_SetWindowFullscreen(a->win, a->fullscreen = false);
     a->view = view;
     a->typing = false;
     SDL_StopTextInput(a->win);
@@ -382,6 +394,7 @@ static void start_typing(app *a) {
 // Enter or a click on row i: play a song (its whole list becomes the queue), or open an album or playlist.
 static void activate(app *a, int i) {
     if (a->view == V_QUEUE) { player_play(a->player, i); return; }
+    if (view_shelf[a->view] < 0) return;
     library *l = &a->library;
     SDL_LockMutex(l->lock);
     shelf *s = &l->shelves[view_shelf[a->view]];
@@ -486,7 +499,7 @@ static void paste_query(app *a, const char *text) {
 }
 
 static bool heading_at(app *a, int i) {
-    if (a->view == V_QUEUE) return false;
+    if (view_shelf[a->view] < 0) return false;
     SDL_LockMutex(a->library.lock);
     shelf *s = &a->library.shelves[view_shelf[a->view]];
     bool h = i >= 0 && i < s->n && s->items[i].kind == ITEM_HEADING;
@@ -506,7 +519,7 @@ SDL_AppResult SDL_AppEvent(void *state, SDL_Event *e) {
     if (e->type == SDL_EVENT_QUIT || e->type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) return SDL_APP_SUCCESS;
     if (e->type == SDL_EVENT_WINDOW_MOVED || e->type == SDL_EVENT_WINDOW_RESIZED || e->type == SDL_EVENT_WINDOW_MAXIMIZED || e->type == SDL_EVENT_WINDOW_RESTORED) {
         bool max = SDL_GetWindowFlags(a->win) & SDL_WINDOW_MAXIMIZED;
-        if (!max && !(SDL_GetWindowFlags(a->win) & SDL_WINDOW_MINIMIZED)) {  // the size to come back to
+        if (!max && !(SDL_GetWindowFlags(a->win) & (SDL_WINDOW_MINIMIZED | SDL_WINDOW_FULLSCREEN))) {  // the size to come back to
             SDL_GetWindowPosition(a->win, &a->window.x, &a->window.y);
             SDL_GetWindowSize(a->win, &a->window.w, &a->window.h);
         }
@@ -534,6 +547,18 @@ SDL_AppResult SDL_AppEvent(void *state, SDL_Event *e) {
         }
         return SDL_APP_CONTINUE;
     }
+    if (e->type == SDL_EVENT_KEY_DOWN && a->view == V_VIZ) {  // the visualizer's own keys
+        switch (e->key.key) {
+        case SDLK_UP: viz_step(a->viz, -1); return SDL_APP_CONTINUE;
+        case SDLK_DOWN: viz_step(a->viz, 1); return SDL_APP_CONTINUE;
+        case SDLK_RETURN: case SDLK_KP_ENTER: viz_set_auto(a->viz, !viz_get_auto(a->viz)); return SDL_APP_CONTINUE;
+        case SDLK_T: viz_set_scroller(a->viz, !viz_get_scroller(a->viz)); return SDL_APP_CONTINUE;
+        case SDLK_F: case SDLK_F11:
+            if (!(e->key.mod & (SDL_KMOD_CTRL | SDL_KMOD_GUI))) { SDL_SetWindowFullscreen(a->win, a->fullscreen = !a->fullscreen); return SDL_APP_CONTINUE; }
+            break;
+        case SDLK_ESCAPE: if (a->fullscreen) SDL_SetWindowFullscreen(a->win, a->fullscreen = false); return SDL_APP_CONTINUE;
+        }
+    }
     if (e->type == SDL_EVENT_KEY_DOWN) {
         bool ctrl = e->key.mod & (SDL_KMOD_CTRL | SDL_KMOD_GUI);
         int page = a->visible > 1 ? a->visible - 1 : 1;
@@ -547,7 +572,7 @@ SDL_AppResult SDL_AppEvent(void *state, SDL_Event *e) {
         case SDLK_RIGHT: case SDLK_LEFT: {  // the tabs, wrapping around; from search or an opened list, its neighbours
             int tab = a->view < V_SEARCH ? a->view : a->view == V_OPEN && a->back < V_SEARCH ? a->back : -1;
             bool right = e->key.key == SDLK_RIGHT;
-            show(a, tab < 0 ? (right ? 0 : 2) : (tab + (right ? 1 : 2)) % 3);
+            show(a, tab < 0 ? (right ? 0 : 3) : (tab + (right ? 1 : 3)) % 4);
             break;
         }
         case SDLK_N: case SDLK_MEDIA_NEXT_TRACK: if (!ctrl) player_next(a->player); break;
@@ -575,7 +600,7 @@ SDL_AppResult SDL_AppEvent(void *state, SDL_Event *e) {
         }
     } else if (e->type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
         float x = e->button.x, y = e->button.y;
-        for (int i = 0; i < 3; i++)
+        for (int i = 0; i < 4; i++)
             if (inside(a->tabs[i], x, y)) {
                 show(a, i);
                 return SDL_APP_CONTINUE;
@@ -617,14 +642,9 @@ static void clock_text(double s, char *out, size_t size) {
 
 // The key help along the bottom: each key on a key cap, then what it does. Pairs that do not fit
 // are left out rather than cut.
-static void draw_keys(app *a, float u, float x, float y, float w, SDL_FColor key, SDL_FColor text) {
-    static const char *const keys[][2] = {
-        { "/", "search" }, { "Enter", "play" }, { "r", "radio" }, { "l", "like" }, { "Space", "pause" },
-        { "n", "next" }, { "p", "previous" }, { "\xE2\x86\x90 \xE2\x86\x92", "views" }, { "Ctrl+V", "link" },
-        { "- +", "volume" }, { "s", "sign in" }, { "F1", "stats" },
-    };
+static void draw_keys(app *a, const char *const (*keys)[2], int count, float u, float x, float y, float w, SDL_FColor key, SDL_FColor text) {
     float px = 13 * u, pad = 4 * u, end = x + w;
-    for (size_t i = 0; i < sizeof keys / sizeof *keys; i++) {
+    for (int i = 0; i < count; i++) {
         float kw = gs_fontset_width(a->fonts, px, keys[i][0]), tw = gs_fontset_width(a->fonts, px, keys[i][1]);
         float cap = SDL_max(kw + 2 * pad, px + 5 * u);  // a single letter gets a square cap
         if (x + cap + 5 * u + tw > end) break;
@@ -637,8 +657,21 @@ static void draw_keys(app *a, float u, float x, float y, float w, SDL_FColor key
     }
 }
 
+// Feeds the visualizer what is heard now (or the test signal, in demo mode) and draws it.
+static void viz_frame(app *a, SDL_FRect area, const track *t) {
+    double now = SDL_GetTicks() / 1000.0, dt = a->last_frame ? now - a->last_frame : 0;
+    a->last_frame = now;
+    int n = 0;
+    if (a->demo) viz_test_signal(now - 2048.0 / RATE, a->audio_buf, n = 2048, RATE);
+    else if (a->audio) n = gs_mix_recent(a->audio_buf, 2048);
+    viz_feed(a->viz, a->audio_buf, n, dt);
+    viz_draw(a->viz, area, now, t ? t->title : "", t ? t->artist : "", a->glyphs, a->fonts);
+}
+
 SDL_AppResult SDL_AppIterate(void *state) {
     app *a = state;
+    double cap = a->view == V_VIZ ? 60 : 30;  // smooth motion for the visualizer, less work elsewhere
+    if (cap != a->pace_cap) gs_pace_set(&a->pace, a->win, a->ren, true, a->pace_cap = cap);
     gs_stats_frame_begin(&a->stats);
     if (!a->demo) player_update(a->player);
     if (a->signin) {  // signing in: done when the page reaches YouTube signed in, or the window is closed
@@ -696,6 +729,10 @@ SDL_AppResult SDL_AppIterate(void *state) {
     float x = 24 * u, w = ow - 48 * u, y = 44 * u;
     char buf[400], status[256];
     player_status(a->player, status, sizeof status);
+    if (a->fullscreen && a->view == V_VIZ) {  // the whole screen is the visualizer
+        viz_frame(a, (SDL_FRect){ 0, 0, (float)ow, (float)oh }, cur >= 0 && cur < qn ? &queue_copy[cur] : NULL);
+        goto drawn;
+    }
 
     // Now playing.
     SDL_LockMutex(l->lock);
@@ -723,9 +760,9 @@ SDL_AppResult SDL_AppIterate(void *state) {
     }
 
     // Tabs.
-    static const char *const tab_names[3] = { "Queue", "Liked", "Playlists" };  // search opens with /
+    static const char *const tab_names[4] = { "Queue", "Liked", "Playlists", "Visualizer" };  // search opens with /
     float tx = x, ty = 150 * u;
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 4; i++) {
         bool on = a->view == i || (a->view == V_OPEN && a->back == i);
         snprintf(buf, sizeof buf, "%d  %s", i + 1, tab_names[i]);
         float tw = gs_fontset_width(a->fonts, 15 * u, buf);
@@ -736,6 +773,13 @@ SDL_AppResult SDL_AppIterate(void *state) {
         }
         a->tabs[i] = (SDL_FRect){ tx - 6 * u, ty - 18 * u, tw + 12 * u, 30 * u };
         tx += tw + 28 * u;
+    }
+
+    if (a->view == V_VIZ) {
+        float top = ty + 18 * u;
+        viz_frame(a, (SDL_FRect){ 0, top, (float)ow, oh - 32 * u - top }, cur >= 0 && cur < qn ? &queue_copy[cur] : NULL);
+        a->nrows = 0;
+        goto listed;
     }
 
     // The view's header line.
@@ -807,11 +851,26 @@ SDL_AppResult SDL_AppIterate(void *state) {
         if (liked) gs_fontset_draw(a->glyphs, a->fonts, 14 * u, x + w - rw - hw - 12 * u, ry, HEART, accent);
         if (right[0]) gs_fontset_draw(a->glyphs, a->fonts, 14 * u, x + w - rw, ry, right, faint);
     }
+listed:
     SDL_UnlockMutex(l->lock);
     const char *footer = SDL_GetTicks() < a->note_until ? a->note : status;
     if (footer[0]) fit(a, 13 * u, x, oh - 16 * u, w, footer, faint);
-    else draw_keys(a, u, x, oh - 16 * u, w, ink, faint);
+    else if (a->view == V_VIZ) {
+        const char *const keys[][2] = {
+            { "\xE2\x86\x91 \xE2\x86\x93", "effect" }, { "Enter", viz_get_auto(a->viz) ? "auto: on" : "auto: off" }, { "t", "scroller" },
+            { "f", "full screen" }, { "Space", "pause" }, { "n", "next" }, { "p", "previous" }, { "\xE2\x86\x90 \xE2\x86\x92", "views" },
+        };
+        draw_keys(a, keys, sizeof keys / sizeof *keys, u, x, oh - 16 * u, w, ink, faint);
+    } else {
+        static const char *const keys[][2] = {
+            { "/", "search" }, { "Enter", "play" }, { "r", "radio" }, { "l", "like" }, { "Space", "pause" },
+            { "n", "next" }, { "p", "previous" }, { "\xE2\x86\x90 \xE2\x86\x92", "views" }, { "Ctrl+V", "link" },
+            { "- +", "volume" }, { "s", "sign in" }, { "F1", "stats" },
+        };
+        draw_keys(a, keys, sizeof keys / sizeof *keys, u, x, oh - 16 * u, w, ink, faint);
+    }
 
+drawn:
     gs_stats_frame_end(&a->stats);
     if (a->show_stats) {
         char pacing[96];
@@ -840,6 +899,7 @@ void SDL_AppQuit(void *state, SDL_AppResult result) {
     player_free(a->player);
     if (a->jobs) gs_jobs_wait(a->jobs), gs_jobs_free(a->jobs);
     library_free(&a->library);
+    viz_free(a->viz);
     gs_fontset_free(a->fonts);
     gs_glyphs_free(a->glyphs);
     if (a->ren) SDL_DestroyRenderer(a->ren);
