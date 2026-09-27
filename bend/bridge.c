@@ -73,7 +73,7 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
     memcpy(bv_pixels, from, n * 4);
     double ms = (double)(io_tick() - bv_began) / 1e6;  // drawing and bringing it to the host
     bv_done_w = fw, bv_done_h = fh;
-    bv_done_gpu = bv_now_word >> 31 != 0;
+    bv_done_gpu = bv_now_word >> 31 != 0 && io_gpu;  // asked for, and there to use
     bv_ms       = ms;
     bv_fresh    = true;
   }
@@ -113,6 +113,8 @@ bool bendviz_start(const char* gpu_heap) {
   if (started) {
     return true;
   }
+  // Bend reports a fatal error on stderr and exits at once; unbuffered, the report survives.
+  setvbuf(stderr, NULL, _IONBF, 0);
   pthread_t tid;
   if (pthread_create(&tid, NULL, bv_thread, (void*)gpu_heap)) {
     return false;
