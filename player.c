@@ -121,7 +121,7 @@ static void list_tracks(void *user) {
             p->version++;
         }
         if (added) SDL_snprintf(p->status, sizeof p->status, "added %d track%s", added, added == 1 ? "" : "s");
-        else if (account_needed(errors)) SDL_strlcpy(p->status, "YouTube wants a signed-in session: press S to sign in", sizeof p->status);
+        else if (account_needed(errors)) SDL_strlcpy(p->status, "YouTube wants a signed-in session: press s to sign in", sizeof p->status);
         else SDL_snprintf(p->status, sizeof p->status, "no tracks found at that link (yt-dlp exit %d)", code);
         SDL_UnlockMutex(p->lock);
         SDL_free(out);
@@ -319,7 +319,7 @@ void player_update(player *p) {
     if (p->now && gs_stream_finished(p->now->stream)) {
         playback *pb = p->now;
         if (SDL_GetAtomicInt(&pb->failed) && account_needed(pb->errors) && !account_signed_in(p->account)) {
-            set_status(p, "%s", "YouTube wants a signed-in session: press S to sign in");
+            set_status(p, "%s", "YouTube wants a signed-in session: press s to sign in");
             stop_playback(p);  // signing in plays it again
             return;
         }

@@ -14,9 +14,9 @@
 //   --sign-out                                  forget the saved session
 // Views: 1 queue, 2 liked music, 3 playlists; / or Ctrl+F opens search with its box ready to type. Up/Down, Page
 // Up/Down, Home/End and Enter or a click pick; a song plays its whole list from there, an album or
-// playlist opens (Esc or Backspace goes back). R starts a radio from the selected song, L likes or
-// unlikes it. Left/Right switch views. Space pauses (or starts), N and P or the media keys next and
-// previous track, Ctrl+V pastes a link, -/+ volume, S signs in,
+// playlist opens (Esc or Backspace goes back). r starts a radio from the selected song, l likes or
+// unlikes it. Left/Right switch views. Space pauses (or starts), n and p or the media keys next and
+// previous track, Ctrl+V pastes a link, -/+ volume, s signs in,
 // F1 performance overlay. Closing the window quits.
 #define SDL_MAIN_USE_CALLBACKS
 #include <SDL3/SDL.h>
@@ -426,7 +426,7 @@ static void start_radio(app *a) {
 
 static void toggle_like(app *a) {
     item song;
-    if (!account_signed_in(&a->account)) { note(a, "Sign in (S) to like songs"); return; }
+    if (!account_signed_in(&a->account)) { note(a, "Press s to sign in and like songs"); return; }
     if (!chosen_song(a, &song)) return;
     SDL_LockMutex(a->library.lock);
     bool liked = library_liked(&a->library, song.id);
@@ -615,6 +615,28 @@ static void clock_text(double s, char *out, size_t size) {
 
 #define HEART "\xE2\x99\xA5"
 
+// The key help along the bottom: each key on a key cap, then what it does. Pairs that do not fit
+// are left out rather than cut.
+static void draw_keys(app *a, float u, float x, float y, float w, SDL_FColor key, SDL_FColor text) {
+    static const char *const keys[][2] = {
+        { "/", "search" }, { "Enter", "play" }, { "r", "radio" }, { "l", "like" }, { "Space", "pause" },
+        { "n", "next" }, { "p", "previous" }, { "\xE2\x86\x90 \xE2\x86\x92", "views" }, { "Ctrl+V", "link" },
+        { "- +", "volume" }, { "s", "sign in" }, { "F1", "stats" },
+    };
+    float px = 13 * u, pad = 4 * u, end = x + w;
+    for (size_t i = 0; i < sizeof keys / sizeof *keys; i++) {
+        float kw = gs_fontset_width(a->fonts, px, keys[i][0]), tw = gs_fontset_width(a->fonts, px, keys[i][1]);
+        float cap = SDL_max(kw + 2 * pad, px + 5 * u);  // a single letter gets a square cap
+        if (x + cap + 5 * u + tw > end) break;
+        SDL_SetRenderDrawColor(a->ren, 50, 47, 44, 255);
+        SDL_RenderFillRect(a->ren, &(SDL_FRect){ x, y - px + 1 * u, cap, px + 5 * u });
+        gs_fontset_draw(a->glyphs, a->fonts, px, x + (cap - kw) / 2, y, keys[i][0], key);
+        x += cap + 5 * u;
+        gs_fontset_draw(a->glyphs, a->fonts, px, x, y, keys[i][1], text);
+        x += tw + 16 * u;
+    }
+}
+
 SDL_AppResult SDL_AppIterate(void *state) {
     app *a = state;
     gs_stats_frame_begin(&a->stats);
@@ -729,7 +751,7 @@ SDL_AppResult SDL_AppIterate(void *state) {
         snprintf(buf, sizeof buf, "%s%s", a->query, blink ? "|" : "");
         fit(a, 16 * u, x, hy, w, a->query[0] || a->typing ? buf : "Press / to search songs, albums and playlists", a->query[0] ? ink : dim);
     } else if (signed_out) {
-        fit(a, 15 * u, x, hy, w, a->view == V_LIKED ? "Sign in with S to see your liked music" : "Sign in with S to see your playlists", dim);
+        fit(a, 15 * u, x, hy, w, a->view == V_LIKED ? "Press s to sign in and see your liked music" : "Press s to sign in and see your playlists", dim);
     } else if (a->view == V_QUEUE) {
         snprintf(buf, sizeof buf, "%d track%s%s%s", qn, qn == 1 ? "" : "s", a->radio ? "   radio from " : "", a->radio ? l->shelves[SHELF_RADIO].title : "");
         fit(a, 14 * u, x, hy, w, buf, dim);
@@ -787,7 +809,8 @@ SDL_AppResult SDL_AppIterate(void *state) {
     }
     SDL_UnlockMutex(l->lock);
     const char *footer = SDL_GetTicks() < a->note_until ? a->note : status;
-    fit(a, 13 * u, x, oh - 16 * u, w, footer[0] ? footer : "/ search   Enter play   R radio   L like   Space pause   N P track   \xE2\x86\x90 \xE2\x86\x92 or 1-3 views   Ctrl+V link   -/+ volume   S sign in   F1 stats", faint);
+    if (footer[0]) fit(a, 13 * u, x, oh - 16 * u, w, footer, faint);
+    else draw_keys(a, u, x, oh - 16 * u, w, ink, faint);
 
     gs_stats_frame_end(&a->stats);
     if (a->show_stats) {
