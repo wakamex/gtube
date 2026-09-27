@@ -708,7 +708,7 @@ SDL_AppResult SDL_AppIterate(void *state) {
     SDL_strlcpy(account_status, a->account.status, sizeof account_status);
     SDL_UnlockMutex(a->account.lock);
     if (strcmp(account_status, a->seen)) {
-        if (a->seen[0]) note(a, account_status);
+        if (a->seen[0] && strncmp(account_status, "session refreshed", 17)) note(a, account_status);  // problems, not routine renewals
         SDL_strlcpy(a->seen, account_status, sizeof a->seen);
     }
     if (a->radio) follow_radio(a);
@@ -861,21 +861,25 @@ SDL_AppResult SDL_AppIterate(void *state) {
     }
 listed:
     SDL_UnlockMutex(l->lock);
+    // A message shares the bottom line with the key help, on the right, in at most half of it, so
+    // the keys are always shown.
     const char *footer = SDL_GetTicks() < a->note_until ? a->note : status;
-    if (footer[0]) fit(a, 13 * u, x, oh - 16 * u, w, footer, faint);
-    else if (a->view == V_VIZ) {
+    float mw = footer[0] ? fminf(gs_fontset_width(a->fonts, 13 * u, footer), w / 2) : 0;
+    if (footer[0]) fit(a, 13 * u, x + w - mw, oh - 16 * u, mw, footer, dim);
+    float kw = footer[0] ? w - mw - 24 * u : w;
+    if (a->view == V_VIZ) {
         const char *const keys[][2] = {
             { "\xE2\x86\x91 \xE2\x86\x93", "effect" }, { "Enter", viz_get_auto(a->viz) ? "auto: on" : "auto: off" }, { viz_is_bend(a->viz) ? "g" : "t", viz_is_bend(a->viz) ? "GPU / CPU" : "scroller" },
             { "f", "full screen" }, { "Space", "pause" }, { "n", "next" }, { "p", "previous" }, { "\xE2\x86\x90 \xE2\x86\x92", "views" },
         };
-        draw_keys(a, keys, sizeof keys / sizeof *keys, u, x, oh - 16 * u, w, ink, faint);
+        draw_keys(a, keys, sizeof keys / sizeof *keys, u, x, oh - 16 * u, kw, ink, faint);
     } else {
         static const char *const keys[][2] = {
             { "/", "search" }, { "Enter", "play" }, { "r", "radio" }, { "l", "like" }, { "Space", "pause" },
             { "n", "next" }, { "p", "previous" }, { "\xE2\x86\x90 \xE2\x86\x92", "views" }, { "Ctrl+V", "link" },
             { "- +", "volume" }, { "s", "sign in" }, { "Alt+Enter", "full screen" }, { "F1", "stats" },
         };
-        draw_keys(a, keys, sizeof keys / sizeof *keys, u, x, oh - 16 * u, w, ink, faint);
+        draw_keys(a, keys, sizeof keys / sizeof *keys, u, x, oh - 16 * u, kw, ink, faint);
     }
 
 drawn:
