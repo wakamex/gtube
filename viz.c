@@ -1,9 +1,11 @@
 #include "viz.h"
 
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "bend/bendviz.h"
 #include "gs_dsp.h"
 
 #define FFT_N 2048
@@ -12,8 +14,8 @@
 #define BOBS 180
 #define AUTO_SECONDS 40
 
-enum { FX_SPECTRUM, FX_PLASMA, FX_TUNNEL, FX_FEEDBACK, FX_FIRE, FX_BOBS, FX_COUNT };
-static const char *const fx_names[FX_COUNT] = { "Spectrum", "Plasma", "Tunnel", "Feedback", "Fire", "Stars & bobs" };
+enum { FX_SPECTRUM, FX_PLASMA, FX_TUNNEL, FX_FEEDBACK, FX_FIRE, FX_BOBS, FX_BEND, FX_COUNT };
+static const char *const fx_names[FX_COUNT] = { "Spectrum", "Plasma", "Tunnel", "Feedback", "Fire", "Stars & bobs", "Bend plasma" };
 
 typedef struct { float x, y, z; } vec3;
 
@@ -50,7 +52,11 @@ struct viz {
     SDL_Texture *pattern, *ball, *glow;  // the tunnel's wall, a lit sphere, a soft light
     SDL_Texture *feed[2];                // the feedback's last frame and the one being drawn
     int feed_w, feed_h;
-    canvas fire, plasma;
+    canvas fire, plasma, bend;
+    bool bend_on_gpu;       // where the Bend effect is asked to draw (g switches it)
+    bool bend_drawn_gpu;    // where its newest frame was drawn, and how long that took
+    double bend_ms;
+    bool bend_started;
     uint8_t *heat;
     float *radius;          // the plasma's distance from the centre, per pixel
     float fuel[BANDS];      // the fire's fuel per band, following the spectrum slowly
@@ -395,6 +401,40 @@ static void fx_fire(viz *v, SDL_FRect a) {
     show(v, &v->fire, a);
 }
 
+// The plasma again, written in Bend (bend/viz.bend) and drawn by the same function on the GPU or
+// on the CPU's threads, as g chooses. It runs beside the player and draws at its own pace: each
+// frame asks for the next and shows the newest one finished.
+static void fx_bend(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
+    if (!v->bend_started) v->bend_started = bendviz_start("512MB"), v->bend_on_gpu = true;
+    int h = (int)(a.h / 2), w;
+    h = h < 100 ? 100 : h > BENDVIZ_H ? BENDVIZ_H : h;
+    w = (int)(h * a.w / a.h);
+    if (w > BENDVIZ_W) w = BENDVIZ_W, h = (int)(w * a.h / a.w);
+    float params[5] = { (float)v->t, v->bass, v->mid, v->hue, v->beat };
+    bendviz_request(params, w, h, v->bend_on_gpu);
+    static uint32_t frame[BENDVIZ_W * BENDVIZ_H];
+    int fw, fh;
+    bool gpu;
+    double ms;
+    if (bendviz_take(frame, &fw, &fh, &gpu, &ms)) {
+        fit(v, &v->bend, fw, fh);
+        for (int y = 0; y < fh; y++) memcpy(v->bend.px + y * fw, frame + y * BENDVIZ_W, (size_t)fw * 4);
+        v->bend_drawn_gpu = gpu, v->bend_ms = ms;
+        SDL_UpdateTexture(v->bend.tex, NULL, v->bend.px, fw * 4);
+    }
+    if (v->bend.tex) {
+        SDL_SetTextureBlendMode(v->bend.tex, SDL_BLENDMODE_NONE);
+        SDL_RenderTexture(v->ren, v->bend.tex, NULL, &a);
+    }
+    char label[96];
+    const char *where = !v->bend.tex ? "starting" : v->bend_drawn_gpu ? "GPU" : v->bend_on_gpu && !bendviz_gpu() ? "CPU (no GPU found)" : "CPU";
+    if (v->bend.tex) snprintf(label, sizeof label, "Bend on %s, %.1f ms a frame", where, v->bend_ms);
+    else snprintf(label, sizeof label, "Bend %s", where);
+    float px = fmaxf(14, a.h * 0.045f);
+    gs_fontset_draw(g, f, px, a.x + a.w - gs_fontset_width(f, px, label) - px + 2, a.y + px * 1.6f + 2, label, (SDL_FColor){ 0, 0, 0, 0.7f });
+    gs_fontset_draw(g, f, px, a.x + a.w - gs_fontset_width(f, px, label) - px, a.y + px * 1.6f, label, (SDL_FColor){ 1, 1, 1, 1 });
+}
+
 static int by_z(const void *a, const void *b) {
     float za = ((const vec3 *)a)->z, zb = ((const vec3 *)b)->z;
     return (za < zb) - (za > zb);
@@ -475,7 +515,8 @@ void viz_draw(viz *v, SDL_FRect a, double t, const char *title, const char *arti
     case FX_TUNNEL: fx_tunnel(v, a); break;
     case FX_FEEDBACK: fx_feedback(v, a); break;
     case FX_FIRE: fx_fire(v, a); break;
-    default: fx_bobs(v, a); break;
+    case FX_BOBS: fx_bobs(v, a); break;
+    default: fx_bend(v, a, g, f); break;
     }
     SDL_SetRenderDrawBlendMode(v->ren, SDL_BLENDMODE_BLEND);
 
@@ -545,10 +586,10 @@ viz *viz_new(SDL_Renderer *ren, int rate) {
 
 void viz_free(viz *v) {
     if (!v) return;
-    SDL_Texture *all[] = { v->pattern, v->ball, v->glow, v->feed[0], v->feed[1], v->fire.tex, v->plasma.tex };
+    SDL_Texture *all[] = { v->pattern, v->ball, v->glow, v->feed[0], v->feed[1], v->fire.tex, v->plasma.tex, v->bend.tex };
     for (size_t i = 0; i < sizeof all / sizeof *all; i++)
         if (all[i]) SDL_DestroyTexture(all[i]);
-    free(v->heat), free(v->radius), free(v->fire.px), free(v->plasma.px), free(v->m.v), free(v->m.i);
+    free(v->heat), free(v->radius), free(v->fire.px), free(v->plasma.px), free(v->bend.px), free(v->m.v), free(v->m.i);
     free(v);
 }
 
@@ -560,6 +601,8 @@ void viz_step(viz *v, int dir) {
 }
 
 const char *viz_name(const viz *v) { return fx_names[v->fx]; }
+bool viz_is_bend(const viz *v) { return v->fx == FX_BEND; }
+void viz_bend_switch(viz *v) { v->bend_on_gpu = !v->bend_on_gpu; }
 int viz_index(const viz *v, int *count) { *count = FX_COUNT; return v->fx; }
 void viz_set_auto(viz *v, bool on) { v->automatic = on, v->fx_since = v->t; }
 void viz_set_scroller(viz *v, bool on) { v->scroller = on; }

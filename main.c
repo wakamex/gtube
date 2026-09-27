@@ -557,6 +557,7 @@ SDL_AppResult SDL_AppEvent(void *state, SDL_Event *e) {
         case SDLK_DOWN: viz_step(a->viz, 1); return SDL_APP_CONTINUE;
         case SDLK_RETURN: case SDLK_KP_ENTER: viz_set_auto(a->viz, !viz_get_auto(a->viz)); return SDL_APP_CONTINUE;
         case SDLK_T: viz_set_scroller(a->viz, !viz_get_scroller(a->viz)); return SDL_APP_CONTINUE;
+        case SDLK_G: if (viz_is_bend(a->viz)) viz_bend_switch(a->viz); return SDL_APP_CONTINUE;
         case SDLK_F:
             if (!(e->key.mod & (SDL_KMOD_CTRL | SDL_KMOD_GUI))) { SDL_SetWindowFullscreen(a->win, a->fullscreen = !a->fullscreen); return SDL_APP_CONTINUE; }
             break;
@@ -864,7 +865,7 @@ listed:
     if (footer[0]) fit(a, 13 * u, x, oh - 16 * u, w, footer, faint);
     else if (a->view == V_VIZ) {
         const char *const keys[][2] = {
-            { "\xE2\x86\x91 \xE2\x86\x93", "effect" }, { "Enter", viz_get_auto(a->viz) ? "auto: on" : "auto: off" }, { "t", "scroller" },
+            { "\xE2\x86\x91 \xE2\x86\x93", "effect" }, { "Enter", viz_get_auto(a->viz) ? "auto: on" : "auto: off" }, { viz_is_bend(a->viz) ? "g" : "t", viz_is_bend(a->viz) ? "GPU / CPU" : "scroller" },
             { "f", "full screen" }, { "Space", "pause" }, { "n", "next" }, { "p", "previous" }, { "\xE2\x86\x90 \xE2\x86\x92", "views" },
         };
         draw_keys(a, keys, sizeof keys / sizeof *keys, u, x, oh - 16 * u, w, ink, faint);

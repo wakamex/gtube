@@ -1,0 +1,142 @@
+# The Bend effect in gtube's visualizer: a plasma drawn into a flat 1024x512 buffer of pixels,
+# on the GPU (Viz.frame!) or on the CPU's threads (Viz.frame), as the player asks each frame.
+# The same function runs on either chip.
+#
+# The program runs on a thread of the player for as long as the player does: it waits for the
+# player to ask for a frame (Viz.next), reads that frame's inputs (Viz.param), draws, and hands
+# the buffer back (Viz.show), which returns it for the next frame. bridge.c holds those effects
+# and the player's side of them.
+import Base
+
+# What the player asks for: bit 31 set for the GPU, the width in bits 0-10 and the height in
+# bits 11-20 (at most 1024 x 512).
+def Viz.next() -> IO(U32):
+  import "./bridge.c"
+
+# 0 time in seconds, 1 bass, 2 mids, 3 hue, 4 beat (1 on a beat, fading).
+def Viz.param(i: U32) -> IO(F32):
+  import "./bridge.c"
+
+def Viz.show(a: Array<U32>) -> IO(Array<U32>):
+  import "./bridge.c"
+
+type Viz.K is Data:
+  K{t: F32, zoom: F32, mid: F32, hue: F32, beat: F32, w: U32, h: U32}
+
+# A colour from a palette position f, the classic cosine palette, brighter on the beat.
+def Viz.color(+f: F32, +t: F32, +hue: F32, +beat: F32) -> U32:
+  +v = F32.min(1.0, (0.6 + 0.25 * F32.sin((f * 12.566 + t : F32)) + beat * 0.25 : F32))
+  +r = F32.to_u32((255.0 * v * (0.5 + 0.5 * F32.cos((6.2832 * (f * 0.6 + hue) : F32))) : F32))
+  +g = F32.to_u32((255.0 * v * (0.5 + 0.5 * F32.cos((6.2832 * (f * 0.6 + hue + 0.33) : F32))) : F32))
+  +b = F32.to_u32((255.0 * v * (0.5 + 0.5 * F32.cos((6.2832 * (f * 0.6 + hue + 0.67) : F32))) : F32))
+  (r << 16n .|. g << 8n .|. b : U32)
+
+# One pixel: four sine waves, zoomed by the bass, the last one rippling out with the mids.
+def Viz.px(+x: U32, +y: U32, +k: Viz.K) -> U32:
+  K{t, zoom, mid, hue, beat, w, h} = k
+  +unit = (200.0 / U32.to_f32(h) * zoom : F32)
+  +dx = ((U32.to_f32(x) - U32.to_f32(w) * 0.5) * unit : F32)
+  +dy = ((U32.to_f32(y) - U32.to_f32(h) * 0.5) * unit : F32)
+  +w1 = F32.sin((dx + t : F32))
+  +w2 = F32.sin((dy * 1.3 + t * 1.1 : F32))
+  +w3 = F32.sin(((dx + dy) * 0.7 + t * 0.7 : F32))
+  +w4 = F32.sin((F32.hypot(dx, dy) * 1.5 - t * 2.0 - mid * 3.0 : F32))
+  Viz.color(((w1 + w2 + w3 + w4 + 4.0) * 0.125 + t * 0.15 : F32), t, hue, beat)
+
+# Pixels past the frame the player asked for are left alone.
+def Viz.put(inside: Bool, +x: U32, +y: U32, +k: Viz.K, a: Array<U32>) -> Array<U32>:
+  match inside:
+    case True{}:
+      Array.set(U32, a, (y * 1024 + x : U32), Viz.px(x, y, k))
+    case False{}:
+      a
+
+# Loops count down a Nat, which is how the checker sees that they end.
+def Viz.row(n: Nat, +x: U32, +y: U32, +k: Viz.K, a: Array<U32>) -> Array<U32>:
+  match n:
+    case 0n:
+      a
+    case 1n+r:
+      K{t, zoom, mid, hue, beat, w, h} = k
+      Viz.row(r, (x + 1 : U32), y, k, Viz.put(((x < w) && (y < h) : U32), x, y, k, a))
+
+def Viz.tile(n: Nat, +y: U32, +x: U32, +k: Viz.K, a: Array<U32>) -> Array<U32>:
+  match n:
+    case 0n:
+      a
+    case 1n+r:
+      Viz.tile(r, (y + 1 : U32), x, k, Viz.row(4n, x, y, k, a))
+
+# A square of 4 << d pixels at (x, y): four quarters in parallel, down to 4x4 tiles (16,384 of
+# them in a 512x512 half, one per GPU lane). The buffer is forked into aliases, one per quarter
+# (Array.fork is @unsafe: the quarters write disjoint pixels), each taken apart by its own def,
+# since destructuring a computed pair is a match.
+@unsafe
+def Viz.fill(+d: Nat, +x: U32, +y: U32, +k: Viz.K, a: Array<U32>) -> Array<U32>:
+  match d:
+    case 0n:
+      Viz.tile(4n, y, x, k, a)
+    case 1n+e:
+      Viz.fork1(e, x, y, k, Array.fork(U32, a))
+
+@unsafe
+def Viz.fork1(+e: Nat, +x: U32, +y: U32, +k: Viz.K, p: Array<U32> & Array<U32>) -> Array<U32>:
+  (a1, r) = p
+  Viz.fork2(e, x, y, k, a1, Array.fork(U32, r))
+
+@unsafe
+def Viz.fork2(+e: Nat, +x: U32, +y: U32, +k: Viz.K, a1: Array<U32>, p: Array<U32> & Array<U32>) -> Array<U32>:
+  (a2, r) = p
+  Viz.fork3(e, x, y, k, a1, a2, Array.fork(U32, r))
+
+@unsafe
+def Viz.fork3(+e: Nat, +x: U32, +y: U32, +k: Viz.K, a1: Array<U32>, a2: Array<U32>, p: Array<U32> & Array<U32>) -> Array<U32>:
+  (a3, a4) = p
+  +h = U32.shln(4, e)
+  +x1 = U32.add(x, h)
+  +y1 = U32.add(y, h)
+  q w r z = Viz.fill(e, x, y, k, a1) Viz.fill(e, x1, y, k, a2)
+    Viz.fill(e, x, y1, k, a3) Viz.fill(e, x1, y1, k, a4)
+  Array.join(U32, Array.join(U32, q, w), Array.join(U32, r, z))
+
+# The whole buffer: its left and right 512x512 halves.
+@unsafe
+def Viz.frame(+k: Viz.K, a: Array<U32>) -> Array<U32>:
+  Viz.halves(k, Array.fork(U32, a))
+
+@unsafe
+def Viz.halves(+k: Viz.K, p: Array<U32> & Array<U32>) -> Array<U32>:
+  (a1, a2) = p
+  l r = Viz.fill(7n, 0, 0, k, a1) Viz.fill(7n, 512, 0, k, a2)
+  Array.join(U32, l, r)
+
+# The same function, on the GPU or on the CPU's threads.
+@unsafe
+def Viz.draw(gpu: Bool, +k: Viz.K, a: Array<U32>) -> Array<U32>:
+  match gpu:
+    case True{}:
+      Viz.frame!(k, a)
+    case False{}:
+      Viz.frame(k, a)
+
+# One frame as asked (a value bound in a do block is used once, so the request is taken apart here).
+@unsafe
+def Viz.step(+ask: U32, t: F32, bass: F32, mid: F32, hue: F32, beat: F32, a: Array<U32>) -> IO(Array<U32>):
+  +k = {K{t, (0.045 * (1.0 + bass * 0.5) : F32), mid, hue, beat, (ask .&. 2047 : U32), (ask >> 11n .&. 1023 : U32)} : Viz.K}
+  Viz.show(Viz.draw(U32.is_eq((ask >> 31n : U32), 1), k, a))
+
+@unsafe
+def Viz.loop(a: Array<U32>) -> IO(Unit):
+  do IO<Unit>:
+    ask : U32 <- Viz.next()
+    t : F32 <- Viz.param(0)
+    bass : F32 <- Viz.param(1)
+    mid : F32 <- Viz.param(2)
+    hue : F32 <- Viz.param(3)
+    beat : F32 <- Viz.param(4)
+    b : Array<U32> <- Viz.step(ask, t, bass, mid, hue, beat, a)
+    Viz.loop(b)
+
+@unsafe
+def main() -> IO(Unit):
+  Viz.loop([0 : U32^19n])

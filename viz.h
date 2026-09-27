@@ -18,6 +18,8 @@ void viz_feed(viz *v, const float *lr, int frames, double dt);
 void viz_draw(viz *v, SDL_FRect area, double t, const char *title, const char *artist, gs_glyphs *g, gs_fontset *f);
 
 void viz_step(viz *v, int dir);  // the next (1) or previous (-1) effect
+bool viz_is_bend(const viz *v);     // the effect written in Bend is showing
+void viz_bend_switch(viz *v);       // moves that effect between the GPU and the CPU
 const char *viz_name(const viz *v);
 int viz_index(const viz *v, int *count);
 // Auto changes the effect every 40 s and with each new track; both it and the scroller start on.
