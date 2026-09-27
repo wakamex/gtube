@@ -14,7 +14,8 @@
 //   --sign-in                                   open the sign-in window at start
 //   --sign-out                                  forget the saved session
 // Views: 1 queue, 2 liked music, 3 playlists, 4 visualizer (Up/Down effect, Enter auto, t scroller,
-// f full screen); / or Ctrl+F opens search with its box ready to type. Up/Down, Page
+// f full screen); / or Ctrl+F opens search with its box ready to type. Alt+Enter or F11 toggles full
+// screen in any view. Up/Down, Page
 // Up/Down, Home/End and Enter or a click pick; a song plays its whole list from there, an album or
 // playlist opens (Esc or Backspace goes back). r starts a radio from the selected song, l likes or
 // unlikes it. Left/Right switch views. Space pauses (or starts), n and p or the media keys next and
@@ -380,7 +381,6 @@ static bool chosen_song(app *a, item *out) {
 }
 
 static void show(app *a, int view) {
-    if (view != V_VIZ && a->fullscreen) SDL_SetWindowFullscreen(a->win, a->fullscreen = false);
     a->view = view;
     a->typing = false;
     SDL_StopTextInput(a->win);
@@ -528,6 +528,10 @@ SDL_AppResult SDL_AppEvent(void *state, SDL_Event *e) {
     }
     if (e->type == SDL_EVENT_DROP_TEXT) paste(a, e->drop.data);
     int *sel = &a->selected[a->view];
+    if (e->type == SDL_EVENT_KEY_DOWN && ((e->key.key == SDLK_RETURN && (e->key.mod & SDL_KMOD_ALT)) || e->key.key == SDLK_F11)) {
+        SDL_SetWindowFullscreen(a->win, a->fullscreen = !a->fullscreen);  // Alt+Enter or F11, in any view
+        return SDL_APP_CONTINUE;
+    }
     if (e->type == SDL_EVENT_TEXT_INPUT && a->typing) paste_query(a, e->text.text);
     if (e->type == SDL_EVENT_KEY_DOWN && a->typing) {  // the search box has the keyboard
         bool ctrl = e->key.mod & (SDL_KMOD_CTRL | SDL_KMOD_GUI);
@@ -553,7 +557,7 @@ SDL_AppResult SDL_AppEvent(void *state, SDL_Event *e) {
         case SDLK_DOWN: viz_step(a->viz, 1); return SDL_APP_CONTINUE;
         case SDLK_RETURN: case SDLK_KP_ENTER: viz_set_auto(a->viz, !viz_get_auto(a->viz)); return SDL_APP_CONTINUE;
         case SDLK_T: viz_set_scroller(a->viz, !viz_get_scroller(a->viz)); return SDL_APP_CONTINUE;
-        case SDLK_F: case SDLK_F11:
+        case SDLK_F:
             if (!(e->key.mod & (SDL_KMOD_CTRL | SDL_KMOD_GUI))) { SDL_SetWindowFullscreen(a->win, a->fullscreen = !a->fullscreen); return SDL_APP_CONTINUE; }
             break;
         case SDLK_ESCAPE: if (a->fullscreen) SDL_SetWindowFullscreen(a->win, a->fullscreen = false); return SDL_APP_CONTINUE;
@@ -563,11 +567,14 @@ SDL_AppResult SDL_AppEvent(void *state, SDL_Event *e) {
         bool ctrl = e->key.mod & (SDL_KMOD_CTRL | SDL_KMOD_GUI);
         int page = a->visible > 1 ? a->visible - 1 : 1;
         switch (e->key.key) {
-        case SDLK_ESCAPE: case SDLK_BACKSPACE: if (a->view == V_OPEN) show(a, a->back); break;
+        case SDLK_ESCAPE: case SDLK_BACKSPACE:
+            if (a->view == V_OPEN) show(a, a->back);
+            else if (e->key.key == SDLK_ESCAPE && a->fullscreen) SDL_SetWindowFullscreen(a->win, a->fullscreen = false);
+            break;
         case SDLK_V: if (ctrl) { char *t = SDL_GetClipboardText(); paste(a, t); SDL_free(t); } break;
         case SDLK_F: if (ctrl) start_typing(a); break;
         case SDLK_SLASH: start_typing(a); break;
-        case SDLK_1: case SDLK_2: case SDLK_3: show(a, (int)(e->key.key - SDLK_1)); break;
+        case SDLK_1: case SDLK_2: case SDLK_3: case SDLK_4: show(a, (int)(e->key.key - SDLK_1)); break;
         case SDLK_SPACE: player_toggle_pause(a->player); break;
         case SDLK_RIGHT: case SDLK_LEFT: {  // the tabs, wrapping around; from search or an opened list, its neighbours
             int tab = a->view < V_SEARCH ? a->view : a->view == V_OPEN && a->back < V_SEARCH ? a->back : -1;
@@ -865,7 +872,7 @@ listed:
         static const char *const keys[][2] = {
             { "/", "search" }, { "Enter", "play" }, { "r", "radio" }, { "l", "like" }, { "Space", "pause" },
             { "n", "next" }, { "p", "previous" }, { "\xE2\x86\x90 \xE2\x86\x92", "views" }, { "Ctrl+V", "link" },
-            { "- +", "volume" }, { "s", "sign in" }, { "F1", "stats" },
+            { "- +", "volume" }, { "s", "sign in" }, { "Alt+Enter", "full screen" }, { "F1", "stats" },
         };
         draw_keys(a, keys, sizeof keys / sizeof *keys, u, x, oh - 16 * u, w, ink, faint);
     }
