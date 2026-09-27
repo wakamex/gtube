@@ -15,7 +15,7 @@
 #define AUTO_SECONDS 40
 
 enum { FX_SPECTRUM, FX_PLASMA, FX_TUNNEL, FX_FEEDBACK, FX_FIRE, FX_BOBS, FX_BEND, FX_COUNT };
-static const char *const fx_names[FX_COUNT] = { "Spectrum", "Plasma", "Tunnel", "Feedback", "Fire", "Stars & bobs", "Bend plasma" };
+static const char *const fx_names[FX_COUNT] = { "Spectrum", "Plasma (C)", "Tunnel", "Feedback", "Fire", "Stars & bobs", "Bend plasma" };
 
 typedef struct { float x, y, z; } vec3;
 
@@ -56,7 +56,7 @@ struct viz {
     bool bend_on_gpu;       // where the Bend effect is asked to draw (g switches it)
     bool bend_drawn_gpu;    // where its newest frame was drawn, and how long that took
     double bend_ms;
-    bool bend_started;
+    bool bend_started, bend_shown;
     uint8_t *heat;
     float *radius;          // the plasma's distance from the centre, per pixel
     float fuel[BANDS];      // the fire's fuel per band, following the spectrum slowly
@@ -401,38 +401,36 @@ static void fx_fire(viz *v, SDL_FRect a) {
     show(v, &v->fire, a);
 }
 
-// The plasma again, written in Bend (bend/viz.bend) and drawn by the same function on the GPU or
-// on the CPU's threads, as g chooses. It runs beside the player and draws at its own pace: each
-// frame asks for the next and shows the newest one finished.
+// The plasma again, written in Bend (bend/viz.bend), drawing every pixel of the area, by the same
+// function on the GPU or on the CPU's threads, as g chooses. It runs beside the player and draws
+// at its own pace: each frame asks for the next and shows the newest one finished.
 static void fx_bend(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
     if (!v->bend_started) v->bend_started = bendviz_start("512MB"), v->bend_on_gpu = true;
-    int h = (int)(a.h / 2), w;
-    h = h < 100 ? 100 : h > BENDVIZ_H ? BENDVIZ_H : h;
-    w = (int)(h * a.w / a.h);
-    if (w > BENDVIZ_W) w = BENDVIZ_W, h = (int)(w * a.h / a.w);
+    int w = (int)a.w < BENDVIZ_MAX ? (int)a.w : BENDVIZ_MAX, h = (int)a.h < BENDVIZ_MAX ? (int)a.h : BENDVIZ_MAX;
     float params[5] = { (float)v->t, v->bass, v->mid, v->hue, v->beat };
     bendviz_request(params, w, h, v->bend_on_gpu);
-    static uint32_t frame[BENDVIZ_W * BENDVIZ_H];
     int fw, fh;
     bool gpu;
     double ms;
-    if (bendviz_take(frame, &fw, &fh, &gpu, &ms)) {
-        fit(v, &v->bend, fw, fh);
-        for (int y = 0; y < fh; y++) memcpy(v->bend.px + y * fw, frame + y * BENDVIZ_W, (size_t)fw * 4);
+    bendviz_take(NULL, 0, &fw, &fh, &gpu, &ms);  // the size of the newest frame, to make room for it
+    if (fw > 0 && fh > 0 && (fw != v->bend.w || fh != v->bend.h)) fit(v, &v->bend, fw, fh);
+    if (v->bend.w > 0 && bendviz_take(v->bend.px, (size_t)v->bend.w * v->bend.h, &fw, &fh, &gpu, &ms) && fw == v->bend.w && fh == v->bend.h) {
         v->bend_drawn_gpu = gpu, v->bend_ms = ms;
         SDL_UpdateTexture(v->bend.tex, NULL, v->bend.px, fw * 4);
+        v->bend_shown = true;
     }
-    if (v->bend.tex) {
+    if (v->bend_shown) {
         SDL_SetTextureBlendMode(v->bend.tex, SDL_BLENDMODE_NONE);
         SDL_RenderTexture(v->ren, v->bend.tex, NULL, &a);
     }
     char label[96];
-    const char *where = !v->bend.tex ? "starting" : v->bend_drawn_gpu ? "GPU" : v->bend_on_gpu && !bendviz_gpu() ? "CPU (no GPU found)" : "CPU";
-    if (v->bend.tex) snprintf(label, sizeof label, "Bend on %s, %.1f ms a frame", where, v->bend_ms);
+    const char *where = !v->bend_shown ? "starting" : v->bend_drawn_gpu ? "GPU" : v->bend_on_gpu && !bendviz_gpu() ? "CPU (no GPU found)" : "CPU";
+    if (v->bend_shown) snprintf(label, sizeof label, "Bend on %s, %.1f ms a frame (%dx%d)", where, v->bend_ms, v->bend.w, v->bend.h);
     else snprintf(label, sizeof label, "Bend %s", where);
-    float px = fmaxf(14, a.h * 0.045f);
-    gs_fontset_draw(g, f, px, a.x + a.w - gs_fontset_width(f, px, label) - px + 2, a.y + px * 1.6f + 2, label, (SDL_FColor){ 0, 0, 0, 0.7f });
-    gs_fontset_draw(g, f, px, a.x + a.w - gs_fontset_width(f, px, label) - px, a.y + px * 1.6f, label, (SDL_FColor){ 1, 1, 1, 1 });
+    // Top left, under where the effect's name shows (the stats overlay has the top right).
+    float px = fmaxf(14, a.h * 0.045f), ly = a.y + a.h * 0.09f * 2.3f;
+    gs_fontset_draw(g, f, px, a.x + a.h * 0.054f + 2, ly + 2, label, (SDL_FColor){ 0, 0, 0, 0.7f });
+    gs_fontset_draw(g, f, px, a.x + a.h * 0.054f, ly, label, (SDL_FColor){ 1, 1, 1, 1 });
 }
 
 static int by_z(const void *a, const void *b) {
@@ -602,6 +600,12 @@ void viz_step(viz *v, int dir) {
 
 const char *viz_name(const viz *v) { return fx_names[v->fx]; }
 bool viz_is_bend(const viz *v) { return v->fx == FX_BEND; }
+
+bool viz_bend_stats(const viz *v, char *out, size_t size) {
+    if (!v->bend_shown) return false;  // not drawn yet
+    snprintf(out, size, "bend %s %.1f ms/frame %dx%d", v->bend_drawn_gpu ? "gpu" : "cpu", v->bend_ms, v->bend.w, v->bend.h);
+    return true;
+}
 void viz_bend_switch(viz *v) { v->bend_on_gpu = !v->bend_on_gpu; }
 int viz_index(const viz *v, int *count) { *count = FX_COUNT; return v->fx; }
 void viz_set_auto(viz *v, bool on) { v->automatic = on, v->fx_since = v->t; }

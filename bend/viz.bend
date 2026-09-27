@@ -1,6 +1,6 @@
-# The Bend effect in gtube's visualizer: a plasma drawn into a flat 1024x512 buffer of pixels,
-# on the GPU (Viz.frame!) or on the CPU's threads (Viz.frame), as the player asks each frame.
-# The same function runs on either chip.
+# The Bend effect in gtube's visualizer: a plasma drawing every pixel of the visualizer (up to
+# 4096 x 4096) into a flat buffer, rows packed at the frame's width, on the GPU (Viz.frame!) or on
+# the CPU's threads (Viz.frame), as the player asks each frame. The same function runs on either.
 #
 # The program runs on a thread of the player for as long as the player does: it waits for the
 # player to ask for a frame (Viz.next), reads that frame's inputs (Viz.param), draws, and hands
@@ -8,8 +8,8 @@
 # and the player's side of them.
 import Base
 
-# What the player asks for: bit 31 set for the GPU, the width in bits 0-10 and the height in
-# bits 11-20 (at most 1024 x 512).
+# What the player asks for: bit 31 set for the GPU, the width in bits 0-12 and the height in
+# bits 13-25 (each at most 4096).
 def Viz.next() -> IO(U32):
   import "./bridge.c"
 
@@ -43,11 +43,15 @@ def Viz.px(+x: U32, +y: U32, +k: Viz.K) -> U32:
   +w4 = F32.sin((F32.hypot(dx, dy) * 1.5 - t * 2.0 - mid * 3.0 : F32))
   Viz.color(((w1 + w2 + w3 + w4 + 4.0) * 0.125 + t * 0.15 : F32), t, hue, beat)
 
+def Viz.put.at(+x: U32, +y: U32, +k: Viz.K, a: Array<U32>) -> Array<U32>:
+  K{t, zoom, mid, hue, beat, w, h} = k
+  Array.set(U32, a, (y * w + x : U32), Viz.px(x, y, k))
+
 # Pixels past the frame the player asked for are left alone.
 def Viz.put(inside: Bool, +x: U32, +y: U32, +k: Viz.K, a: Array<U32>) -> Array<U32>:
   match inside:
     case True{}:
-      Array.set(U32, a, (y * 1024 + x : U32), Viz.px(x, y, k))
+      Viz.put.at(x, y, k, a)
     case False{}:
       a
 
@@ -67,12 +71,25 @@ def Viz.tile(n: Nat, +y: U32, +x: U32, +k: Viz.K, a: Array<U32>) -> Array<U32>:
     case 1n+r:
       Viz.tile(r, (y + 1 : U32), x, k, Viz.row(4n, x, y, k, a))
 
-# A square of 4 << d pixels at (x, y): four quarters in parallel, down to 4x4 tiles (16,384 of
-# them in a 512x512 half, one per GPU lane). The buffer is forked into aliases, one per quarter
-# (Array.fork is @unsafe: the quarters write disjoint pixels), each taken apart by its own def,
-# since destructuring a computed pair is a match.
+# A square of 4 << d pixels at (x, y): four quarters in parallel, down to 4x4 tiles. A square
+# wholly outside the frame is skipped before it forks. The buffer is forked into aliases, one per
+# quarter (Array.fork is @unsafe: the quarters write disjoint pixels), each taken apart by its own
+# def, since destructuring a computed pair is a match.
 @unsafe
 def Viz.fill(+d: Nat, +x: U32, +y: U32, +k: Viz.K, a: Array<U32>) -> Array<U32>:
+  K{t, zoom, mid, hue, beat, w, h} = k
+  Viz.fill.in(((x < w) && (y < h) : U32), d, x, y, k, a)
+
+@unsafe
+def Viz.fill.in(inside: Bool, +d: Nat, +x: U32, +y: U32, +k: Viz.K, a: Array<U32>) -> Array<U32>:
+  match inside:
+    case False{}:
+      a
+    case True{}:
+      Viz.fill.go(d, x, y, k, a)
+
+@unsafe
+def Viz.fill.go(+d: Nat, +x: U32, +y: U32, +k: Viz.K, a: Array<U32>) -> Array<U32>:
   match d:
     case 0n:
       Viz.tile(4n, y, x, k, a)
@@ -99,16 +116,10 @@ def Viz.fork3(+e: Nat, +x: U32, +y: U32, +k: Viz.K, a1: Array<U32>, a2: Array<U3
     Viz.fill(e, x, y1, k, a3) Viz.fill(e, x1, y1, k, a4)
   Array.join(U32, Array.join(U32, q, w), Array.join(U32, r, z))
 
-# The whole buffer: its left and right 512x512 halves.
+# The whole frame: one 4096 square (4 << 10), of which the frame's part is drawn.
 @unsafe
 def Viz.frame(+k: Viz.K, a: Array<U32>) -> Array<U32>:
-  Viz.halves(k, Array.fork(U32, a))
-
-@unsafe
-def Viz.halves(+k: Viz.K, p: Array<U32> & Array<U32>) -> Array<U32>:
-  (a1, a2) = p
-  l r = Viz.fill(7n, 0, 0, k, a1) Viz.fill(7n, 512, 0, k, a2)
-  Array.join(U32, l, r)
+  Viz.fill(10n, 0, 0, k, a)
 
 # The same function, on the GPU or on the CPU's threads.
 @unsafe
@@ -122,7 +133,7 @@ def Viz.draw(gpu: Bool, +k: Viz.K, a: Array<U32>) -> Array<U32>:
 # One frame as asked (a value bound in a do block is used once, so the request is taken apart here).
 @unsafe
 def Viz.step(+ask: U32, t: F32, bass: F32, mid: F32, hue: F32, beat: F32, a: Array<U32>) -> IO(Array<U32>):
-  +k = {K{t, (0.045 * (1.0 + bass * 0.5) : F32), mid, hue, beat, (ask .&. 2047 : U32), (ask >> 11n .&. 1023 : U32)} : Viz.K}
+  +k = {K{t, (0.045 * (1.0 + bass * 0.5) : F32), mid, hue, beat, (ask .&. 8191 : U32), (ask >> 13n .&. 8191 : U32)} : Viz.K}
   Viz.show(Viz.draw(U32.is_eq((ask >> 31n : U32), 1), k, a))
 
 @unsafe
@@ -139,4 +150,4 @@ def Viz.loop(a: Array<U32>) -> IO(Unit):
 
 @unsafe
 def main() -> IO(Unit):
-  Viz.loop([0 : U32^19n])
+  Viz.loop([0 : U32^24n])

@@ -869,7 +869,7 @@ listed:
     float kw = footer[0] ? w - mw - 24 * u : w;
     if (a->view == V_VIZ) {
         const char *const keys[][2] = {
-            { "\xE2\x86\x91 \xE2\x86\x93", "effect" }, { "Enter", viz_get_auto(a->viz) ? "auto: on" : "auto: off" }, { viz_is_bend(a->viz) ? "g" : "t", viz_is_bend(a->viz) ? "GPU / CPU" : "scroller" },
+            { "\xE2\x86\x91 \xE2\x86\x93", viz_name(a->viz) }, { "Enter", viz_get_auto(a->viz) ? "auto: on" : "auto: off" }, { viz_is_bend(a->viz) ? "g" : "t", viz_is_bend(a->viz) ? "GPU / CPU" : "scroller" },
             { "f", "full screen" }, { "Space", "pause" }, { "n", "next" }, { "p", "previous" }, { "\xE2\x86\x90 \xE2\x86\x92", "views" },
         };
         draw_keys(a, keys, sizeof keys / sizeof *keys, u, x, oh - 16 * u, kw, ink, faint);
@@ -885,8 +885,10 @@ listed:
 drawn:
     gs_stats_frame_end(&a->stats);
     if (a->show_stats) {
-        char pacing[96];
+        char pacing[200];
         gs_pace_describe(&a->pace, pacing, sizeof pacing);
+        char bend[80];
+        if (viz_bend_stats(a->viz, bend, sizeof bend)) SDL_strlcat(pacing, "\n", sizeof pacing), SDL_strlcat(pacing, bend, sizeof pacing);
         gs_stats_draw(&a->stats, a->ren, -12, 12, pacing);
     }
     if (a->shot && SDL_GetTicks() - a->started >= a->shot_at * 1000) {
