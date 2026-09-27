@@ -15,9 +15,11 @@ static pthread_cond_t  bv_asked = PTHREAD_COND_INITIALIZER;
 static bool            bv_want;                       // a request waiting for Bend
 static float           bv_ask[5], bv_now[5];          // the request, and the one being drawn
 static u32             bv_ask_word, bv_now_word;       // gpu flag and size, as Viz.next returns them
-static u32*            bv_pixels;                      // the newest finished frame, rows packed
-static u32*            bv_copy;                        // a staging copy for the GPU's bulk transfer
+static u32*            bv_front;                       // the newest finished frame, rows packed
+static u32*            bv_back;                        // where the next one is being put
 static size_t          bv_cap;                         // pixels each of those holds
+static bool            bv_pinned;                      // they are page-locked (for the GPU's copies)
+static bool            bv_lent;                        // the player is reading the front buffer
 static int             bv_done_w, bv_done_h;
 static bool            bv_fresh, bv_done_gpu;
 static double          bv_ms;                          // how long the last frame took, all told
@@ -51,8 +53,40 @@ Term viz_param_run(Env e, Term* f, IoWork* w) {
   return f32_rewrap(i < 5 ? bv_now[i] : 0.0f);
 }
 
-// The frame is the buffer's first w * h pixels. On the GPU the heap is managed memory, which the
-// host reads a page at a time (slowly, on Windows); one bulk copy brings the frame over instead.
+// The frame is the buffer's first w * h pixels. It goes to the back buffer, which then swaps with
+// the front one for the player, so no frame is copied on the host. On the GPU the buffers are
+// page-locked and the copy is one bulk transfer (the heap is managed memory, which the host would
+// otherwise read a page at a time, slowly on Windows). Copying through plain device memory first
+// made no difference, on Linux or on Windows.
+static bool bv_room(size_t n) {
+  if (n <= bv_cap) {
+    return true;
+  }
+  bool gpu = io_gpu;
+#if BEND_CUDA
+  if (bv_pinned) {
+    // Page-locked memory is freed with the driver's own call, which the runtime does not load;
+    // the buffers only grow, rarely, so the old ones are left.
+  } else
+#endif
+  {
+    free(bv_back);
+    if (!bv_lent) free(bv_front);
+  }
+  bv_back = bv_front = NULL, bv_cap = 0, bv_pinned = false;
+#if BEND_CUDA
+  if (gpu && cuMemAllocHost((void**)&bv_back, n * 4) == CUDA_SUCCESS
+    && cuMemAllocHost((void**)&bv_front, n * 4) == CUDA_SUCCESS) {
+    bv_pinned = true;
+  }
+#endif
+  if (!bv_pinned) {
+    bv_back = malloc(n * 4), bv_front = malloc(n * 4);
+  }
+  bv_cap = bv_back != NULL && bv_front != NULL ? n : 0;
+  return bv_cap >= n;
+}
+
 Term viz_show_run(Env e, Term* f, IoWork* w) {
   Term   a  = f[0];
   u32*   px = (u32*)blk_ptr(e.mem, blk_loc(e.mem, a), 0);
@@ -60,27 +94,34 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
   size_t n  = (size_t)fw * (size_t)fh;
   u64    drawn = io_tick();  // the bang (or the CPU's work) is done
   pthread_mutex_lock(&bv_lock);
-  if (n > bv_cap) {
-    free(bv_pixels), free(bv_copy);
-    bv_pixels = malloc(n * 4), bv_copy = malloc(n * 4);
-    bv_cap    = bv_pixels != NULL && bv_copy != NULL ? n : 0;
+  bool room = !bv_lent && bv_room(n);  // (while the player reads, buffers are not reallocated)
+  pthread_mutex_unlock(&bv_lock);
+  if (!room || n > ((size_t)1 << blk_cls(a))) {
+    return a;
   }
-  if (n <= bv_cap && n <= ((size_t)1 << blk_cls(a))) {
-    const u32* from = px;
+  bool copied = false;
 #if BEND_CUDA
-    if (io_gpu && cuMemcpyDtoH(bv_copy, (CUdeviceptr)(uintptr_t)px, n * 4) == CUDA_SUCCESS) {
-      from = bv_copy;
-    }
-#endif
-    memcpy(bv_pixels, from, n * 4);
-    u64 now = io_tick();
-    bv_draw_ms = (double)(drawn - bv_began) / 1e6, bv_copy_ms = (double)(now - drawn) / 1e6;
-    double ms = (double)(now - bv_began) / 1e6;
-    bv_done_w = fw, bv_done_h = fh;
-    bv_done_gpu = bv_now_word >> 31 != 0 && io_gpu;  // asked for, and there to use
-    bv_ms       = ms;
-    bv_fresh    = true;
+  if (io_gpu && bv_pinned) {
+    copied = cuMemcpyDtoH(bv_back, (CUdeviceptr)(uintptr_t)px, n * 4) == CUDA_SUCCESS;
   }
+#endif
+  if (!copied) {
+    memcpy(bv_back, px, n * 4);
+  }
+  u64 now = io_tick();
+  pthread_mutex_lock(&bv_lock);
+  while (bv_lent) {  // the player is reading the front buffer: a moment, then swap
+    pthread_mutex_unlock(&bv_lock);
+    sched_yield();
+    pthread_mutex_lock(&bv_lock);
+  }
+  u32* t = bv_front;
+  bv_front = bv_back, bv_back = t;
+  bv_draw_ms = (double)(drawn - bv_began) / 1e6, bv_copy_ms = (double)(now - drawn) / 1e6;
+  bv_ms       = (double)(now - bv_began) / 1e6;
+  bv_done_w   = fw, bv_done_h = fh;
+  bv_done_gpu = bv_now_word >> 31 != 0 && io_gpu;  // asked for, and there to use
+  bv_fresh    = true;
   pthread_mutex_unlock(&bv_lock);
   return a;
 }
@@ -141,22 +182,23 @@ void bendviz_request(const float params[5], int w, int h, bool gpu) {
   pthread_mutex_unlock(&bv_lock);
 }
 
-// Copies the newest finished frame (rows packed) into out, which holds cap pixels, if one arrived
-// since the last call and fits; w and h are its size, gpu where it was drawn and ms how long
-// drawing it took. Returns false with w and h set when it did not fit, so a bigger out can follow.
-bool bendviz_take(u32* out, size_t cap, int* w, int* h, bool* gpu, double* ms) {
+// Lends the newest finished frame (rows packed, w x h), if one arrived since the last call, until
+// bendviz_return; NULL otherwise. gpu is where it was drawn and ms how long it took, all told.
+const u32* bendviz_borrow(int* w, int* h, bool* gpu, double* ms) {
   pthread_mutex_lock(&bv_lock);
-  bool fresh = bv_fresh;
-  *w = bv_done_w, *h = bv_done_h;
-  if (fresh && (size_t)bv_done_w * (size_t)bv_done_h > cap) {
-    fresh = false;
-  } else if (fresh) {
-    memcpy(out, bv_pixels, (size_t)bv_done_w * (size_t)bv_done_h * 4);
+  const u32* frame = NULL;
+  if (bv_fresh && bv_front != NULL) {
+    frame = bv_front, bv_lent = true, bv_fresh = false;
     *w = bv_done_w, *h = bv_done_h, *gpu = bv_done_gpu, *ms = bv_ms;
-    bv_fresh = false;
   }
   pthread_mutex_unlock(&bv_lock);
-  return fresh;
+  return frame;
+}
+
+void bendviz_return(void) {
+  pthread_mutex_lock(&bv_lock);
+  bv_lent = false;
+  pthread_mutex_unlock(&bv_lock);
 }
 
 // How the last frame's time divides: drawing it, and bringing it to the host.

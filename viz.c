@@ -52,7 +52,9 @@ struct viz {
     SDL_Texture *pattern, *ball, *glow;  // the tunnel's wall, a lit sphere, a soft light
     SDL_Texture *feed[2];                // the feedback's last frame and the one being drawn
     int feed_w, feed_h;
-    canvas fire, plasma, bend;
+    canvas fire, plasma;
+    SDL_Texture *bend_tex;  // the Bend effect's newest frame, uploaded straight from Bend's buffer
+    int bend_w, bend_h;
     bool bend_on_gpu;       // where the Bend effect is asked to draw (g switches it)
     bool bend_drawn_gpu;    // where its newest frame was drawn, and how long that took
     double bend_ms;
@@ -412,20 +414,25 @@ static void fx_bend(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
     int fw, fh;
     bool gpu;
     double ms;
-    bendviz_take(NULL, 0, &fw, &fh, &gpu, &ms);  // the size of the newest frame, to make room for it
-    if (fw > 0 && fh > 0 && (fw != v->bend.w || fh != v->bend.h)) fit(v, &v->bend, fw, fh);
-    if (v->bend.w > 0 && bendviz_take(v->bend.px, (size_t)v->bend.w * v->bend.h, &fw, &fh, &gpu, &ms) && fw == v->bend.w && fh == v->bend.h) {
+    const uint32_t *frame = bendviz_borrow(&fw, &fh, &gpu, &ms);
+    if (frame) {
+        if (fw != v->bend_w || fh != v->bend_h) {
+            if (v->bend_tex) SDL_DestroyTexture(v->bend_tex);
+            v->bend_tex = SDL_CreateTexture(v->ren, SDL_PIXELFORMAT_XRGB8888, SDL_TEXTUREACCESS_STREAMING, fw, fh);
+            v->bend_w = fw, v->bend_h = fh;
+        }
+        SDL_UpdateTexture(v->bend_tex, NULL, frame, fw * 4);
+        bendviz_return();
         v->bend_drawn_gpu = gpu, v->bend_ms = ms;
-        SDL_UpdateTexture(v->bend.tex, NULL, v->bend.px, fw * 4);
         v->bend_shown = true;
     }
-    if (v->bend_shown) {
-        SDL_SetTextureBlendMode(v->bend.tex, SDL_BLENDMODE_NONE);
-        SDL_RenderTexture(v->ren, v->bend.tex, NULL, &a);
+    if (v->bend_shown && v->bend_tex) {
+        SDL_SetTextureBlendMode(v->bend_tex, SDL_BLENDMODE_NONE);
+        SDL_RenderTexture(v->ren, v->bend_tex, NULL, &a);
     }
     char label[96];
     const char *where = !v->bend_shown ? "starting" : v->bend_drawn_gpu ? "GPU" : v->bend_on_gpu && !bendviz_gpu() ? "CPU (no GPU found)" : "CPU";
-    if (v->bend_shown) snprintf(label, sizeof label, "Bend on %s, %.1f ms a frame (%dx%d)", where, v->bend_ms, v->bend.w, v->bend.h);
+    if (v->bend_shown) snprintf(label, sizeof label, "Bend on %s, %.1f ms a frame (%dx%d)", where, v->bend_ms, v->bend_w, v->bend_h);
     else snprintf(label, sizeof label, "Bend %s", where);
     // Top left, under where the effect's name shows (the stats overlay has the top right).
     float px = fmaxf(14, a.h * 0.045f), ly = a.y + a.h * 0.09f * 2.3f;
@@ -584,10 +591,10 @@ viz *viz_new(SDL_Renderer *ren, int rate) {
 
 void viz_free(viz *v) {
     if (!v) return;
-    SDL_Texture *all[] = { v->pattern, v->ball, v->glow, v->feed[0], v->feed[1], v->fire.tex, v->plasma.tex, v->bend.tex };
+    SDL_Texture *all[] = { v->pattern, v->ball, v->glow, v->feed[0], v->feed[1], v->fire.tex, v->plasma.tex, v->bend_tex };
     for (size_t i = 0; i < sizeof all / sizeof *all; i++)
         if (all[i]) SDL_DestroyTexture(all[i]);
-    free(v->heat), free(v->radius), free(v->fire.px), free(v->plasma.px), free(v->bend.px), free(v->m.v), free(v->m.i);
+    free(v->heat), free(v->radius), free(v->fire.px), free(v->plasma.px), free(v->m.v), free(v->m.i);
     free(v);
 }
 
@@ -605,7 +612,7 @@ bool viz_bend_stats(const viz *v, char *out, size_t size) {
     if (!v->bend_shown) return false;  // not drawn yet
     double draw, copy;
     bendviz_times(&draw, &copy);
-    snprintf(out, size, "bend %s %.1f ms (draw %.1f, copy %.1f) %dx%d", v->bend_drawn_gpu ? "gpu" : "cpu", v->bend_ms, draw, copy, v->bend.w, v->bend.h);
+    snprintf(out, size, "bend %s %.1f ms (draw %.1f, copy %.1f) %dx%d", v->bend_drawn_gpu ? "gpu" : "cpu", v->bend_ms, draw, copy, v->bend_w, v->bend_h);
     return true;
 }
 void viz_bend_switch(viz *v) { v->bend_on_gpu = !v->bend_on_gpu; }

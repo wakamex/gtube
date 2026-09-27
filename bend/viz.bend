@@ -1,6 +1,8 @@
 # The Bend effect in gtube's visualizer: a plasma drawing every pixel of the visualizer (up to
-# 4096 x 4096) into a flat buffer, rows packed at the frame's width, on the GPU (Viz.frame!) or on
-# the CPU's threads (Viz.frame), as the player asks each frame. The same function runs on either.
+# 4096 x 4096) into a flat buffer, rows packed at the frame's width, on the GPU or on the CPU's
+# threads, as the player asks each frame. Both run the same pixel function (Viz.px); each chip gets
+# the schedule that suits it: square tiles for the CPU, whose threads each keep to one patch of
+# memory, and a stride for the GPU, whose neighbouring lanes then write neighbouring pixels.
 #
 # The program runs on a thread of the player for as long as the player does: it waits for the
 # player to ask for a frame (Viz.next), reads that frame's inputs (Viz.param), draws, and hands
@@ -69,9 +71,9 @@ def Viz.tile(n: Nat, +y: U32, +x: U32, +k: Viz.K, a: Array<U32>) -> Array<U32>:
     case 0n:
       a
     case 1n+r:
-      Viz.tile(r, (y + 1 : U32), x, k, Viz.row(4n, x, y, k, a))
+      Viz.tile(r, (y + 1 : U32), x, k, Viz.row(16n, x, y, k, a))
 
-# A square of 4 << d pixels at (x, y): four quarters in parallel, down to 4x4 tiles. A square
+# A square of 16 << d pixels at (x, y): four quarters in parallel, down to 16x16 tiles. A square
 # wholly outside the frame is skipped before it forks. The buffer is forked into aliases, one per
 # quarter (Array.fork is @unsafe: the quarters write disjoint pixels), each taken apart by its own
 # def, since destructuring a computed pair is a match.
@@ -92,7 +94,7 @@ def Viz.fill.in(inside: Bool, +d: Nat, +x: U32, +y: U32, +k: Viz.K, a: Array<U32
 def Viz.fill.go(+d: Nat, +x: U32, +y: U32, +k: Viz.K, a: Array<U32>) -> Array<U32>:
   match d:
     case 0n:
-      Viz.tile(4n, y, x, k, a)
+      Viz.tile(16n, y, x, k, a)
     case 1n+e:
       Viz.fork1(e, x, y, k, Array.fork(U32, a))
 
@@ -109,24 +111,74 @@ def Viz.fork2(+e: Nat, +x: U32, +y: U32, +k: Viz.K, a1: Array<U32>, p: Array<U32
 @unsafe
 def Viz.fork3(+e: Nat, +x: U32, +y: U32, +k: Viz.K, a1: Array<U32>, a2: Array<U32>, p: Array<U32> & Array<U32>) -> Array<U32>:
   (a3, a4) = p
-  +h = U32.shln(4, e)
+  +h = U32.shln(16, e)
   +x1 = U32.add(x, h)
   +y1 = U32.add(y, h)
   q w r z = Viz.fill(e, x, y, k, a1) Viz.fill(e, x1, y, k, a2)
     Viz.fill(e, x, y1, k, a3) Viz.fill(e, x1, y1, k, a4)
   Array.join(U32, Array.join(U32, q, w), Array.join(U32, r, z))
 
-# The whole frame: one 4096 square (4 << 10), of which the frame's part is drawn.
+# The whole frame on the CPU: one 4096 square (16 << 8), of which the frame's part is drawn.
 @unsafe
 def Viz.frame(+k: Viz.K, a: Array<U32>) -> Array<U32>:
-  Viz.fill(10n, 0, 0, k, a)
+  Viz.fill(8n, 0, 0, k, a)
 
-# The same function, on the GPU or on the CPU's threads.
+# Strided: 16,384 leaves (4^7, one per GPU lane), leaf j drawing pixels j, j + 16384, ... so that
+# neighbouring lanes write neighbouring pixels, as CUDA's threads do.
+def Viz.lput(inside: Bool, +i: U32, +k: Viz.K, a: Array<U32>) -> Array<U32>:
+  match inside:
+    case True{}:
+      K{t, zoom, mid, hue, beat, w, h} = k
+      Array.set(U32, a, i, Viz.px((i % w : U32), (i / w : U32), k))
+    case False{}:
+      a
+
+def Viz.lin(n: Nat, +i: U32, +k: Viz.K, a: Array<U32>) -> Array<U32>:
+  match n:
+    case 0n:
+      a
+    case 1n+r:
+      K{t, zoom, mid, hue, beat, w, h} = k
+      Viz.lin(r, (i + 16384 : U32), k, Viz.lput((i < w * h : U32), i, k, a))
+
+@unsafe
+def Viz.lfill(+d: Nat, +j: U32, +k: Viz.K, a: Array<U32>) -> Array<U32>:
+  match d:
+    case 0n:
+      K{t, zoom, mid, hue, beat, w, h} = k
+      Viz.lin(U32.to_nat(((w * h + 16383) / 16384 : U32)), j, k, a)
+    case 1n+e:
+      Viz.lfork1(e, j, k, Array.fork(U32, a))
+
+@unsafe
+def Viz.lfork1(+e: Nat, +j: U32, +k: Viz.K, p: Array<U32> & Array<U32>) -> Array<U32>:
+  (a1, r) = p
+  Viz.lfork2(e, j, k, a1, Array.fork(U32, r))
+
+@unsafe
+def Viz.lfork2(+e: Nat, +j: U32, +k: Viz.K, a1: Array<U32>, p: Array<U32> & Array<U32>) -> Array<U32>:
+  (a2, r) = p
+  Viz.lfork3(e, j, k, a1, a2, Array.fork(U32, r))
+
+@unsafe
+def Viz.lfork3(+e: Nat, +j: U32, +k: Viz.K, a1: Array<U32>, a2: Array<U32>, p: Array<U32> & Array<U32>) -> Array<U32>:
+  (a3, a4) = p
+  +s = U32.shln(1, (e + e : Nat))
+  q w r z = Viz.lfill(e, j, k, a1) Viz.lfill(e, (j + s : U32), k, a2)
+    Viz.lfill(e, (j + s + s : U32), k, a3) Viz.lfill(e, (j + s + s + s : U32), k, a4)
+  Array.join(U32, Array.join(U32, q, w), Array.join(U32, r, z))
+
+# The whole frame on the GPU.
+@unsafe
+def Viz.frame.gpu(+k: Viz.K, a: Array<U32>) -> Array<U32>:
+  Viz.lfill(7n, 0, k, a)
+
+# The same pixels, on the GPU or on the CPU's threads.
 @unsafe
 def Viz.draw(gpu: Bool, +k: Viz.K, a: Array<U32>) -> Array<U32>:
   match gpu:
     case True{}:
-      Viz.frame!(k, a)
+      Viz.frame.gpu!(k, a)
     case False{}:
       Viz.frame(k, a)
 
