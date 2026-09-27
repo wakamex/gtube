@@ -5142,6 +5142,11 @@ static u32*            bv_back;                        // where the next one is 
 static size_t          bv_cap;                         // pixels each of those holds
 static bool            bv_pinned;                      // they are page-locked (for the GPU's copies)
 static bool            bv_lent;                        // the player is reading the front buffer
+// Frames the player takes on the device (graphics interop): they never visit the host.
+static bool            bv_device_ok;                   // the player can take them
+static unsigned long long bv_dev_front, bv_dev_back;   // two device buffers (CUdeviceptr)
+static size_t          bv_dev_cap;
+static bool            bv_front_on_device;             // the newest frame is bv_dev_front
 static int             bv_done_w, bv_done_h;
 static bool            bv_fresh, bv_done_gpu;
 static double          bv_ms;                          // how long the last frame took, all told
@@ -5209,26 +5214,60 @@ static bool bv_room(size_t n) {
   return bv_cap >= n;
 }
 
+#if BEND_CUDA
+// Two device buffers of n pixels, for frames the player takes on the device.
+static bool bv_dev_room(size_t n) {
+  if (n <= bv_dev_cap) {
+    return true;
+  }
+  if (bv_dev_cap) {
+    cuMemFree(bv_dev_back);
+    if (!bv_lent) cuMemFree(bv_dev_front);  // (a lent one is lost rather than pulled away)
+  }
+  bv_dev_cap = 0;
+  if (cuMemAlloc(&bv_dev_back, n * 4) != CUDA_SUCCESS || cuMemAlloc(&bv_dev_front, n * 4) != CUDA_SUCCESS) {
+    return false;
+  }
+  bv_dev_cap = n;
+  return true;
+}
+#endif
+
 Term viz_show_run(Env e, Term* f, IoWork* w) {
   Term   a  = f[0];
   u32*   px = (u32*)blk_ptr(e.mem, blk_loc(e.mem, a), 0);
   int    fw = (int)(bv_now_word & 8191), fh = (int)(bv_now_word >> 13 & 8191);
   size_t n  = (size_t)fw * (size_t)fh;
   u64    drawn = io_tick();  // the bang (or the CPU's work) is done
-  pthread_mutex_lock(&bv_lock);
-  bool room = !bv_lent && bv_room(n);  // (while the player reads, buffers are not reallocated)
-  pthread_mutex_unlock(&bv_lock);
-  if (!room || n > ((size_t)1 << blk_cls(a))) {
+  if (n > ((size_t)1 << blk_cls(a))) {
     return a;
   }
-  bool copied = false;
+  bool on_device = false, copied = false;
 #if BEND_CUDA
-  if (io_gpu && bv_pinned) {
-    copied = cuMemcpyDtoH(bv_back, (CUdeviceptr)(uintptr_t)px, n * 4) == CUDA_SUCCESS;
+  // On the device: one copy between device buffers, finished before the player may read it.
+  pthread_mutex_lock(&bv_lock);
+  bool device = io_gpu && bv_device_ok && !bv_lent && bv_dev_room(n);
+  pthread_mutex_unlock(&bv_lock);
+  if (device && cuMemcpyDtoD(bv_dev_back, (CUdeviceptr)(uintptr_t)px, n * 4) == CUDA_SUCCESS
+    && cuCtxSynchronize() == CUDA_SUCCESS) {
+    on_device = copied = true;
   }
 #endif
-  if (!copied) {
-    memcpy(bv_back, px, n * 4);
+  if (!on_device) {
+    pthread_mutex_lock(&bv_lock);
+    bool room = !bv_lent && bv_room(n);  // (while the player reads, buffers are not reallocated)
+    pthread_mutex_unlock(&bv_lock);
+    if (!room) {
+      return a;
+    }
+#if BEND_CUDA
+    if (io_gpu && bv_pinned) {
+      copied = cuMemcpyDtoH(bv_back, (CUdeviceptr)(uintptr_t)px, n * 4) == CUDA_SUCCESS;
+    }
+#endif
+    if (!copied) {
+      memcpy(bv_back, px, n * 4);
+    }
   }
   u64 now = io_tick();
   pthread_mutex_lock(&bv_lock);
@@ -5237,8 +5276,14 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
     sched_yield();
     pthread_mutex_lock(&bv_lock);
   }
-  u32* t = bv_front;
-  bv_front = bv_back, bv_back = t;
+  if (on_device) {
+    unsigned long long t = bv_dev_front;
+    bv_dev_front = bv_dev_back, bv_dev_back = t;
+  } else {
+    u32* t = bv_front;
+    bv_front = bv_back, bv_back = t;
+  }
+  bv_front_on_device = on_device;
   bv_draw_ms = (double)(drawn - bv_began) / 1e6, bv_copy_ms = (double)(now - drawn) / 1e6;
   bv_ms       = (double)(now - bv_began) / 1e6;
   bv_done_w   = fw, bv_done_h = fh;
@@ -5304,18 +5349,128 @@ void bendviz_request(const float params[5], int w, int h, bool gpu) {
   pthread_mutex_unlock(&bv_lock);
 }
 
-// Lends the newest finished frame (rows packed, w x h), if one arrived since the last call, until
-// bendviz_return; NULL otherwise. gpu is where it was drawn and ms how long it took, all told.
+// Lends the newest finished frame (rows packed, w x h), if one arrived since the last call and is
+// on the host, until bendviz_return; NULL otherwise. gpu is where it was drawn and ms how long it
+// took, all told.
 const u32* bendviz_borrow(int* w, int* h, bool* gpu, double* ms) {
   pthread_mutex_lock(&bv_lock);
   const u32* frame = NULL;
-  if (bv_fresh && bv_front != NULL) {
+  if (bv_fresh && !bv_front_on_device && bv_front != NULL) {
     frame = bv_front, bv_lent = true, bv_fresh = false;
     *w = bv_done_w, *h = bv_done_h, *gpu = bv_done_gpu, *ms = bv_ms;
   }
   pthread_mutex_unlock(&bv_lock);
   return frame;
 }
+
+// Whether the player takes frames drawn on the GPU on the device (bendviz_to_d3d11), from the next
+// one on; otherwise they come to the host.
+void bendviz_device_frames(bool on) {
+  pthread_mutex_lock(&bv_lock);
+  bv_device_ok = on;
+  pthread_mutex_unlock(&bv_lock);
+}
+
+#if BEND_CUDA && defined(_WIN32)
+
+// Graphics interop, loaded from the driver the runtime opened.
+typedef struct CUgraphicsResource_st* CUgraphicsResource;
+typedef struct CUarray_st*            CUarray;
+typedef struct {
+  size_t srcXInBytes, srcY;
+  int srcMemoryType;
+  const void* srcHost;
+  CUdeviceptr srcDevice;
+  CUarray srcArray;
+  size_t srcPitch;
+  size_t dstXInBytes, dstY;
+  int dstMemoryType;
+  void* dstHost;
+  CUdeviceptr dstDevice;
+  CUarray dstArray;
+  size_t dstPitch;
+  size_t WidthInBytes, Height;
+} BvCopy2D;  // CUDA_MEMCPY2D
+
+static CUresult (CUDAAPI* bv_register)(CUgraphicsResource*, void*, unsigned);
+static CUresult (CUDAAPI* bv_unregister)(CUgraphicsResource);
+static CUresult (CUDAAPI* bv_map_flags)(CUgraphicsResource, unsigned);
+static CUresult (CUDAAPI* bv_map)(unsigned, CUgraphicsResource*, CUstream);
+static CUresult (CUDAAPI* bv_unmap)(unsigned, CUgraphicsResource*, CUstream);
+static CUresult (CUDAAPI* bv_array)(CUarray*, CUgraphicsResource, unsigned, unsigned);
+static CUresult (CUDAAPI* bv_copy2d)(const BvCopy2D*);
+
+static bool bv_interop_ready(void) {
+  static int ready = -1;
+  if (ready < 0) {
+    static const char* const names[] = { "nvcuda.dll", NULL };
+    void* lib = gpu_lib_open(names);
+    bv_register   = (__typeof__(bv_register))gpu_sym(lib, "cuGraphicsD3D11RegisterResource");
+    bv_unregister = (__typeof__(bv_unregister))gpu_sym(lib, "cuGraphicsUnregisterResource");
+    bv_map_flags  = (__typeof__(bv_map_flags))gpu_sym(lib, "cuGraphicsResourceSetMapFlags_v2");
+    bv_map        = (__typeof__(bv_map))gpu_sym(lib, "cuGraphicsMapResources");
+    bv_unmap      = (__typeof__(bv_unmap))gpu_sym(lib, "cuGraphicsUnmapResources");
+    bv_array      = (__typeof__(bv_array))gpu_sym(lib, "cuGraphicsSubResourceGetMappedArray");
+    bv_copy2d     = (__typeof__(bv_copy2d))gpu_sym(lib, "cuMemcpy2D_v2");
+    CUcontext ctx;  // this thread works in the runtime's context
+    ready = bv_register && bv_unregister && bv_map_flags && bv_map && bv_unmap && bv_array && bv_copy2d
+      && cuDevicePrimaryCtxRetain(&ctx, gpu_dev) == CUDA_SUCCESS && cuCtxSetCurrent(ctx) == CUDA_SUCCESS;
+  }
+  return ready == 1;
+}
+
+// Copies the newest finished frame, if it is on the device, into a Direct3D 11 texture of its size
+// (ID3D11Texture2D*, B8G8R8A8), without the host: returns 1, with w and h the frame's size and gpu
+// and ms as for bendviz_borrow. Returns 0 when there is no such frame, with w and h the size of a
+// waiting one (so the player can make a texture that size and call again), and -1 when interop
+// fails: the player should then stop asking for device frames.
+int bendviz_to_d3d11(void* texture, int tw, int th, int* w, int* h, bool* gpu, double* ms) {
+  static void* registered;
+  static CUgraphicsResource res;
+  pthread_mutex_lock(&bv_lock);
+  bool waiting = bv_fresh && bv_front_on_device;
+  *w = bv_done_w, *h = bv_done_h;
+  bool fits = waiting && bv_done_w == tw && bv_done_h == th;
+  if (fits) {
+    bv_lent = true;
+  }
+  pthread_mutex_unlock(&bv_lock);
+  if (!fits) {
+    return 0;
+  }
+  int result = -1;
+  if (bv_interop_ready()) {
+    if (registered != texture) {
+      if (registered) bv_unregister(res);
+      registered = NULL;
+      if (bv_register(&res, texture, 0) == CUDA_SUCCESS) {
+        registered = texture;
+        bv_map_flags(res, 2);  // write-discard: the old contents are not needed
+      }
+    }
+    CUarray arr;
+    if (registered && bv_map(1, &res, NULL) == CUDA_SUCCESS) {
+      if (bv_array(&arr, res, 0, 0) == CUDA_SUCCESS) {
+        BvCopy2D c = { 0 };
+        c.srcMemoryType = 2, c.srcDevice = bv_dev_front, c.srcPitch = (size_t)tw * 4;  // device
+        c.dstMemoryType = 3, c.dstArray = arr;                                          // array
+        c.WidthInBytes = (size_t)tw * 4, c.Height = (size_t)th;
+        result = bv_copy2d(&c) == CUDA_SUCCESS ? 1 : -1;
+      }
+      if (bv_unmap(1, &res, NULL) != CUDA_SUCCESS) result = -1;
+    }
+  }
+  pthread_mutex_lock(&bv_lock);
+  if (result == 1) {
+    bv_fresh = false;
+    *gpu = bv_done_gpu, *ms = bv_ms;
+  }
+  bv_lent = false;
+  pthread_mutex_unlock(&bv_lock);
+  return result;
+}
+
+#endif
 
 void bendviz_return(void) {
   pthread_mutex_lock(&bv_lock);
