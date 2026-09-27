@@ -15,7 +15,8 @@
 // Views: 1 queue, 2 liked music, 3 playlists; / or Ctrl+F opens search with its box ready to type. Up/Down, Page
 // Up/Down, Home/End and Enter or a click pick; a song plays its whole list from there, an album or
 // playlist opens (Esc or Backspace goes back). R starts a radio from the selected song, L likes or
-// unlikes it. Space pauses, Left/Right previous/next, Ctrl+V pastes a link, -/+ volume, S signs in,
+// unlikes it. Left/Right switch views. Space pauses (or starts), N and P or the media keys next and
+// previous track, Ctrl+V pastes a link, -/+ volume, S signs in,
 // F1 performance overlay. Closing the window quits.
 #define SDL_MAIN_USE_CALLBACKS
 #include <SDL3/SDL.h>
@@ -35,6 +36,7 @@
 #include "library.h"
 #include "player.h"
 #include "signin.h"
+#include "state.h"
 #include "tools.h"
 
 #define RATE 48000
@@ -74,9 +76,28 @@ typedef struct {
     float volume;
     SDL_FRect rows[64];
     int row_index[64], nrows;
+    bool persist;         // remembers the window and queue (not in test modes)
+    window_state window;
+    bool window_changed;
+    int saved_version;    // the queue as last saved
+    uint64_t next_save;
 } app;
 
 static void sign_in(app *a);
+
+// Whether a saved window position is still on a connected display (monitors come and go).
+static bool on_a_display(int x, int y) {
+    if (x == (int)SDL_WINDOWPOS_CENTERED) return false;
+    int n;
+    SDL_DisplayID *ids = SDL_GetDisplays(&n);
+    bool ok = false;
+    for (int i = 0; i < n && !ok; i++) {
+        SDL_Rect r;
+        ok = SDL_GetDisplayBounds(ids[i], &r) && x + 40 >= r.x && x + 40 < r.x + r.w && y + 10 >= r.y && y + 10 < r.y + r.h;
+    }
+    SDL_free(ids);
+    return ok;
+}
 static void start_radio(app *a);
 
 static bool api_test(account *acc, const char *kind, const char *arg) {
@@ -231,8 +252,14 @@ SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
 
     if (a->shot) SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "offscreen"), SDL_SetHint(SDL_HINT_RENDER_DRIVER, "software");
     if (!SDL_Init(SDL_INIT_VIDEO | (a->shot ? 0 : SDL_INIT_AUDIO))) return SDL_Log("SDL_Init: %s", SDL_GetError()), SDL_APP_FAILURE;
-    if (!SDL_CreateWindowAndRenderer("gesso gtube", 720, 560, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY, &a->win, &a->ren))
+    a->persist = !a->shot && !demo;
+    a->window = (window_state){ SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 720, 560, false };
+    if (a->persist) state_load_window(dir, &a->window);
+    if (!SDL_CreateWindowAndRenderer("gesso gtube", a->window.w, a->window.h, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN, &a->win, &a->ren))
         return SDL_Log("window: %s", SDL_GetError()), SDL_APP_FAILURE;
+    if (on_a_display(a->window.x, a->window.y)) SDL_SetWindowPosition(a->win, a->window.x, a->window.y);
+    if (a->window.maximized) SDL_MaximizeWindow(a->win);
+    SDL_ShowWindow(a->win);
     gs_pace_set(&a->pace, a->win, a->ren, true, 30);
     a->audio = !a->shot && gs_mix_open(RATE);
     a->started = SDL_GetTicks();
@@ -240,6 +267,13 @@ SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
     a->player = player_new(&a->tools, &a->account, a->jobs, a->audio);
     a->glyphs = gs_glyphs_new(a->ren, 1024);
     a->fonts = gs_fontset_system();
+    if (a->persist && !nurls && !radio) {  // links given to play take its place
+        state_load_queue(dir, a->player);
+        int cur;
+        player_queue(a->player, NULL, 0, &cur);
+        a->selected[V_QUEUE] = cur > 0 ? cur : 0;
+    }
+    a->saved_version = player_version(a->player);
     for (int i = 0; i < nurls; i++) player_add(a->player, urls[i]);
     if (!a->shot && !demo && account_signed_in(&a->account)) a->next_refresh = SDL_GetTicks();  // renew at launch
     if (open_signin) sign_in(a);
@@ -450,6 +484,15 @@ SDL_AppResult SDL_AppEvent(void *state, SDL_Event *e) {
     if ((e->type == SDL_EVENT_KEY_DOWN || e->type == SDL_EVENT_MOUSE_BUTTON_DOWN) && e->key.windowID != SDL_GetWindowID(a->win)) return SDL_APP_CONTINUE;
     SDL_ConvertEventToRenderCoordinates(a->ren, e);
     if (e->type == SDL_EVENT_QUIT || e->type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) return SDL_APP_SUCCESS;
+    if (e->type == SDL_EVENT_WINDOW_MOVED || e->type == SDL_EVENT_WINDOW_RESIZED || e->type == SDL_EVENT_WINDOW_MAXIMIZED || e->type == SDL_EVENT_WINDOW_RESTORED) {
+        bool max = SDL_GetWindowFlags(a->win) & SDL_WINDOW_MAXIMIZED;
+        if (!max && !(SDL_GetWindowFlags(a->win) & SDL_WINDOW_MINIMIZED)) {  // the size to come back to
+            SDL_GetWindowPosition(a->win, &a->window.x, &a->window.y);
+            SDL_GetWindowSize(a->win, &a->window.w, &a->window.h);
+        }
+        a->window.maximized = max;
+        a->window_changed = true;
+    }
     if (e->type == SDL_EVENT_DROP_TEXT) paste(a, e->drop.data);
     int *sel = &a->selected[a->view];
     if (e->type == SDL_EVENT_TEXT_INPUT && a->typing) paste_query(a, e->text.text);
@@ -481,8 +524,15 @@ SDL_AppResult SDL_AppEvent(void *state, SDL_Event *e) {
         case SDLK_SLASH: start_typing(a); break;
         case SDLK_1: case SDLK_2: case SDLK_3: show(a, (int)(e->key.key - SDLK_1)); break;
         case SDLK_SPACE: player_toggle_pause(a->player); break;
-        case SDLK_RIGHT: player_next(a->player); break;
-        case SDLK_LEFT: player_previous(a->player); break;
+        case SDLK_RIGHT: case SDLK_LEFT: {  // the tabs, wrapping around; from search or an opened list, its neighbours
+            int tab = a->view < V_SEARCH ? a->view : a->view == V_OPEN && a->back < V_SEARCH ? a->back : -1;
+            bool right = e->key.key == SDLK_RIGHT;
+            show(a, tab < 0 ? (right ? 0 : 2) : (tab + (right ? 1 : 2)) % 3);
+            break;
+        }
+        case SDLK_N: case SDLK_MEDIA_NEXT_TRACK: if (!ctrl) player_next(a->player); break;
+        case SDLK_P: case SDLK_MEDIA_PREVIOUS_TRACK: if (!ctrl) player_previous(a->player); break;
+        case SDLK_MEDIA_PLAY_PAUSE: case SDLK_MEDIA_PLAY: case SDLK_MEDIA_PAUSE: player_toggle_pause(a->player); break;
         case SDLK_UP:
             if (*sel > 0) (*sel)--;
             if (heading_at(a, *sel)) {  // headings are passed over
@@ -579,6 +629,12 @@ SDL_AppResult SDL_AppIterate(void *state) {
         SDL_strlcpy(a->seen, account_status, sizeof a->seen);
     }
     if (a->radio) follow_radio(a);
+    if (a->persist && SDL_GetTicks() >= a->next_save) {  // at most every 2 s, and only what changed
+        a->next_save = SDL_GetTicks() + 2000;
+        if (a->window_changed) state_save_window(a->dir, &a->window), a->window_changed = false;
+        int v = player_version(a->player);
+        if (v != a->saved_version) state_save_queue(a->dir, a->player), a->saved_version = v;
+    }
     library *l = &a->library;
     SDL_LockMutex(l->lock);
     if (l->note[0]) note(a, l->note), l->note[0] = 0;
@@ -711,7 +767,7 @@ SDL_AppResult SDL_AppIterate(void *state) {
     }
     SDL_UnlockMutex(l->lock);
     const char *footer = SDL_GetTicks() < a->note_until ? a->note : status;
-    fit(a, 13 * u, x, oh - 16 * u, w, footer[0] ? footer : "/ search   Enter play   R radio   L like   Space pause   \xE2\x86\x90 \xE2\x86\x92 track   1-3 views   Ctrl+V link   -/+ volume   S sign in   F1 stats", faint);
+    fit(a, 13 * u, x, oh - 16 * u, w, footer[0] ? footer : "/ search   Enter play   R radio   L like   Space pause   N P track   \xE2\x86\x90 \xE2\x86\x92 or 1-3 views   Ctrl+V link   -/+ volume   S sign in   F1 stats", faint);
 
     gs_stats_frame_end(&a->stats);
     if (a->show_stats) {
@@ -734,6 +790,8 @@ void SDL_AppQuit(void *state, SDL_AppResult result) {
     app *a = state;
     (void)result;
     if (!a) return;
+    if (a->persist && a->win) state_save_window(a->dir, &a->window);
+    if (a->persist && a->player) state_save_queue(a->dir, a->player);
     gs_mix_close();
     signin_close(a->signin);
     player_free(a->player);

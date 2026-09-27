@@ -25,7 +25,10 @@ void player_set_queue(player *p, const track *tracks, int n, int start);
 void player_play(player *p, int index);
 void player_next(player *p);
 void player_previous(player *p);  // restarts the track if more than 3 s in
-void player_toggle_pause(player *p);
+void player_toggle_pause(player *p);  // or plays the current track when nothing is playing
+// Restores a saved queue with `current` shown as the track to play, without playing it.
+void player_load(player *p, const track *tracks, int n, int current);
+int player_version(player *p);        // changes whenever the queue or the current track does
 void player_update(player *p);    // call every frame: moves on at the end of a track
 
 // For the display. The queue is copied under the player's lock.

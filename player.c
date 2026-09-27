@@ -38,6 +38,7 @@ struct player {
     track *queue;
     int n, current;
     int listing;  // links being listed
+    int version;  // bumped on every change to the queue or the current track (for saving it)
     char status[256];
     playback *now;
 };
@@ -117,6 +118,7 @@ static void list_tracks(void *user) {
             SDL_strlcpy(t->artist, f[2] && strcmp(f[2], "NA") ? f[2] : "", sizeof t->artist);
             t->duration = f[3] && strcmp(f[3], "NA") ? SDL_atof(f[3]) : 0;
             added++;
+            p->version++;
         }
         if (added) SDL_snprintf(p->status, sizeof p->status, "added %d track%s", added, added == 1 ? "" : "s");
         else if (account_needed(errors)) SDL_strlcpy(p->status, "YouTube wants a signed-in session: press S to sign in", sizeof p->status);
@@ -152,6 +154,7 @@ void player_add(player *p, const char *url) {
         if (p->n < MAX_TRACKS) {
             memset(&p->queue[p->n], 0, sizeof p->queue[0]);
             SDL_strlcpy(p->queue[p->n++].id, id, sizeof id);
+            p->version++;
         }
         SDL_UnlockMutex(p->lock);
     }
@@ -167,7 +170,7 @@ void player_add(player *p, const char *url) {
 
 void player_add_track(player *p, const track *t) {
     SDL_LockMutex(p->lock);
-    if (p->n < MAX_TRACKS) p->queue[p->n++] = *t;
+    if (p->n < MAX_TRACKS) p->queue[p->n++] = *t, p->version++;
     SDL_UnlockMutex(p->lock);
 }
 
@@ -178,6 +181,7 @@ void player_set_queue(player *p, const track *tracks, int n, int start) {
     bool same = p->now && p->current >= 0 && !strcmp(p->queue[p->current].id, tracks[start].id);
     memcpy(p->queue, tracks, sizeof *tracks * (size_t)n);
     p->n = n;
+    p->version++;
     if (same) p->current = start;
     SDL_UnlockMutex(p->lock);
     if (!same) player_play(p, start);
@@ -257,6 +261,7 @@ void player_play(player *p, int index) {
     SDL_LockMutex(p->lock);
     if (index < 0 || index >= p->n) { SDL_UnlockMutex(p->lock); return; }
     p->current = index;
+    p->version++;
     playback *pb = calloc(1, sizeof *pb);
     pb->p = p;
     SDL_snprintf(pb->url, sizeof pb->url, "https://www.youtube.com/watch?v=%s", p->queue[index].id);
@@ -283,6 +288,24 @@ void player_previous(player *p) {
 
 void player_toggle_pause(player *p) {
     if (p->now) gs_stream_pause(p->now->stream, !gs_stream_paused(p->now->stream));
+    else if (p->current >= 0) player_play(p, p->current);  // a restored queue, or one that ran out
+}
+
+void player_load(player *p, const track *tracks, int n, int current) {
+    if (n > MAX_TRACKS) n = MAX_TRACKS;
+    SDL_LockMutex(p->lock);
+    memcpy(p->queue, tracks, sizeof *tracks * (size_t)n);
+    p->n = n;
+    p->current = current >= 0 && current < n ? current : -1;
+    p->version++;
+    SDL_UnlockMutex(p->lock);
+}
+
+int player_version(player *p) {
+    SDL_LockMutex(p->lock);
+    int v = p->version;
+    SDL_UnlockMutex(p->lock);
+    return v;
 }
 
 void player_update(player *p) {
