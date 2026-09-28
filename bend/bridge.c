@@ -129,6 +129,7 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
   int    fw = (int)(bv_now_word & 8191), fh = (int)(bv_now_word >> 13 & 8191);
   size_t n  = (size_t)fw * (size_t)fh;
   u64    drawn = io_tick();  // the bang (or the CPU's work) is done
+  double drawn_wait = bv_wait_total();
   bv_drawn = drawn;
   if (n > ((size_t)1 << blk_cls(a))) {
     return a;
@@ -177,7 +178,7 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
   }
   bv_front_on_device = on_device;
   bv_draw_ms = (double)(drawn - bv_began) / 1e6, bv_copy_ms = (double)(now - drawn) / 1e6;
-  bv_wait_frame = bv_wait_total() - bv_wait_began;
+  bv_wait_frame = drawn_wait - bv_wait_began;
   bv_ms       = (double)(now - bv_began) / 1e6;
   bv_done_w   = fw, bv_done_h = fh;
   bv_done_gpu = gpu_drew;  // asked for, and there to use
