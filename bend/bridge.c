@@ -27,7 +27,6 @@ static bool            bv_device_ok;                   // the player can take th
 static unsigned long long bv_dev_front;                // the newest frame, in Bend's heap (CUdeviceptr)
 static bool            bv_front_on_device;             // the newest frame is bv_dev_front
 static bool            bv_front_shared;                // or in a shared texture (bendviz_d3d11_take)
-static bool            bv_front_heap;                  // or where Bend drew it, the heap being Direct3D's
 // Counts for the stats: frames Bend finished and dropped, and the time from a request (the first
 // not yet served) to the helper taking it and to Bend starting on it, summed over the frames.
 static u64             bv_asked_at, bv_took_at;
@@ -96,14 +95,7 @@ static double bv_wait_began, bv_wait_frame;  // waiting for the GPU: by the fram
 static double bv_launch_began, bv_launch_frame;  // likewise in launch calls
 static double bv_before_frame, bv_after_frame;   // the last frame's host time before its first launch and after its last wait
 
-#if BEND_CUDA && defined(_WIN32)
-static void bv_heap_begin(void);
-#endif
-
 static Term viz_next_pack(Env e, IoWork* w) {
-#if BEND_CUDA && defined(_WIN32)
-  bv_heap_begin();
-#endif
 #ifdef BENDVIZ_EMBED
   bv_count_launches();
 #endif
@@ -261,8 +253,6 @@ static CUresult (CUDAAPI* bv_ext_free_mem)(void*);
 static CUresult (CUDAAPI* bv_ext_free_sem)(void*);
 static CUresult (CUDAAPI* bv_ext_free_mip)(void*);
 static CUresult (CUDAAPI* bv_ext_copy)(const BvShareCopy*, CUstream);
-typedef struct { unsigned long long offset, size; unsigned int flags; unsigned int reserved[16]; } BvExtBufDesc;
-static CUresult (CUDAAPI* bv_ext_buffer)(CUdeviceptr*, void*, const BvExtBufDesc*);
 
 static bool bv_share_load(void) {
   static int loaded;
@@ -279,8 +269,7 @@ static bool bv_share_load(void) {
     bv_ext_free_sem = (__typeof__(bv_ext_free_sem))gpu_sym(lib, "cuDestroyExternalSemaphore");
     bv_ext_free_mip = (__typeof__(bv_ext_free_mip))gpu_sym(lib, "cuMipmappedArrayDestroy");
     bv_ext_copy     = (__typeof__(bv_ext_copy))gpu_sym(lib, "cuMemcpy2DAsync_v2");
-    bv_ext_buffer   = (__typeof__(bv_ext_buffer))gpu_sym(lib, "cuExternalMemoryGetMappedBuffer");
-    loaded = bv_ext_buffer && bv_ext_import && bv_ext_array && bv_ext_level && bv_ext_sem && bv_ext_signal && bv_ext_wait
+    loaded = bv_ext_import && bv_ext_array && bv_ext_level && bv_ext_sem && bv_ext_signal && bv_ext_wait
       && bv_ext_free_mem && bv_ext_free_sem && bv_ext_free_mip && bv_ext_copy ? 1 : -1;
   }
   return loaded == 1;
@@ -376,90 +365,6 @@ static bool bv_share_go(u32 gen, void* const tex[3], void* fc, void* fd, unsigne
   bv_share.pending = slot, bv_share.pending_value = bv_share.cuda_value;
   return true;
 }
-
-// ---- Bend's heap in a Direct3D 11 buffer ----
-
-// Better than copying each frame into a texture: the player makes Bend's whole GPU heap, a buffer
-// shared with CUDA (bendviz_d3d11_heap, before Bend starts), and draws each frame straight from
-// where Bend drew it, with a shader of its own (heap_d3d11.c). After a frame Bend signals CUDA's
-// fence and publishes the frame's place; the player makes Direct3D wait for that value before
-// drawing from it. The program draws into two buffers in turn, so before drawing into the other
-// one Bend waits until the player has taken the new frame (it may be showing the other one until
-// then), and then, on the GPU, until Direct3D is done with what it drew before taking it.
-static pthread_cond_t bv_heap_took = PTHREAD_COND_INITIALIZER;
-static struct {
-  void* buffer;                     // from the player: the buffer (a KMT handle), its bytes, the fences
-  unsigned long long bytes;
-  void* fence_cuda;
-  void* fence_d3d;
-  int   state;                      // 0 not yet, 1 the heap is the buffer, -1 it is not
-  void* mem;
-  void* sem_cuda;
-  void* sem_d3d;
-  unsigned long long cuda_value;
-  // Under bv_lock: the newest frame's place and fence value, whether the player took it, and the
-  // Direct3D fence value that covers its drawing from the frames before.
-  unsigned long long pub_at, pub_value, read_done;
-  bool  taken;
-  bool  stop, busy;                 // the player is letting go; Bend is drawing a frame
-} bv_heap;
-
-// The runtime's hook for its device memory (gpu_corpus_mem), on Bend's thread: the buffer, or 0.
-static CUdeviceptr bv_heap_mem(u64 bytes) {
-  CUdeviceptr at = 0;
-  BvExtMemDesc md = { 0 };
-  md.type = 7, md.handle.win32.handle = bv_heap.buffer;  // CU_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_RESOURCE_KMT
-  md.size = bv_heap.bytes, md.flags = 1;                 // CUDA_EXTERNAL_MEMORY_DEDICATED
-  BvExtBufDesc bd = { 0 };
-  bd.size = bytes;
-  BvExtSemDesc sc = { 0 }, sd = { 0 };
-  sc.type = sd.type = 5;  // CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_D3D11_FENCE
-  sc.handle.win32.handle = bv_heap.fence_cuda, sd.handle.win32.handle = bv_heap.fence_d3d;
-  bool ok = bv_share_load() && bytes <= bv_heap.bytes
-    && bv_ext_import(&bv_heap.mem, &md) == CUDA_SUCCESS && bv_ext_buffer(&at, bv_heap.mem, &bd) == CUDA_SUCCESS
-    && bv_ext_sem(&bv_heap.sem_cuda, &sc) == CUDA_SUCCESS && bv_ext_sem(&bv_heap.sem_d3d, &sd) == CUDA_SUCCESS;
-  pthread_mutex_lock(&bv_lock);
-  bv_heap.state = ok ? 1 : -1;
-  pthread_mutex_unlock(&bv_lock);
-  return ok ? at : 0;  // (on failure the runtime allocates its own; the imports are left)
-}
-
-// On Bend's thread, the frame at `at` just drawn: signals CUDA's fence after it.
-static bool bv_heap_frame(void) {
-  BvSemSignal sp = { 0 };
-  sp.params.fence.value = bv_heap.cuda_value + 1;
-  if (bv_ext_signal(&bv_heap.sem_cuda, &sp, 1, NULL) != CUDA_SUCCESS) {
-    return false;
-  }
-  bv_heap.cuda_value += 1;
-  return true;
-}
-
-// On Bend's thread, after publishing a frame: waits until the player has taken it (or is letting
-// go of the heap, when Bend stops here for good), then has the GPU wait for Direct3D.
-static void bv_heap_hold(void) {
-  pthread_mutex_lock(&bv_lock);
-  while (!bv_heap.taken || bv_heap.stop) {
-    if (bv_heap.stop) bv_heap.busy = false, pthread_cond_broadcast(&bv_heap_took);
-    pthread_cond_wait(&bv_heap_took, &bv_lock);
-  }
-  unsigned long long read = bv_heap.read_done;
-  pthread_mutex_unlock(&bv_lock);
-  BvSemWait wp = { 0 };
-  wp.params.fence.value = read;
-  bv_ext_wait(&bv_heap.sem_d3d, &wp, 1, NULL);
-}
-
-// A frame starts, on Bend's thread: none once the player is letting go.
-static void bv_heap_begin(void) {
-  pthread_mutex_lock(&bv_lock);
-  while (bv_heap.stop) {
-    bv_heap.busy = false, pthread_cond_broadcast(&bv_heap_took);
-    pthread_cond_wait(&bv_heap_took, &bv_lock);
-  }
-  bv_heap.busy = bv_heap.state == 1;
-  pthread_mutex_unlock(&bv_lock);
-}
 #endif
 
 Term viz_show_run(Env e, Term* f, IoWork* w) {
@@ -481,7 +386,6 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
   bool on_device = false, copied = false;
   bool gpu_drew = bv_now_word >> 31 != 0 && io_gpu;  // else the frame is in host memory
   bool shared = false;                                 // it went into a shared texture
-  bool heap = false;                                   // it stays where it is, for Direct3D
   unsigned long long at = 0;
 #if BEND_CUDA
   // On the device the frame stays where Bend drew it: the program draws into two buffers in turn,
@@ -492,8 +396,7 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
   if (device) {
     at = gpu_at(px, n * 4), on_device = copied = true;
 #ifdef _WIN32
-    heap = bv_heap.state == 1 && bv_heap_frame();
-    shared = !heap && bv_share_frame(at, fw, fh);
+    shared = bv_share_frame(at, fw, fh);
 #endif
   }
 #endif
@@ -522,12 +425,7 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
     sched_yield();
     pthread_mutex_lock(&bv_lock);
   }
-  if (heap) {
-#if BEND_CUDA && defined(_WIN32)
-    bv_heap.pub_at = at - gpu_base, bv_heap.pub_value = bv_heap.cuda_value, bv_heap.taken = false;
-#endif
-    on_device = false;
-  } else if (shared) {
+  if (shared) {
 #if BEND_CUDA && defined(_WIN32)
     if (bv_share.imported == bv_share.gen) {  // (not a set shared since)
       bv_share.published = bv_share.pending, bv_share.pub_value = bv_share.pending_value;
@@ -551,7 +449,6 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
   }
   bv_front_on_device = on_device;
   bv_front_shared = shared;
-  bv_front_heap = heap;
   bv_draw_ms = (double)(drawn - bv_began) / 1e6, bv_copy_ms = (double)(now - drawn) / 1e6;
   bv_wait_frame = drawn_wait - bv_wait_began;
   bv_launch_frame = drawn_launch - bv_launch_began;
@@ -564,13 +461,6 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
   pthread_cond_broadcast(&bv_shown);
   bv_trace("swap", on_device, 0);
   pthread_mutex_unlock(&bv_lock);
-#if BEND_CUDA && defined(_WIN32)
-  if (heap) bv_heap_hold();
-  pthread_mutex_lock(&bv_lock);
-  bv_heap.busy = false;  // (until the next frame starts)
-  pthread_cond_broadcast(&bv_heap_took);
-  pthread_mutex_unlock(&bv_lock);
-#endif
   return a;
 }
 
@@ -665,7 +555,7 @@ const u32* bendviz_borrow(int* w, int* h, bool* gpu, double* ms) {
   pthread_mutex_lock(&bv_lock);
   const u32* frame = NULL;
   bv_trace("borrow-try", bv_fresh, bv_front_on_device);
-  if (bv_fresh && !bv_front_on_device && !bv_front_shared && !bv_front_heap && bv_front != NULL) {
+  if (bv_fresh && !bv_front_on_device && !bv_front_shared && bv_front != NULL) {
     frame = bv_front, bv_lent = true, bv_fresh = false;
     *w = bv_done_w, *h = bv_done_h, *gpu = bv_done_gpu, *ms = bv_ms;
   }
@@ -891,57 +781,6 @@ void bendviz_d3d11_unshare(void) {
   if (bv_share.imported && cuCtxSetCurrent(gpu_ctx) == CUDA_SUCCESS) {
     cuCtxSynchronize();  // (copies into the textures may be queued)
     bv_share_drop();
-  }
-}
-
-// Before bendviz_start: Bend's GPU heap is to be this buffer (a KMT handle to a Direct3D 11 buffer
-// of `bytes`, at least the heap's size), frames being drawn from it where Bend drew them; the
-// fences as for bendviz_d3d11_share. See bv_heap.
-void bendviz_d3d11_heap(void* buffer, unsigned long long bytes, void* fence_cuda, void* fence_d3d) {
-  pthread_mutex_lock(&bv_lock);
-  bv_heap.buffer = buffer, bv_heap.bytes = bytes;
-  bv_heap.fence_cuda = fence_cuda, bv_heap.fence_d3d = fence_d3d;
-  pthread_mutex_unlock(&bv_lock);
-  gpu_corpus_mem = bv_heap_mem;
-}
-
-// 1 once the heap is the buffer, -1 if it could not be (frames then come another way), 0 before.
-int bendviz_d3d11_heap_state(void) {
-  pthread_mutex_lock(&bv_lock);
-  int state = bv_heap.state;
-  pthread_mutex_unlock(&bv_lock);
-  return state;
-}
-
-// Each frame, as bendviz_d3d11_take: 1 with a new frame at byte *at of the buffer (w x h, rows
-// packed), for which Direct3D waits for CUDA's fence to reach *wait_value; 0 when none is new.
-int bendviz_d3d11_heap_take(unsigned long long d3d_done, unsigned long long* wait_value, unsigned long long* at, int* w, int* h,
-  bool* gpu, double* ms) {
-  pthread_mutex_lock(&bv_lock);
-  int got = 0;
-  if (bv_fresh && bv_front_heap && !bv_heap.taken) {
-    *at = bv_heap.pub_at, *wait_value = bv_heap.pub_value;
-    *w = bv_done_w, *h = bv_done_h, *gpu = bv_done_gpu, *ms = bv_ms;
-    bv_heap.taken = true, bv_heap.read_done = d3d_done, bv_fresh = false, got = 1;
-    pthread_cond_broadcast(&bv_heap_took);
-  }
-  pthread_mutex_unlock(&bv_lock);
-  return got;
-}
-
-// Stops Bend drawing into the buffer, for good, and waits until the GPU is done with it (before
-// the player lets go of the buffer, or Direct3D).
-void bendviz_d3d11_heap_stop(void) {
-  pthread_mutex_lock(&bv_lock);
-  bv_heap.stop = true;
-  pthread_cond_broadcast(&bv_heap_took);
-  while (bv_heap.busy) {
-    pthread_cond_wait(&bv_heap_took, &bv_lock);
-  }
-  bool on = bv_heap.state == 1;
-  pthread_mutex_unlock(&bv_lock);
-  if (on && cuCtxSetCurrent(gpu_ctx) == CUDA_SUCCESS) {
-    cuCtxSynchronize();
   }
 }
 

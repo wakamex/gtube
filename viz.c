@@ -58,7 +58,6 @@ struct viz {
     SDL_Texture *bend_draw; // the texture holding the newest frame: bend_tex or a shared one
     int bend_w, bend_h;
     bend_share *bend_share; // Windows: textures Bend copies its frames into (bend_d3d11.c)
-    bend_heap *bend_heap;   // or Bend's GPU heap, a buffer frames are drawn from (bend_heap.c)
     bool bend_share_off;    // they can't be made, or Bend couldn't use them
     int bend_interop;       // frames on the device go straight into bend_tex: 1 yes, -1 no, 0 not known yet
     bool bend_on_device;    // the last frame did
@@ -471,14 +470,6 @@ static void bend_texture(viz *v, int w, int h) {
 // function on the GPU or on the CPU's threads, as g chooses. It runs beside the player and draws
 // at its own pace: each frame asks for the next and shows the newest one finished.
 static void fx_bend(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
-#ifdef _WIN32
-    // On Direct3D 11, Bend's GPU heap is a buffer of the renderer's, made before Bend starts, and
-    // frames are drawn from where Bend drew them. BENDVIZ_NO_HEAP: textures shared with CUDA instead.
-    if (!v->bend_started && !SDL_getenv("BENDVIZ_NO_HEAP")) {
-        const char *r = SDL_GetRendererName(v->ren);
-        if (r && !strcmp(r, "direct3d11")) v->bend_heap = bend_heap_for(v->ren, 768ull << 20);
-    }
-#endif
     if (!v->bend_started) v->bend_started = bendviz_start("768MB"), v->bend_on_gpu = true;
     int w = (int)a.w < BENDVIZ_MAX ? (int)a.w : BENDVIZ_MAX, h = (int)a.h < BENDVIZ_MAX ? (int)a.h : BENDVIZ_MAX;
     float params[5] = { (float)v->t, v->bass, v->mid, v->hue, v->beat };
@@ -512,16 +503,7 @@ static void fx_bend(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
     }
     static int no_share = -1;  // BENDVIZ_NO_SHARE: map the texture each frame, as before
     if (no_share < 0) no_share = SDL_getenv("BENDVIZ_NO_SHARE") != NULL;
-    bool heap = v->bend_interop == 1 && v->bend_heap && !bend_heap_failed();
-    if (heap) {
-        // Drawn now, from the heap (the label goes over it); a CPU frame would come below instead.
-        bool new_frame;
-        if (bend_heap_render(v->bend_heap, v->ren, a, &new_frame, &fw, &fh, &gpu, &ms)) v->bend_draw = NULL;
-        if (new_frame) {
-            v->bend_drawn_gpu = gpu, v->bend_ms = ms, v->bend_shown = true, v->bend_on_device = true, fresh = true;
-            v->bend_w = fw, v->bend_h = fh;
-        }
-    } else if (v->bend_interop == 1 && !v->bend_share_off && !no_share) {
+    if (v->bend_interop == 1 && !v->bend_share_off && !no_share) {
         // Textures shared with Bend, the size of the frames it draws (at most BENDVIZ_PIXELS)
         int sw = w, sh = (long)w * h > BENDVIZ_PIXELS ? (int)(BENDVIZ_PIXELS / w) : h, cw = 0, ch = 0;
         if (v->bend_share) bend_share_size(v->bend_share, &cw, &ch);
@@ -543,7 +525,7 @@ static void fx_bend(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
             }
         }
     }
-    if (v->bend_interop == 1 && !heap) {  // frames not in shared textures (a size just changed, or none)
+    if (v->bend_interop == 1) {  // frames not in shared textures (a size just changed, or none)
         SDL_FlushRenderer(v->ren);  // nothing queued may still be using the texture
         void *d3d = v->bend_tex ? SDL_GetPointerProperty(SDL_GetTextureProperties(v->bend_tex), SDL_PROP_TEXTURE_D3D11_TEXTURE_POINTER, NULL) : NULL;
         int r = bendviz_to_d3d11(d3d, v->bend_w, v->bend_h, &fw, &fh, &gpu, &ms);
@@ -736,7 +718,6 @@ viz *viz_new(SDL_Renderer *ren, int rate) {
 void viz_free(viz *v) {
     if (!v) return;
 #ifdef _WIN32
-    bend_heap_free(v->bend_heap), v->bend_heap = NULL;  // (stops Bend for good)
     bend_share_free(v->bend_share), v->bend_share = NULL, v->bend_draw = NULL;
 #endif
     bend_release(v);
