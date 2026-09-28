@@ -148,7 +148,8 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
 #if BEND_CUDA
   // On the device: one copy between device buffers, finished before the player may read it.
   pthread_mutex_lock(&bv_lock);
-  bool device = gpu_drew && bv_device_ok && !bv_lent && bv_dev_room(n);
+  // (while the player reads the front buffer, the back one is written, but neither is reallocated)
+  bool device = gpu_drew && bv_device_ok && (n <= bv_dev_cap || (!bv_lent && bv_dev_room(n)));
   pthread_mutex_unlock(&bv_lock);
   if (device && cuMemcpyDtoD(bv_dev_back, gpu_at(px), n * 4) == CUDA_SUCCESS
     && cuCtxSynchronize() == CUDA_SUCCESS) {
@@ -157,7 +158,7 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
 #endif
   if (!on_device) {
     pthread_mutex_lock(&bv_lock);
-    bool room = !bv_lent && bv_room(n);  // (while the player reads, buffers are not reallocated)
+    bool room = n <= bv_cap || (!bv_lent && bv_room(n));
     pthread_mutex_unlock(&bv_lock);
     if (!room) {
       return a;
@@ -303,7 +304,12 @@ static CUresult (CUDAAPI* bv_map_flags)(CUgraphicsResource, unsigned);
 static CUresult (CUDAAPI* bv_map)(unsigned, CUgraphicsResource*, CUstream);
 static CUresult (CUDAAPI* bv_unmap)(unsigned, CUgraphicsResource*, CUstream);
 static CUresult (CUDAAPI* bv_array)(CUarray*, CUgraphicsResource, unsigned, unsigned);
-static CUresult (CUDAAPI* bv_copy2d)(const BvCopy2D*);
+static CUresult (CUDAAPI* bv_copy2d)(const BvCopy2D*, CUstream);
+static CUresult (CUDAAPI* bv_stream_create)(CUstream*, unsigned);
+static CUresult (CUDAAPI* bv_stream_sync)(CUstream);
+// The player's copies go on a stream of their own, which doesn't wait for the kernels drawing the
+// next frame (the default stream would, holding the front buffer lent all that time).
+static CUstream bv_stream;
 
 static bool bv_interop_ready(void) {
   static int ready = -1;
@@ -316,10 +322,14 @@ static bool bv_interop_ready(void) {
     bv_map        = (__typeof__(bv_map))gpu_sym(lib, "cuGraphicsMapResources");
     bv_unmap      = (__typeof__(bv_unmap))gpu_sym(lib, "cuGraphicsUnmapResources");
     bv_array      = (__typeof__(bv_array))gpu_sym(lib, "cuGraphicsSubResourceGetMappedArray");
-    bv_copy2d     = (__typeof__(bv_copy2d))gpu_sym(lib, "cuMemcpy2D_v2");
+    bv_copy2d     = (__typeof__(bv_copy2d))gpu_sym(lib, "cuMemcpy2DAsync_v2");
+    bv_stream_create = (__typeof__(bv_stream_create))gpu_sym(lib, "cuStreamCreate");
+    bv_stream_sync   = (__typeof__(bv_stream_sync))gpu_sym(lib, "cuStreamSynchronize");
     CUcontext ctx;  // this thread works in the runtime's context
     ready = bv_register && bv_unregister && bv_map_flags && bv_map && bv_unmap && bv_array && bv_copy2d
-      && cuDevicePrimaryCtxRetain(&ctx, gpu_dev) == CUDA_SUCCESS && cuCtxSetCurrent(ctx) == CUDA_SUCCESS;
+      && bv_stream_create && bv_stream_sync
+      && cuDevicePrimaryCtxRetain(&ctx, gpu_dev) == CUDA_SUCCESS && cuCtxSetCurrent(ctx) == CUDA_SUCCESS
+      && bv_stream_create(&bv_stream, 1) == CUDA_SUCCESS;  // CU_STREAM_NON_BLOCKING
   }
   return ready == 1;
 }
@@ -355,15 +365,15 @@ int bendviz_to_d3d11(void* texture, int tw, int th, int* w, int* h, bool* gpu, d
       }
     }
     CUarray arr;
-    if (bv_registered && bv_map(1, &bv_res, NULL) == CUDA_SUCCESS) {
+    if (bv_registered && bv_map(1, &bv_res, bv_stream) == CUDA_SUCCESS) {
       if (bv_array(&arr, bv_res, 0, 0) == CUDA_SUCCESS) {
         BvCopy2D c = { 0 };
         c.srcMemoryType = 2, c.srcDevice = bv_dev_front, c.srcPitch = (size_t)tw * 4;  // device
         c.dstMemoryType = 3, c.dstArray = arr;                                          // array
         c.WidthInBytes = (size_t)tw * 4, c.Height = (size_t)th;
-        result = bv_copy2d(&c) == CUDA_SUCCESS ? 1 : -1;
+        result = bv_copy2d(&c, bv_stream) == CUDA_SUCCESS ? 1 : -1;
       }
-      if (bv_unmap(1, &bv_res, NULL) != CUDA_SUCCESS) result = -1;
+      if (bv_unmap(1, &bv_res, bv_stream) != CUDA_SUCCESS || bv_stream_sync(bv_stream) != CUDA_SUCCESS) result = -1;
     }
   }
   pthread_mutex_lock(&bv_lock);
