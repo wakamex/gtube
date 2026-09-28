@@ -9603,6 +9603,25 @@ static bool            bv_front_on_device;             // the newest frame is bv
 static u64             bv_asked_at, bv_took_at;
 static u64             bv_n_drawn, bv_n_dropped;
 static double          bv_took_ms, bv_began_ms;
+
+// With BENDVIZ_TRACE set to a file name, 3,000 events from 3 s after the start (requests, Bend's
+// steps, the player's takes) are written there with their times, to find where frames go.
+static FILE*           bv_trace_out;
+static u64             bv_trace_t0;
+static int             bv_trace_n;
+static pthread_mutex_t bv_trace_lock = PTHREAD_MUTEX_INITIALIZER;
+static u64 io_tick(void);
+static void bv_trace(const char* what, long a, long b) {
+  if (bv_trace_out == NULL) return;
+  u64 t = io_tick();
+  if (t < bv_trace_t0 + 3000000000ull) return;
+  pthread_mutex_lock(&bv_trace_lock);
+  if (bv_trace_out != NULL) {
+    fprintf(bv_trace_out, "%.3f %s %ld %ld\n", (double)(t - bv_trace_t0) / 1e6, what, a, b);
+    if (++bv_trace_n == 3000) fclose(bv_trace_out), bv_trace_out = NULL;
+  }
+  pthread_mutex_unlock(&bv_trace_lock);
+}
 #if BEND_CUDA && defined(_WIN32)
 // The player's copy out of a device buffer into its texture is queued, and finishes on the GPU after
 // the player has moved on (at the next vertical blank, when Direct3D lets go of the texture). So each
@@ -9628,6 +9647,7 @@ static void viz_next_call(IoWork* w) {  // an IO helper thread: no Bend heap her
   }
   bv_want = false;
   bv_took_at = io_tick();
+  bv_trace("helper-took", 0, 0);
   memcpy(bv_now, bv_ask, sizeof bv_now);
   bv_now_word = bv_ask_word;
   pthread_mutex_unlock(&bv_lock);
@@ -9652,6 +9672,7 @@ static Term viz_next_pack(Env e, IoWork* w) {
   bv_count_launches();
 #endif
   bv_began = io_tick();
+  bv_trace("began", 0, 0);
   pthread_mutex_lock(&bv_lock);
   if (bv_asked_at) {
     bv_took_ms += (double)(bv_took_at - bv_asked_at) / 1e6, bv_began_ms += (double)(bv_began - bv_took_at) / 1e6;
@@ -9730,12 +9751,14 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
   int    fw = (int)(bv_now_word & 8191), fh = (int)(bv_now_word >> 13 & 8191);
   size_t n  = (size_t)fw * (size_t)fh;
   u64    drawn = io_tick();  // the bang (or the CPU's work) is done
+  bv_trace("drawn", 0, 0);
   double drawn_wait = bv_wait_total(), drawn_launch = bv_launch_total();
   double before, after;
   bv_edges_of(drawn, &before, &after);
   bv_drawn = drawn;
   if (n > ((size_t)1 << blk_cls(a))) {
     bv_n_dropped += 1;
+    bv_trace("drop-size", 0, 0);
     return a;
   }
   bool on_device = false, copied = false;
@@ -9760,6 +9783,7 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
     pthread_mutex_unlock(&bv_lock);
     if (!room) {
       bv_n_dropped += 1;
+      bv_trace("drop-room", 0, 0);
       return a;
     }
 #if BEND_CUDA
@@ -9799,6 +9823,7 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
   bv_done_gpu = gpu_drew;  // asked for, and there to use
   bv_fresh    = true;
   bv_n_drawn += 1;
+  bv_trace("swap", on_device, 0);
   pthread_mutex_unlock(&bv_lock);
   return a;
 }
@@ -9837,6 +9862,8 @@ bool bendviz_start(const char* gpu_heap) {
   }
   // Bend reports a fatal error on stderr and exits at once; unbuffered, the report survives.
   setvbuf(stderr, NULL, _IONBF, 0);
+  const char* trace = getenv("BENDVIZ_TRACE");
+  if (trace != NULL && (bv_trace_out = fopen(trace, "w")) != NULL) bv_trace_t0 = io_tick();
   pthread_t tid;
   if (pthread_create(&tid, NULL, bv_thread, (void*)gpu_heap)) {
     return false;
@@ -9854,6 +9881,7 @@ void bendviz_request(const float params[5], int w, int h, bool gpu) {
   pthread_mutex_lock(&bv_lock);
   memcpy(bv_ask, params, sizeof bv_ask);
   bv_ask_word = (u32)w | (u32)h << 13 | (gpu ? 1u << 31 : 0);
+  bv_trace("request", bv_want, 0);
   if (!bv_want) bv_asked_at = io_tick();  // the first request since Bend last took one
   bv_want     = true;
   pthread_cond_signal(&bv_asked);
@@ -9866,6 +9894,7 @@ void bendviz_request(const float params[5], int w, int h, bool gpu) {
 const u32* bendviz_borrow(int* w, int* h, bool* gpu, double* ms) {
   pthread_mutex_lock(&bv_lock);
   const u32* frame = NULL;
+  bv_trace("borrow-try", bv_fresh, bv_front_on_device);
   if (bv_fresh && !bv_front_on_device && bv_front != NULL) {
     frame = bv_front, bv_lent = true, bv_fresh = false;
     *w = bv_done_w, *h = bv_done_h, *gpu = bv_done_gpu, *ms = bv_ms;
@@ -9961,6 +9990,7 @@ int bendviz_to_d3d11(void* texture, int tw, int th, int* w, int* h, bool* gpu, d
   if (fits) {
     bv_lent = true;
   }
+  bv_trace("take-try", bv_fresh, bv_front_on_device);
   pthread_mutex_unlock(&bv_lock);
   if (!fits) {
     return 0;
@@ -9986,6 +10016,7 @@ int bendviz_to_d3d11(void* texture, int tw, int th, int* w, int* h, bool* gpu, d
       if (bv_unmap(1, &bv_res, bv_stream) != CUDA_SUCCESS || bv_ev_mark(bv_read_front, bv_stream) != CUDA_SUCCESS) result = -1;
     }
   }
+  bv_trace("take-done", result, 0);
   pthread_mutex_lock(&bv_lock);
   if (result == 1) {
     bv_fresh = false;
