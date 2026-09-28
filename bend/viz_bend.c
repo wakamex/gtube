@@ -8385,7 +8385,7 @@ static bool gpu_probe(void) {
 
 static CUdeviceptr gpu_base;  // the corpus on the device
 static char*       gpu_fill;  // the host's copy, always writable
-static u8*         gpu_held;  // per page: 0 not held, 1 held, 2 held and written
+static u8*         gpu_held;  // per page: 0 not held, 1 held, 2 held and written, 3 hot
 static u32*        gpu_list;  // the pages held
 static u32         gpu_nheld;
 static u32*        gpu_last;  // the pages held when last given up
@@ -8444,12 +8444,18 @@ static void gpu_pages_run(u32* list, u32 n, u64* stage, u32 in) {
   }
 }
 
-// Sends the written pages back to the device; with give_up, all held pages
-// are then given up (before a launch), else they stay, unwritten.
+// Sends the pages the host may have written back to the device (the written
+// ones and the hot ones). With give_up (before a launch) the held pages are
+// given up, all but up to GPU_STAGE of them, which stay hot: writable, and
+// fetched again after the launch (gpu_fetch_take). The host touches much the
+// same pages every time, so after the first time it touches a page, the page
+// costs no protection change at all: at hundreds of frames a second the
+// changes ran to a hundred thousand a second. Without give_up the written
+// pages become readable only, and the hot ones stay.
 static void gpu_send(bool give_up) {
   AcquireSRWLockExclusive(&gpu_lock);
   qsort(gpu_list, gpu_nheld, sizeof *gpu_list, gpu_page_cmp);
-  u32 m = 0;
+  u32 m = 0, kept = 0;
   for (u32 k = 0, j; k < gpu_nheld; k = j) {
     u64 i  = gpu_list[k];
     u8  st = gpu_held[i];
@@ -8457,12 +8463,12 @@ static void gpu_send(bool give_up) {
       && gpu_held[gpu_list[j]] == st; j += 1) {
     }
     u64 n = j - k;
-    if (st == 2 && n >= GPU_RUN) {
+    if (st >= 2 && n >= GPU_RUN) {
       if (cuMemcpyHtoD(gpu_base + (i << 12), gpu_fill + (i << 12), n << 12)
         != CUDA_SUCCESS) {
         err_fail("device copy failed");
       }
-    } else if (st == 2) {
+    } else if (st >= 2) {
       for (u64 p = i; p < i + n; p += 1) {
         if (m == GPU_STAGE) {
           gpu_pages_run(gpu_in_list, m, gpu_in_stage, 1);
@@ -8473,44 +8479,51 @@ static void gpu_send(bool give_up) {
         gpu_in_list[m++] = (u32)p;
       }
     }
-    if (give_up || st == 2) {
-      gpu_guard(i, n, give_up ? PAGE_NOACCESS : PAGE_READONLY);
+    if (give_up) {
+      u64 keep = kept + n <= GPU_STAGE ? n : GPU_STAGE - kept;
+      for (u64 p = i; p < i + keep; p += 1) {
+        gpu_last[kept++] = (u32)p;  // (its state until the fetch: see gpu_fetch_take)
+      }
+      if (keep < n) {
+        gpu_guard(i + keep, n - keep, PAGE_NOACCESS);
+        memset(gpu_held + i + keep, 0, n - keep);
+      }
+    } else if (st == 2) {
+      gpu_guard(i, n, PAGE_READONLY);
+      memset(gpu_held + i, 1, n);
     }
-    memset(gpu_held + i, give_up ? 0 : 1, n);
   }
   if (m > 0) {
     // (the next use of the stage is after a wait, which this kernel precedes)
     gpu_pages_run(gpu_in_list, m, gpu_in_stage, 1);
   }
   if (give_up) {
-    memcpy(gpu_last, gpu_list, gpu_nheld * sizeof *gpu_list);
-    gpu_nlast = gpu_nheld, gpu_nheld = 0;
+    gpu_nlast = kept, gpu_nheld = 0;
   }
   ReleaseSRWLockExclusive(&gpu_lock);
 }
 
-// After a launch, before its wait: has the pages the host held last time
-// copied out.
+// After a launch, before its wait: has the hot pages copied out.
 static void gpu_fetch_queue(void) {
-  gpu_nout = gpu_nlast < GPU_STAGE ? gpu_nlast : GPU_STAGE;
+  gpu_nout = gpu_nlast;
   memcpy(gpu_out_list, gpu_last, gpu_nout * sizeof *gpu_out_list);
   if (gpu_nout > 0) {
     gpu_pages_run(gpu_out_list, gpu_nout, gpu_out_stage, 0);
   }
 }
 
-// After the wait: those pages, readable (a write then faults only to mark the
-// page written).
+// After the wait: the hot pages, fresh, and writable (a page turning hot
+// changes protection this once).
 static void gpu_fetch_take(void) {
   AcquireSRWLockExclusive(&gpu_lock);
   for (u32 m = 0; m < gpu_nout; m += 1) {
     u64 i = gpu_out_list[m];
-    if (gpu_held[i] == 0) {
-      memcpy(gpu_fill + (i << 12), gpu_out_stage + ((u64)m << 9), 4096);
-      gpu_guard(i, 1, PAGE_READONLY);
-      gpu_held[i]           = 1;
-      gpu_list[gpu_nheld++] = (u32)i;
+    memcpy(gpu_fill + (i << 12), gpu_out_stage + ((u64)m << 9), 4096);
+    if (gpu_held[i] != 3) {
+      gpu_guard(i, 1, PAGE_READWRITE);
+      gpu_held[i] = 3;
     }
+    gpu_list[gpu_nheld++] = (u32)i;
   }
   gpu_nout = 0;
   ReleaseSRWLockExclusive(&gpu_lock);
@@ -9943,22 +9956,37 @@ static CUresult (CUDAAPI* bv_stream_create)(CUstream*, unsigned);
 static CUresult (CUDAAPI* bv_ev_create)(BvReadEvent*, unsigned);
 static CUresult (CUDAAPI* bv_ctx_create)(CUcontext*, unsigned, CUdevice);
 static CUresult (CUDAAPI* bv_peer_copy)(CUdeviceptr, CUcontext, CUdeviceptr, CUcontext, size_t, CUstream);
-// And in a context of their own: on Windows a context's streams share one queue on the GPU, so the
-// map's wait for the vertical blank held up Bend's kernels too, and every other frame came late.
-// The player's context first copies the frame out of Bend's buffer into one of its own (the event
-// marks that copy, so Bend may reuse the buffer long before the blank), then into the texture.
-static CUcontext bv_ictx;
-static CUdeviceptr bv_ibuf;
-static size_t bv_ibuf_cap;
-// The player's copies go on a stream of their own and aren't waited for: mapping the texture waits
-// for Direct3D's queued work, which at 60 fps sits behind the last present until the next vertical
-// blank. On the default stream the kernels drawing the next frame would queue behind it, and
-// waiting on the player's thread would stall the player a whole refresh.
-static CUstream bv_stream;
 
-static bool bv_interop_ready(void) {
-  static int ready = -1;
-  if (ready < 0) {
+// The player's copies go on a stream of their own and aren't waited for: mapping the texture waits
+// for Direct3D's queued work, which with vsync sits behind the last present until the next vertical
+// blank, and waiting on the player's thread would stall the player a whole refresh.
+//
+// With vsync they also go in a CUDA context of their own (BV_APART): on Windows a context's streams
+// share one queue on the GPU, so in Bend's context the map's wait for the blank would hold up the
+// kernels drawing the next frame as well, and every other frame would come late. That context first
+// copies the frame out of Bend's buffer into one of its own, which is all Bend then waits for, and
+// from there into the texture. Without vsync nothing waits for a blank, and the copy goes straight
+// from Bend's buffer in Bend's context (BV_SHARED), a millisecond a frame cheaper, and far less of
+// Bend's time. Each side has its stream, its registration of the texture, and two events used in
+// turn, one guarding each of Bend's buffers.
+enum { BV_SHARED, BV_APART };
+typedef struct {
+  CUcontext          ctx;
+  CUstream           stream;
+  BvReadEvent        ev[2];
+  u32                next_ev;
+  void*              registered;  // the texture registered in this context, and its handle
+  CUgraphicsResource res;
+  CUdeviceptr        buf;         // BV_APART: the frame, copied out of Bend's buffer
+  size_t             buf_cap;
+  int                ready;       // 0 not tried, 1 ready, -1 failed
+} BvSide;
+static BvSide bv_side[2];
+static bool   bv_apart;           // presents wait for the vertical blank (bendviz_interop_apart)
+
+static bool bv_interop_load(void) {
+  static int loaded;
+  if (loaded == 0) {
     static const char* const names[] = { "nvcuda.dll", NULL };
     void* lib = gpu_lib_open(names);
     bv_register   = (__typeof__(bv_register))gpu_sym(lib, "cuGraphicsD3D11RegisterResource");
@@ -9974,13 +10002,34 @@ static bool bv_interop_ready(void) {
     bv_ev_wait       = (__typeof__(bv_ev_wait))gpu_sym(lib, "cuStreamWaitEvent");
     bv_ctx_create    = (__typeof__(bv_ctx_create))gpu_sym(lib, "cuCtxCreate_v2");
     bv_peer_copy     = (__typeof__(bv_peer_copy))gpu_sym(lib, "cuMemcpyPeerAsync");
-    ready = bv_register && bv_unregister && bv_map_flags && bv_map && bv_unmap && bv_array && bv_copy2d
-      && bv_stream_create && bv_ev_create && bv_ev_mark && bv_ev_wait && bv_ctx_create && bv_peer_copy
-      && bv_ctx_create(&bv_ictx, 0, gpu_dev) == CUDA_SUCCESS  // current on this thread from now on
-      && bv_stream_create(&bv_stream, 1) == CUDA_SUCCESS  // CU_STREAM_NON_BLOCKING
-      && bv_ev_create(&bv_read_front, 2) == CUDA_SUCCESS && bv_ev_create(&bv_read_back, 2) == CUDA_SUCCESS;  // no timing
+    loaded = bv_register && bv_unregister && bv_map_flags && bv_map && bv_unmap && bv_array && bv_copy2d
+      && bv_stream_create && bv_ev_create && bv_ev_mark && bv_ev_wait && bv_ctx_create && bv_peer_copy ? 1 : -1;
   }
-  return ready == 1;
+  return loaded == 1;
+}
+
+// The side, set up the first time and made current on this (the player's) thread; NULL if it can't be.
+static BvSide* bv_side_ready(int which) {
+  BvSide* s = &bv_side[which];
+  if (s->ready == 0) {
+    bool ok = bv_interop_load()
+      && (which == BV_APART ? bv_ctx_create(&s->ctx, 0, gpu_dev) == CUDA_SUCCESS : (s->ctx = gpu_ctx) != NULL)
+      && cuCtxSetCurrent(s->ctx) == CUDA_SUCCESS
+      && bv_stream_create(&s->stream, 1) == CUDA_SUCCESS  // CU_STREAM_NON_BLOCKING
+      && bv_ev_create(&s->ev[0], 2) == CUDA_SUCCESS && bv_ev_create(&s->ev[1], 2) == CUDA_SUCCESS;  // no timing
+    s->ready = ok ? 1 : -1;
+  }
+  return s->ready == 1 && cuCtxSetCurrent(s->ctx) == CUDA_SUCCESS ? s : NULL;
+}
+
+static void bv_side_release(BvSide* s) {
+  if (s->registered && cuCtxSetCurrent(s->ctx) == CUDA_SUCCESS) bv_unregister(s->res);
+  s->registered = NULL;
+}
+
+// Whether the player's presents wait for the vertical blank (vsync): see BvSide.
+void bendviz_interop_apart(bool apart) {
+  bv_apart = apart;
 }
 
 // Copies the newest finished frame, if it is on the device, into a Direct3D 11 texture of its size
@@ -9988,10 +10037,6 @@ static bool bv_interop_ready(void) {
 // and ms as for bendviz_borrow. Returns 0 when there is no such frame, with w and h the size of a
 // waiting one (so the player can make a texture that size and call again), and -1 when interop
 // fails: the player should then stop asking for device frames.
-static void*              bv_registered;  // the texture CUDA has registered, and its handle
-static CUgraphicsResource bv_res;
-void bendviz_release_d3d11(void);
-
 int bendviz_to_d3d11(void* texture, int tw, int th, int* w, int* h, bool* gpu, double* ms) {
   pthread_mutex_lock(&bv_lock);
   bool waiting = bv_fresh && bv_front_on_device;
@@ -10006,35 +10051,45 @@ int bendviz_to_d3d11(void* texture, int tw, int th, int* w, int* h, bool* gpu, d
     return 0;
   }
   int result = -1;
-  if (bv_interop_ready()) {
-    if (bv_registered != texture) {
-      bendviz_release_d3d11();
-      if (bv_register(&bv_res, texture, 0) == CUDA_SUCCESS) {
-        bv_registered = texture;
-        bv_map_flags(bv_res, 2);  // write-discard: the old contents are not needed
+  BvSide* s = bv_side_ready(bv_apart ? BV_APART : BV_SHARED);
+  if (s != NULL) {
+    if (s->registered != texture) {
+      bv_side_release(s);
+      if (bv_register(&s->res, texture, 0) == CUDA_SUCCESS) {
+        s->registered = texture;
+        bv_map_flags(s->res, 2);  // write-discard: the old contents are not needed
       }
     }
-    size_t bytes = (size_t)tw * th * 4;
-    if (bv_ibuf_cap < bytes) {
-      if (bv_ibuf) cuMemFree(bv_ibuf);
-      bv_ibuf_cap = cuMemAlloc(&bv_ibuf, bytes) == CUDA_SUCCESS ? bytes : 0;
+    size_t      bytes = (size_t)tw * th * 4;
+    BvReadEvent ev    = s->ev[s->next_ev ^= 1];
+    CUdeviceptr src   = bv_dev_front;
+    bool        ok    = s->registered != NULL;
+    if (ok && s == &bv_side[BV_APART]) {
+      if (s->buf_cap < bytes) {
+        if (s->buf) cuMemFree(s->buf);
+        s->buf_cap = cuMemAlloc(&s->buf, bytes) == CUDA_SUCCESS ? bytes : 0;
+      }
+      ok = s->buf_cap >= bytes && bv_peer_copy(s->buf, s->ctx, src, gpu_ctx, bytes, s->stream) == CUDA_SUCCESS
+        && bv_ev_mark(ev, s->stream) == CUDA_SUCCESS;
+      src = s->buf;
     }
-    bool out = bv_ibuf_cap >= bytes
-      && bv_peer_copy(bv_ibuf, bv_ictx, bv_dev_front, gpu_ctx, bytes, bv_stream) == CUDA_SUCCESS
-      && bv_ev_mark(bv_read_front, bv_stream) == CUDA_SUCCESS;
     CUarray arr;
-    if (out && bv_registered && bv_map(1, &bv_res, bv_stream) == CUDA_SUCCESS) {
-      if (bv_array(&arr, bv_res, 0, 0) == CUDA_SUCCESS) {
+    if (ok && bv_map(1, &s->res, s->stream) == CUDA_SUCCESS) {
+      if (bv_array(&arr, s->res, 0, 0) == CUDA_SUCCESS) {
         BvCopy2D c = { 0 };
-        c.srcMemoryType = 2, c.srcDevice = bv_ibuf, c.srcPitch = (size_t)tw * 4;  // device
-        c.dstMemoryType = 3, c.dstArray = arr;                                          // array
+        c.srcMemoryType = 2, c.srcDevice = src, c.srcPitch = (size_t)tw * 4;  // device
+        c.dstMemoryType = 3, c.dstArray = arr;                                // array
         c.WidthInBytes = (size_t)tw * 4, c.Height = (size_t)th;
-        result = bv_copy2d(&c, bv_stream) == CUDA_SUCCESS ? 1 : -1;
+        result = bv_copy2d(&c, s->stream) == CUDA_SUCCESS ? 1 : -1;
       }
-      if (bv_unmap(1, &bv_res, bv_stream) != CUDA_SUCCESS) result = -1;
+      if (bv_unmap(1, &s->res, s->stream) != CUDA_SUCCESS) result = -1;
+      if (s == &bv_side[BV_SHARED] && bv_ev_mark(ev, s->stream) != CUDA_SUCCESS) result = -1;  // read Bend's buffer till here
+    }
+    if (result == 1) {
+      bv_read_front = ev;  // (the buffers don't swap while the frame is lent)
     }
   }
-  bv_trace("take-done", result, 0);
+  bv_trace("take-done", result, bv_apart);
   pthread_mutex_lock(&bv_lock);
   if (result == 1) {
     bv_fresh = false;
@@ -10048,8 +10103,8 @@ int bendviz_to_d3d11(void* texture, int tw, int th, int* w, int* h, bool* gpu, d
 // Lets go of the texture bendviz_to_d3d11 last wrote, before the player destroys it (or Direct3D):
 // left registered, the driver would reach into Direct3D after it is gone.
 void bendviz_release_d3d11(void) {
-  if (bv_registered) bv_unregister(bv_res);
-  bv_registered = NULL;
+  bv_side_release(&bv_side[BV_SHARED]);
+  bv_side_release(&bv_side[BV_APART]);
 }
 
 #endif

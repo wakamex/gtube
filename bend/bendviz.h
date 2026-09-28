@@ -24,6 +24,7 @@ void bendviz_device_frames(bool on);
 // size); -1 interop failed (stop asking for device frames).
 int bendviz_to_d3d11(void *texture, int tw, int th, int *w, int *h, bool *gpu, double *ms);
 void bendviz_release_d3d11(void);  // before destroying that texture or the renderer
+void bendviz_interop_apart(bool apart);  // presents wait for the vertical blank (vsync)
 #endif
 bool bendviz_gpu(void);  // the GPU is in use
 // For measuring: the heap's span, and kernel launches, time spent in the launch calls and waiting for them so far.

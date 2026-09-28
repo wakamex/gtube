@@ -705,6 +705,14 @@ bool viz_bend_stats(const viz *v, char *out, size_t size) {
     return true;
 }
 void viz_bend_switch(viz *v) { v->bend_on_gpu = !v->bend_on_gpu; }
+void viz_set_vsync(viz *v, bool on) {
+    (void)v;
+#ifdef _WIN32
+    bendviz_interop_apart(on);
+#else
+    (void)on;
+#endif
+}
 int viz_index(const viz *v, int *count) { *count = FX_COUNT; return v->fx; }
 void viz_set_auto(viz *v, bool on) { v->automatic = on, v->fx_since = v->t; }
 void viz_set_scroller(viz *v, bool on) { v->scroller = on; }

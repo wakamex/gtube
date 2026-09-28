@@ -682,6 +682,7 @@ SDL_AppResult SDL_AppIterate(void *state) {
     app *a = state;
     double cap = a->uncapped ? 0 : a->view == V_VIZ ? 60 : 30;  // smooth motion for the visualizer, less work elsewhere
     if (cap != a->pace_cap) gs_pace_set(&a->pace, a->win, a->ren, !a->uncapped, a->pace_cap = cap);
+    viz_set_vsync(a->viz, a->pace.vsync != 0 && !a->pace.vsync_suspect);
     gs_stats_frame_begin(&a->stats);
     if (!a->demo) player_update(a->player);
     if (a->signin) {  // signing in: done when the page reaches YouTube signed in, or the window is closed
