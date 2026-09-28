@@ -67,6 +67,8 @@ struct viz {
     int bend_calls, bend_empty;        // this second: frames drawn, and those with no new Bend frame
     double bend_take_ms, bend_take_max;  // and the time taking frames into the texture
     char bend_player[64];              // the last second's, as a stats line
+    unsigned long long bend_drawn0, bend_dropped0;  // Bend's totals at the second's start
+    double bend_took0, bend_began0;
     uint8_t *heat;
     float *radius;          // the plasma's distance from the centre, per pixel
     float fuel[BANDS];      // the fire's fuel per band, following the spectrum slowly
@@ -430,7 +432,12 @@ static void bend_count_frame(viz *v, bool fresh, double take_ms) {
     if (now - v->bend_count_from >= SDL_NS_PER_SECOND) {
         double secs = (now - v->bend_count_from) / 1e9;
         v->bend_fps = v->bend_count / secs;
-        snprintf(v->bend_player, sizeof v->bend_player, "bend taken %d, none %d; take %.2f ms (max %.2f)", v->bend_count, v->bend_empty, v->bend_take_ms / v->bend_calls, v->bend_take_max);
+        unsigned long long drawn, dropped;
+        double took, began;
+        bendviz_cycle(&drawn, &dropped, &took, &began);
+        unsigned long long nd = drawn - v->bend_drawn0;
+        snprintf(v->bend_player, sizeof v->bend_player, "bend taken %d, none %d; drew %llu, lost %llu; wake %.1f+%.1f", v->bend_count, v->bend_empty, nd, dropped - v->bend_dropped0, nd ? (took - v->bend_took0) / nd : 0, nd ? (began - v->bend_began0) / nd : 0);
+        v->bend_drawn0 = drawn, v->bend_dropped0 = dropped, v->bend_took0 = took, v->bend_began0 = began;
         v->bend_count = v->bend_calls = v->bend_empty = 0, v->bend_take_ms = v->bend_take_max = 0;
         v->bend_count_from = now;
     }

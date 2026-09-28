@@ -25,6 +25,11 @@ static bool            bv_device_ok;                   // the player can take th
 static unsigned long long bv_dev_front, bv_dev_back;   // two device buffers (CUdeviceptr)
 static size_t          bv_dev_cap;
 static bool            bv_front_on_device;             // the newest frame is bv_dev_front
+// Counts for the stats: frames Bend finished and dropped, and the time from a request (the first
+// not yet served) to the helper taking it and to Bend starting on it, summed over the frames.
+static u64             bv_asked_at, bv_took_at;
+static u64             bv_n_drawn, bv_n_dropped;
+static double          bv_took_ms, bv_began_ms;
 #if BEND_CUDA && defined(_WIN32)
 // The player's copy out of a device buffer into its texture is queued, and finishes on the GPU after
 // the player has moved on (at the next vertical blank, when Direct3D lets go of the texture). So each
@@ -49,6 +54,7 @@ static void viz_next_call(IoWork* w) {  // an IO helper thread: no Bend heap her
     pthread_cond_wait(&bv_asked, &bv_lock);
   }
   bv_want = false;
+  bv_took_at = io_tick();
   memcpy(bv_now, bv_ask, sizeof bv_now);
   bv_now_word = bv_ask_word;
   pthread_mutex_unlock(&bv_lock);
@@ -73,6 +79,11 @@ static Term viz_next_pack(Env e, IoWork* w) {
   bv_count_launches();
 #endif
   bv_began = io_tick();
+  pthread_mutex_lock(&bv_lock);
+  if (bv_asked_at) {
+    bv_took_ms += (double)(bv_took_at - bv_asked_at) / 1e6, bv_began_ms += (double)(bv_began - bv_took_at) / 1e6;
+  }
+  pthread_mutex_unlock(&bv_lock);
   bv_wait_began = bv_wait_total();
   bv_launch_began = bv_launch_total();
   return (Term)bv_now_word;
@@ -151,6 +162,7 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
   bv_edges_of(drawn, &before, &after);
   bv_drawn = drawn;
   if (n > ((size_t)1 << blk_cls(a))) {
+    bv_n_dropped += 1;
     return a;
   }
   bool on_device = false, copied = false;
@@ -174,6 +186,7 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
     bool room = n <= bv_cap || (!bv_lent && bv_room(n));
     pthread_mutex_unlock(&bv_lock);
     if (!room) {
+      bv_n_dropped += 1;
       return a;
     }
 #if BEND_CUDA
@@ -212,6 +225,7 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
   bv_done_w   = fw, bv_done_h = fh;
   bv_done_gpu = gpu_drew;  // asked for, and there to use
   bv_fresh    = true;
+  bv_n_drawn += 1;
   pthread_mutex_unlock(&bv_lock);
   return a;
 }
@@ -267,6 +281,7 @@ void bendviz_request(const float params[5], int w, int h, bool gpu) {
   pthread_mutex_lock(&bv_lock);
   memcpy(bv_ask, params, sizeof bv_ask);
   bv_ask_word = (u32)w | (u32)h << 13 | (gpu ? 1u << 31 : 0);
+  if (!bv_want) bv_asked_at = io_tick();  // the first request since Bend last took one
   bv_want     = true;
   pthread_cond_signal(&bv_asked);
   pthread_mutex_unlock(&bv_lock);
@@ -425,6 +440,14 @@ void bendviz_return(void) {
 
 // How the last frame's time divides: drawing it (of which waiting for the GPU), and bringing it to
 // the host.
+// Totals so far: frames Bend finished and dropped, and the time from a request to the helper taking
+// it and from there to Bend starting on it, summed over the frames.
+void bendviz_cycle(unsigned long long* drawn, unsigned long long* dropped, double* took_ms, double* began_ms) {
+  pthread_mutex_lock(&bv_lock);
+  *drawn = bv_n_drawn, *dropped = bv_n_dropped, *took_ms = bv_took_ms, *began_ms = bv_began_ms;
+  pthread_mutex_unlock(&bv_lock);
+}
+
 // The host's part of the last frame's drawing: before its first launch, in launch calls, and after
 // its last wait.
 void bendviz_host_parts(double* before_ms, double* launch_ms, double* after_ms) {
