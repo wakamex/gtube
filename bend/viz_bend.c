@@ -8466,7 +8466,8 @@ static u32*        gpu_out_list; // and pages coming out
 static u64*        gpu_out_stage;
 static u32         gpu_nout;
 
-#define GPU_STAGE 256  // pages a kernel moves
+#define GPU_STAGE   256  // pages a kernel moves
+#define GPU_RELEARN 64   // launches between relearning the hot pages
 #define GPU_RUN   16   // a run this long is one plain copy
 
 static bool gpu_guard(u64 i, u64 n, DWORD prot) {
@@ -8517,13 +8518,19 @@ static void gpu_pages_run(u32* list, u32 n, u64* stage, u32 in) {
 // fetched again after the launch (gpu_fetch_take). The host touches much the
 // same pages every time, so after the first time it touches a page, the page
 // costs no protection change at all: at hundreds of frames a second the
-// changes ran to a hundred thousand a second. Without give_up the written
-// pages become readable only, and the hot ones stay; and only pages lo to hi
-// are sent (the ones a copy on the device is about to read).
+// changes ran to a hundred thousand a second. Once a page is hot it would
+// stay hot, so every GPU_RELEARN launches all are given up, and the ones the
+// host still touches turn hot again (a few hundred changes every so often,
+// against moving every page it ever touched at every launch). Without
+// give_up the written pages become readable only, and the hot ones stay; and
+// only pages lo to hi are sent (the ones a copy on the device is about to
+// read).
 static void gpu_send(bool give_up, u64 lo, u64 hi) {
+  static u32 launches;
   AcquireSRWLockExclusive(&gpu_lock);
   qsort(gpu_list, gpu_nheld, sizeof *gpu_list, gpu_page_cmp);
   u32 m = 0, kept = 0;
+  u32 room = give_up && ++launches % GPU_RELEARN == 0 ? 0 : GPU_STAGE;
   for (u32 k = 0, j; k < gpu_nheld; k = j) {
     u64 i  = gpu_list[k];
     u8  st = gpu_held[i];
@@ -8555,7 +8562,7 @@ static void gpu_send(bool give_up, u64 lo, u64 hi) {
       }
     }
     if (give_up) {
-      u64 keep = kept + n <= GPU_STAGE ? n : GPU_STAGE - kept;
+      u64 keep = kept + n <= room ? n : room - kept;
       for (u64 p = i; p < i + keep; p += 1) {
         gpu_last[kept++] = (u32)p;  // (its state until the fetch: see gpu_fetch_take)
       }
