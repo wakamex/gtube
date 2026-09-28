@@ -552,6 +552,9 @@ static void fx_bend(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
         fresh = true, v->bend_draw = v->bend_tex;
     }
     bend_count_frame(v, fresh, (SDL_GetTicksNS() - take_from) / 1e6);
+    // Without vsync, the next frame is asked for at once, so Bend draws it while this one is drawn
+    // and presented, rather than waiting for the player's next turn.
+    if (fresh && !v->vsync) bendviz_request(params, w, h, v->bend_on_gpu);
     if (v->bend_shown && v->bend_draw) {
         SDL_SetTextureBlendMode(v->bend_draw, SDL_BLENDMODE_NONE);
         SDL_RenderTexture(v->ren, v->bend_draw, NULL, &a);
