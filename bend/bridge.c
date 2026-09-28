@@ -9,6 +9,7 @@
 #define BENDVIZ_BRIDGE
 
 #define BENDVIZ_MAX 4096
+#define BENDVIZ_PIXELS (1L << 23)  // the most pixels: the program's buffers (as in bendviz.h)
 
 static pthread_mutex_t bv_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t  bv_asked = PTHREAD_COND_INITIALIZER;
@@ -22,8 +23,7 @@ static bool            bv_pinned;                      // they are page-locked (
 static bool            bv_lent;                        // the player is reading the front buffer
 // Frames the player takes on the device (graphics interop): they never visit the host.
 static bool            bv_device_ok;                   // the player can take them
-static unsigned long long bv_dev_front, bv_dev_back;   // two device buffers (CUdeviceptr)
-static size_t          bv_dev_cap;
+static unsigned long long bv_dev_front;                // the newest frame, in Bend's heap (CUdeviceptr)
 static bool            bv_front_on_device;             // the newest frame is bv_dev_front
 // Counts for the stats: frames Bend finished and dropped, and the time from a request (the first
 // not yet served) to the helper taking it and to Bend starting on it, summed over the frames.
@@ -50,12 +50,11 @@ static void bv_trace(const char* what, long a, long b) {
   pthread_mutex_unlock(&bv_trace_lock);
 }
 #if BEND_CUDA && defined(_WIN32)
-// The player's copy out of a device buffer into its texture is queued, and finishes on the GPU after
-// the player has moved on (at the next vertical blank, when Direct3D lets go of the texture). So each
-// buffer has an event marking its last copy out done, which writing that buffer again waits for, on
-// the GPU; the events swap with the buffers.
+// The player's copy out of a frame into its texture is queued, and finishes on the GPU after the
+// player has moved on. An event marks it done, which drawing into that buffer again waits for, on
+// the GPU.
 typedef struct CUevent_st* BvReadEvent;
-static BvReadEvent bv_read_front, bv_read_back;
+static BvReadEvent bv_read_front;  // the player's copy out of the frame shown last
 static CUresult (CUDAAPI* bv_ev_wait)(CUstream, BvReadEvent, unsigned);
 static CUresult (CUDAAPI* bv_ev_mark)(BvReadEvent, CUstream);
 #endif
@@ -119,11 +118,11 @@ Term viz_param_run(Env e, Term* f, IoWork* w) {
   return f32_rewrap(i < 5 ? bv_now[i] : 0.0f);
 }
 
-// The frame is the buffer's first w * h pixels. It goes to the back buffer, which then swaps with
-// the front one for the player, so no frame is copied on the host. On the GPU the buffers are
-// page-locked and the copy is one bulk transfer from the device (the host would otherwise read the
-// heap a page at a time). Copying through plain device memory first made no difference, on Linux or
-// on Windows. A frame the CPU drew is copied on the host.
+// The frame is the buffer's first w * h pixels. A frame the player takes on the device stays in
+// Bend's buffer. Otherwise it goes to a host back buffer, which then swaps with the front one for
+// the player, so no frame is copied on the host twice; with the GPU these are page-locked and the
+// copy is one bulk transfer from the device (the host would otherwise read the heap a page at a
+// time). A frame the CPU drew is copied on the host.
 static bool bv_room(size_t n) {
   if (n <= bv_cap) {
     return true;
@@ -153,25 +152,6 @@ static bool bv_room(size_t n) {
   return bv_cap >= n;
 }
 
-#if BEND_CUDA
-// Two device buffers of n pixels, for frames the player takes on the device.
-static bool bv_dev_room(size_t n) {
-  if (n <= bv_dev_cap) {
-    return true;
-  }
-  if (bv_dev_cap) {
-    cuMemFree(bv_dev_back);
-    if (!bv_lent) cuMemFree(bv_dev_front);  // (a lent one is lost rather than pulled away)
-  }
-  bv_dev_cap = 0;
-  if (cuMemAlloc(&bv_dev_back, n * 4) != CUDA_SUCCESS || cuMemAlloc(&bv_dev_front, n * 4) != CUDA_SUCCESS) {
-    return false;
-  }
-  bv_dev_cap = n;
-  return true;
-}
-#endif
-
 Term viz_show_run(Env e, Term* f, IoWork* w) {
   Term   a  = f[0];
   u32*   px = (u32*)blk_ptr(e.mem, blk_loc(e.mem, a), 0);
@@ -190,18 +170,15 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
   }
   bool on_device = false, copied = false;
   bool gpu_drew = bv_now_word >> 31 != 0 && io_gpu;  // else the frame is in host memory
+  unsigned long long at = 0;
 #if BEND_CUDA
-  // On the device: one copy between device buffers, finished before the player may read it.
+  // On the device the frame stays where Bend drew it: the program draws into two buffers in turn,
+  // so the player copies this one out while Bend draws the next into the other.
   pthread_mutex_lock(&bv_lock);
-  // (while the player reads the front buffer, the back one is written, but neither is reallocated)
-  bool device = gpu_drew && bv_device_ok && (n <= bv_dev_cap || (!bv_lent && bv_dev_room(n)));
+  bool device = gpu_drew && bv_device_ok;
   pthread_mutex_unlock(&bv_lock);
-#ifdef _WIN32
-  if (device && bv_read_back) bv_ev_wait(NULL, bv_read_back, 0);
-#endif
-  if (device && cuMemcpyDtoD(bv_dev_back, gpu_at(px), n * 4) == CUDA_SUCCESS
-    && cuCtxSynchronize() == CUDA_SUCCESS) {
-    on_device = copied = true;
+  if (device) {
+    at = gpu_at(px, n * 4), on_device = copied = true;
   }
 #endif
   if (!on_device) {
@@ -215,7 +192,7 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
     }
 #if BEND_CUDA
     if (gpu_drew && bv_pinned) {
-      copied = cuMemcpyDtoH(bv_back, gpu_at(px), n * 4) == CUDA_SUCCESS;
+      copied = cuMemcpyDtoH(bv_back, gpu_at(px, n * 4), n * 4) == CUDA_SUCCESS;
     }
 #endif
     if (!copied) {
@@ -230,11 +207,12 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
     pthread_mutex_lock(&bv_lock);
   }
   if (on_device) {
-    unsigned long long t = bv_dev_front;
-    bv_dev_front = bv_dev_back, bv_dev_back = t;
+    bv_dev_front = at;
 #if BEND_CUDA && defined(_WIN32)
-    BvReadEvent r = bv_read_front;
-    bv_read_front = bv_read_back, bv_read_back = r;
+    // The frame shown before this one is in the buffer drawn into next: that drawing waits, on the
+    // GPU, for the player's copy out of it, if it took it (the player takes only the newest frame).
+    if (bv_read_front) bv_ev_wait(NULL, bv_read_front, 0);
+    bv_read_front = NULL;
 #endif
   } else {
     u32* t = bv_front;
@@ -305,6 +283,9 @@ bool bendviz_start(const char* gpu_heap) {
 void bendviz_request(const float params[5], int w, int h, bool gpu) {
   w = w < 1 ? 1 : w > BENDVIZ_MAX ? BENDVIZ_MAX : w;
   h = h < 1 ? 1 : h > BENDVIZ_MAX ? BENDVIZ_MAX : h;
+  if ((long)w * h > BENDVIZ_PIXELS) {  // the program's buffers hold 2^23 pixels: fewer rows
+    h = (int)(BENDVIZ_PIXELS / w);
+  }
   pthread_mutex_lock(&bv_lock);
   memcpy(bv_ask, params, sizeof bv_ask);
   bv_ask_word = (u32)w | (u32)h << 13 | (gpu ? 1u << 31 : 0);

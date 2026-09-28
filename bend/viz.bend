@@ -1,5 +1,5 @@
 # The Bend effect in gtube's visualizer: a plasma drawing every pixel of the visualizer (up to
-# 4096 x 4096) into a flat buffer, rows packed at the frame's width, on the GPU or on the CPU's
+# 2^23 pixels, as 3840x2160) into a flat buffer, rows packed at the frame's width, on the GPU or on the CPU's
 # threads, as the player asks each frame. Both run the same pixel function (Viz.px); each chip gets
 # the schedule that suits it: square tiles for the CPU, whose threads each keep to one patch of
 # memory, and a stride for the GPU, whose neighbouring lanes then write neighbouring pixels.
@@ -419,7 +419,10 @@ def Viz.step(+ask: U32, t: F32, bass: F32, mid: F32, hue: F32, beat: F32, a: Arr
   Viz.show(Viz.draw(U32.is_eq((ask >> 31n : U32), 1), k, a))
 
 @unsafe
-def Viz.loop(a: Array<U32>) -> IO(Unit):
+# Two frame buffers, drawn into in turn: the player copies the last frame out of one while the next
+# is drawn into the other, so no frame is copied aside for it (bridge.c waits for its copy before a
+# buffer is drawn into again).
+def Viz.loop(a: Array<U32>, other: Array<U32>) -> IO(Unit):
   do IO<Unit>:
     ask : U32 <- Viz.next()
     t : F32 <- Viz.param(0)
@@ -428,13 +431,14 @@ def Viz.loop(a: Array<U32>) -> IO(Unit):
     hue : F32 <- Viz.param(3)
     beat : F32 <- Viz.param(4)
     b : Array<U32> <- Viz.step(ask, t, bass, mid, hue, beat, a)
-    Viz.loop(b)
+    Viz.loop(other, b)
 
-# The frame buffer, made on the GPU when there is one, so the host never writes its 64 MB, which
-# would then have to cross to the GPU.
+# A frame buffer of 2^23 pixels (32 MB; 3840x2160 fits, and bridge.c scales down a bigger frame),
+# made on the GPU when there is one, so the host never writes it, which would then have to cross to
+# the GPU.
 def Viz.blank(z: U32) -> Array<U32>:
-  [z : U32^24n]
+  [z : U32^23n]
 
 @unsafe
 def main() -> IO(Unit):
-  Viz.loop(Viz.blank!(0))
+  Viz.loop(Viz.blank!(0), Viz.blank!(0))

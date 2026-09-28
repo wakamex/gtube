@@ -6,7 +6,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define BENDVIZ_MAX 4096  // the largest width or height
+#define BENDVIZ_MAX 4096           // the largest width or height
+#define BENDVIZ_PIXELS (1L << 23)  // the most pixels (3840x2160 fits): a bigger frame gets fewer rows
 
 bool bendviz_start(const char *gpu_heap);  // once; "512MB" caps the GPU's heap, "off" keeps to the CPU
 void bendviz_request(const float params[5], int w, int h, bool gpu);  // time, bass, mids, hue, beat
