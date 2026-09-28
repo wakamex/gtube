@@ -9941,6 +9941,15 @@ static CUresult (CUDAAPI* bv_array)(CUarray*, CUgraphicsResource, unsigned, unsi
 static CUresult (CUDAAPI* bv_copy2d)(const BvCopy2D*, CUstream);
 static CUresult (CUDAAPI* bv_stream_create)(CUstream*, unsigned);
 static CUresult (CUDAAPI* bv_ev_create)(BvReadEvent*, unsigned);
+static CUresult (CUDAAPI* bv_ctx_create)(CUcontext*, unsigned, CUdevice);
+static CUresult (CUDAAPI* bv_peer_copy)(CUdeviceptr, CUcontext, CUdeviceptr, CUcontext, size_t, CUstream);
+// And in a context of their own: on Windows a context's streams share one queue on the GPU, so the
+// map's wait for the vertical blank held up Bend's kernels too, and every other frame came late.
+// The player's context first copies the frame out of Bend's buffer into one of its own (the event
+// marks that copy, so Bend may reuse the buffer long before the blank), then into the texture.
+static CUcontext bv_ictx;
+static CUdeviceptr bv_ibuf;
+static size_t bv_ibuf_cap;
 // The player's copies go on a stream of their own and aren't waited for: mapping the texture waits
 // for Direct3D's queued work, which at 60 fps sits behind the last present until the next vertical
 // blank. On the default stream the kernels drawing the next frame would queue behind it, and
@@ -9963,10 +9972,11 @@ static bool bv_interop_ready(void) {
     bv_ev_create     = (__typeof__(bv_ev_create))gpu_sym(lib, "cuEventCreate");
     bv_ev_mark       = (__typeof__(bv_ev_mark))gpu_sym(lib, "cuEventRecord");
     bv_ev_wait       = (__typeof__(bv_ev_wait))gpu_sym(lib, "cuStreamWaitEvent");
-    CUcontext ctx;  // this thread works in the runtime's context
+    bv_ctx_create    = (__typeof__(bv_ctx_create))gpu_sym(lib, "cuCtxCreate_v2");
+    bv_peer_copy     = (__typeof__(bv_peer_copy))gpu_sym(lib, "cuMemcpyPeerAsync");
     ready = bv_register && bv_unregister && bv_map_flags && bv_map && bv_unmap && bv_array && bv_copy2d
-      && bv_stream_create && bv_ev_create && bv_ev_mark && bv_ev_wait
-      && cuDevicePrimaryCtxRetain(&ctx, gpu_dev) == CUDA_SUCCESS && cuCtxSetCurrent(ctx) == CUDA_SUCCESS
+      && bv_stream_create && bv_ev_create && bv_ev_mark && bv_ev_wait && bv_ctx_create && bv_peer_copy
+      && bv_ctx_create(&bv_ictx, 0, gpu_dev) == CUDA_SUCCESS  // current on this thread from now on
       && bv_stream_create(&bv_stream, 1) == CUDA_SUCCESS  // CU_STREAM_NON_BLOCKING
       && bv_ev_create(&bv_read_front, 2) == CUDA_SUCCESS && bv_ev_create(&bv_read_back, 2) == CUDA_SUCCESS;  // no timing
   }
@@ -10004,16 +10014,24 @@ int bendviz_to_d3d11(void* texture, int tw, int th, int* w, int* h, bool* gpu, d
         bv_map_flags(bv_res, 2);  // write-discard: the old contents are not needed
       }
     }
+    size_t bytes = (size_t)tw * th * 4;
+    if (bv_ibuf_cap < bytes) {
+      if (bv_ibuf) cuMemFree(bv_ibuf);
+      bv_ibuf_cap = cuMemAlloc(&bv_ibuf, bytes) == CUDA_SUCCESS ? bytes : 0;
+    }
+    bool out = bv_ibuf_cap >= bytes
+      && bv_peer_copy(bv_ibuf, bv_ictx, bv_dev_front, gpu_ctx, bytes, bv_stream) == CUDA_SUCCESS
+      && bv_ev_mark(bv_read_front, bv_stream) == CUDA_SUCCESS;
     CUarray arr;
-    if (bv_registered && bv_map(1, &bv_res, bv_stream) == CUDA_SUCCESS) {
+    if (out && bv_registered && bv_map(1, &bv_res, bv_stream) == CUDA_SUCCESS) {
       if (bv_array(&arr, bv_res, 0, 0) == CUDA_SUCCESS) {
         BvCopy2D c = { 0 };
-        c.srcMemoryType = 2, c.srcDevice = bv_dev_front, c.srcPitch = (size_t)tw * 4;  // device
+        c.srcMemoryType = 2, c.srcDevice = bv_ibuf, c.srcPitch = (size_t)tw * 4;  // device
         c.dstMemoryType = 3, c.dstArray = arr;                                          // array
         c.WidthInBytes = (size_t)tw * 4, c.Height = (size_t)th;
         result = bv_copy2d(&c, bv_stream) == CUDA_SUCCESS ? 1 : -1;
       }
-      if (bv_unmap(1, &bv_res, bv_stream) != CUDA_SUCCESS || bv_ev_mark(bv_read_front, bv_stream) != CUDA_SUCCESS) result = -1;
+      if (bv_unmap(1, &bv_res, bv_stream) != CUDA_SUCCESS) result = -1;
     }
   }
   bv_trace("take-done", result, 0);
