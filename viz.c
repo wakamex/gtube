@@ -472,12 +472,11 @@ static void fx_bend(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
     // screen, and each present takes the GPU from Bend: a moment's wait for Bend's next frame (drawn
     // on the GPU, a millisecond or two) lets the player show only new ones.
     if (!v->vsync && v->bend_shown && v->bend_drawn_gpu) bendviz_wait(8);
-    take_from = SDL_GetTicksNS();
+    uint64_t take_from = SDL_GetTicksNS();  // (the time taking a frame, for the stats)
     int fw, fh;
     bool gpu;
     double ms;
     bool fresh = false;
-    uint64_t take_from;
 #ifdef _WIN32
     // On Direct3D 11, a frame drawn on the GPU goes into the texture on the GPU, never crossing to
     // the host; anything else (the CPU's frames, or interop failing) comes through the host.
