@@ -65,6 +65,8 @@ struct viz {
     uint64_t bend_count_from;
     double bend_fps;
     int bend_calls, bend_empty;        // this second: frames drawn, and those with no new Bend frame
+    int bend_short, bend_long;         // and those starting under 8 ms or over 25 ms after the last
+    uint64_t bend_last_call;
     double bend_take_ms, bend_take_max;  // and the time taking frames into the texture
     char bend_player[64];              // the last second's, as a stats line
     unsigned long long bend_drawn0, bend_dropped0;  // Bend's totals at the second's start
@@ -428,6 +430,11 @@ static void bend_count_frame(viz *v, bool fresh, double take_ms) {
     uint64_t now = SDL_GetTicksNS();
     if (!v->bend_count_from) v->bend_count_from = now;
     v->bend_calls++, v->bend_count += fresh, v->bend_empty += !fresh;
+    if (v->bend_last_call) {
+        uint64_t gap = now - v->bend_last_call;
+        v->bend_short += gap < 8 * SDL_NS_PER_MS, v->bend_long += gap > 25 * SDL_NS_PER_MS;
+    }
+    v->bend_last_call = now;
     v->bend_take_ms += take_ms, v->bend_take_max = SDL_max(v->bend_take_max, take_ms);
     if (now - v->bend_count_from >= SDL_NS_PER_SECOND) {
         double secs = (now - v->bend_count_from) / 1e9;
@@ -436,9 +443,9 @@ static void bend_count_frame(viz *v, bool fresh, double take_ms) {
         double took, began;
         bendviz_cycle(&drawn, &dropped, &took, &began);
         unsigned long long nd = drawn - v->bend_drawn0;
-        snprintf(v->bend_player, sizeof v->bend_player, "bend taken %d, none %d; drew %llu, lost %llu; wake %.1f+%.1f", v->bend_count, v->bend_empty, nd, dropped - v->bend_dropped0, nd ? (took - v->bend_took0) / nd : 0, nd ? (began - v->bend_began0) / nd : 0);
+        snprintf(v->bend_player, sizeof v->bend_player, "bend taken %d, none %d, drew %llu; gaps <8ms %d, >25ms %d", v->bend_count, v->bend_empty, nd, v->bend_short, v->bend_long);
         v->bend_drawn0 = drawn, v->bend_dropped0 = dropped, v->bend_took0 = took, v->bend_began0 = began;
-        v->bend_count = v->bend_calls = v->bend_empty = 0, v->bend_take_ms = v->bend_take_max = 0;
+        v->bend_count = v->bend_calls = v->bend_empty = v->bend_short = v->bend_long = 0, v->bend_take_ms = v->bend_take_max = 0;
         v->bend_count_from = now;
     }
 }
