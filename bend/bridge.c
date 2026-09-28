@@ -26,6 +26,7 @@ static bool            bv_lent;                        // the player is reading 
 static bool            bv_device_ok;                   // the player can take them
 static unsigned long long bv_dev_front;                // the newest frame, in Bend's heap (CUdeviceptr)
 static bool            bv_front_on_device;             // the newest frame is bv_dev_front
+static bool            bv_front_shared;                // or in a shared texture (bendviz_d3d11_take)
 // Counts for the stats: frames Bend finished and dropped, and the time from a request (the first
 // not yet served) to the helper taking it and to Bend starting on it, summed over the frames.
 static u64             bv_asked_at, bv_took_at;
@@ -153,6 +154,219 @@ static bool bv_room(size_t n) {
   return bv_cap >= n;
 }
 
+#if BEND_CUDA && defined(_WIN32)
+// ---- Frames into Direct3D textures shared with CUDA ----
+
+// The player's side (gtube's viz.c) makes three textures and two fences, shared as NT handles
+// (bendviz_d3d11_share). Bend imports them into CUDA once, and after each frame copies it into a
+// texture neither on screen nor waiting to be taken, on its own stream, after waiting (on the GPU)
+// for Direct3D to be done with that texture, then signals its fence. The player makes Direct3D wait
+// (on the GPU) for that signal before drawing the texture, and signals its own fence as it goes. No
+// texture is mapped each frame, so neither thread holds up the other's calls into the driver (the
+// map cost Bend's launches 0.4 ms a frame at 4K), and the player takes a frame in no time.
+typedef struct {
+  int type;
+  union { int fd; struct { void* handle; const void* name; } win32; const void* nvSciBufObject; } handle;
+  unsigned long long size;
+  unsigned int flags;
+  unsigned int reserved[16];
+} BvExtMemDesc;  // CUDA_EXTERNAL_MEMORY_HANDLE_DESC
+typedef struct {
+  unsigned long long offset;
+  struct { size_t Width, Height, Depth; int Format; unsigned int NumChannels, Flags; } arrayDesc;
+  unsigned int numLevels;
+  unsigned int reserved[16];
+} BvExtArrayDesc;  // CUDA_EXTERNAL_MEMORY_MIPMAPPED_ARRAY_DESC
+typedef struct {
+  int type;
+  union { int fd; struct { void* handle; const void* name; } win32; const void* nvSciSyncObj; } handle;
+  unsigned int flags;
+  unsigned int reserved[16];
+} BvExtSemDesc;  // CUDA_EXTERNAL_SEMAPHORE_HANDLE_DESC
+typedef struct {
+  struct {
+    struct { unsigned long long value; } fence;
+    union { void* fence; unsigned long long reserved; } nvSciSync;
+    struct { unsigned long long key; } keyedMutex;
+    unsigned int reserved[12];
+  } params;
+  unsigned int flags;
+  unsigned int reserved[16];
+} BvSemSignal;  // CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS
+typedef struct {
+  struct {
+    struct { unsigned long long value; } fence;
+    union { void* fence; unsigned long long reserved; } nvSciSync;
+    struct { unsigned long long key; unsigned int timeoutMs; } keyedMutex;
+    unsigned int reserved[10];
+  } params;
+  unsigned int flags;
+  unsigned int reserved[16];
+} BvSemWait;  // CUDA_EXTERNAL_SEMAPHORE_WAIT_PARAMS
+typedef struct {
+  size_t srcXInBytes, srcY;
+  int srcMemoryType;
+  const void* srcHost;
+  CUdeviceptr srcDevice;
+  void* srcArray;
+  size_t srcPitch;
+  size_t dstXInBytes, dstY;
+  int dstMemoryType;
+  void* dstHost;
+  CUdeviceptr dstDevice;
+  void* dstArray;
+  size_t dstPitch;
+  size_t WidthInBytes, Height;
+} BvShareCopy;  // CUDA_MEMCPY2D
+
+static struct {
+  void* tex[3];                     // from the player: NT handles, the size, and a generation
+  void* fence_cuda;                 // (CUDA signals it, Direct3D waits)
+  void* fence_d3d;                  // (Direct3D signals it, CUDA waits)
+  int   w, h;
+  u32   gen;
+  // Bend's thread: the imports, of generation imported
+  u32   imported;
+  bool  failed;
+  void* mem[3];
+  void* mip[3];
+  void* arr[3];
+  void* sem_cuda;
+  void* sem_d3d;
+  unsigned long long cuda_value;
+  // Under bv_lock: the texture on screen, the one waiting to be taken (-1 none), the Direct3D fence
+  // value after which each texture was last read, and the value CUDA signals for the waiting one.
+  int   shown, published;
+  unsigned long long read_done[3], pub_value;
+  int   pending;                    // written this frame, published at the swap (-1 none)
+  unsigned long long pending_value;
+  bool  busy;                       // Bend's thread is using the imports (under bv_lock)
+} bv_share = { .shown = -1, .published = -1, .pending = -1 };
+
+static CUresult (CUDAAPI* bv_ext_import)(void**, const BvExtMemDesc*);
+static CUresult (CUDAAPI* bv_ext_array)(void**, void*, const BvExtArrayDesc*);
+static CUresult (CUDAAPI* bv_ext_level)(void**, void*, unsigned);
+static CUresult (CUDAAPI* bv_ext_sem)(void**, const BvExtSemDesc*);
+static CUresult (CUDAAPI* bv_ext_signal)(void* const*, const BvSemSignal*, unsigned, CUstream);
+static CUresult (CUDAAPI* bv_ext_wait)(void* const*, const BvSemWait*, unsigned, CUstream);
+static CUresult (CUDAAPI* bv_ext_free_mem)(void*);
+static CUresult (CUDAAPI* bv_ext_free_sem)(void*);
+static CUresult (CUDAAPI* bv_ext_free_mip)(void*);
+static CUresult (CUDAAPI* bv_ext_copy)(const BvShareCopy*, CUstream);
+
+static bool bv_share_load(void) {
+  static int loaded;
+  if (loaded == 0) {
+    static const char* const names[] = { "nvcuda.dll", NULL };
+    void* lib = gpu_lib_open(names);
+    bv_ext_import   = (__typeof__(bv_ext_import))gpu_sym(lib, "cuImportExternalMemory");
+    bv_ext_array    = (__typeof__(bv_ext_array))gpu_sym(lib, "cuExternalMemoryGetMappedMipmappedArray");
+    bv_ext_level    = (__typeof__(bv_ext_level))gpu_sym(lib, "cuMipmappedArrayGetLevel");
+    bv_ext_sem      = (__typeof__(bv_ext_sem))gpu_sym(lib, "cuImportExternalSemaphore");
+    bv_ext_signal   = (__typeof__(bv_ext_signal))gpu_sym(lib, "cuSignalExternalSemaphoresAsync");
+    bv_ext_wait     = (__typeof__(bv_ext_wait))gpu_sym(lib, "cuWaitExternalSemaphoresAsync");
+    bv_ext_free_mem = (__typeof__(bv_ext_free_mem))gpu_sym(lib, "cuDestroyExternalMemory");
+    bv_ext_free_sem = (__typeof__(bv_ext_free_sem))gpu_sym(lib, "cuDestroyExternalSemaphore");
+    bv_ext_free_mip = (__typeof__(bv_ext_free_mip))gpu_sym(lib, "cuMipmappedArrayDestroy");
+    bv_ext_copy     = (__typeof__(bv_ext_copy))gpu_sym(lib, "cuMemcpy2DAsync_v2");
+    loaded = bv_ext_import && bv_ext_array && bv_ext_level && bv_ext_sem && bv_ext_signal && bv_ext_wait
+      && bv_ext_free_mem && bv_ext_free_sem && bv_ext_free_mip && bv_ext_copy ? 1 : -1;
+  }
+  return loaded == 1;
+}
+
+// Drops the imports (Bend's context must be current).
+static void bv_share_drop(void) {
+  for (int i = 0; i < 3; i += 1) {
+    if (bv_share.mip[i]) bv_ext_free_mip(bv_share.mip[i]);
+    if (bv_share.mem[i]) bv_ext_free_mem(bv_share.mem[i]);
+    bv_share.mip[i] = bv_share.mem[i] = bv_share.arr[i] = NULL;
+  }
+  if (bv_share.sem_cuda) bv_ext_free_sem(bv_share.sem_cuda);
+  if (bv_share.sem_d3d) bv_ext_free_sem(bv_share.sem_d3d);
+  bv_share.sem_cuda = bv_share.sem_d3d = NULL;
+  bv_share.imported = 0;
+}
+
+static bool bv_share_go(u32 gen, void* const tex[3], void* fc, void* fd, unsigned long long at, int fw, int fh);
+
+// On Bend's thread, the frame at `at` just drawn (fw x fh): into a shared texture, if the player
+// has shared some of this size. Whether it went; the swap then publishes it.
+static bool bv_share_frame(unsigned long long at, int fw, int fh) {
+  pthread_mutex_lock(&bv_lock);
+  u32 gen = bv_share.gen;
+  bool fits = gen != 0 && !bv_share.failed && bv_share.w == fw && bv_share.h == fh;
+  void* tex[3] = { bv_share.tex[0], bv_share.tex[1], bv_share.tex[2] };
+  void* fc = bv_share.fence_cuda;
+  void* fd = bv_share.fence_d3d;
+  bv_share.busy = fits;
+  pthread_mutex_unlock(&bv_lock);
+  if (!fits) {
+    return false;
+  }
+  bool went = bv_share_go(gen, tex, fc, fd, at, fw, fh);
+  pthread_mutex_lock(&bv_lock);
+  bv_share.busy = false;
+  pthread_mutex_unlock(&bv_lock);
+  return went;
+}
+
+static bool bv_share_go(u32 gen, void* const tex[3], void* fc, void* fd, unsigned long long at, int fw, int fh) {
+  if (!bv_share_load()) {
+    return false;
+  }
+  if (bv_share.imported != gen) {
+    bv_share_drop();
+    bool ok = true;
+    for (int i = 0; ok && i < 3; i += 1) {
+      BvExtMemDesc md = { 0 };
+      md.type = 6, md.handle.win32.handle = tex[i];  // CU_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_RESOURCE
+      md.size = (unsigned long long)fw * fh * 4, md.flags = 1;  // CUDA_EXTERNAL_MEMORY_DEDICATED
+      BvExtArrayDesc ad = { 0 };
+      ad.arrayDesc.Width = (size_t)fw, ad.arrayDesc.Height = (size_t)fh;
+      ad.arrayDesc.Format = 1, ad.arrayDesc.NumChannels = 4, ad.numLevels = 1;  // CU_AD_FORMAT_UNSIGNED_INT8
+      ok = bv_ext_import(&bv_share.mem[i], &md) == CUDA_SUCCESS
+        && bv_ext_array(&bv_share.mip[i], bv_share.mem[i], &ad) == CUDA_SUCCESS
+        && bv_ext_level(&bv_share.arr[i], bv_share.mip[i], 0) == CUDA_SUCCESS;
+    }
+    BvExtSemDesc sc = { 0 }, sd = { 0 };
+    sc.type = sd.type = 5;  // CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_D3D11_FENCE
+    sc.handle.win32.handle = fc, sd.handle.win32.handle = fd;
+    ok = ok && bv_ext_sem(&bv_share.sem_cuda, &sc) == CUDA_SUCCESS && bv_ext_sem(&bv_share.sem_d3d, &sd) == CUDA_SUCCESS;
+    if (!ok) {
+      bv_share_drop();
+      pthread_mutex_lock(&bv_lock);
+      bv_share.failed = true;  // (the player falls back to mapping the texture)
+      pthread_mutex_unlock(&bv_lock);
+      return false;
+    }
+    bv_share.imported = gen;
+  }
+  pthread_mutex_lock(&bv_lock);
+  int slot = 0;
+  while (slot == bv_share.shown || slot == bv_share.published) slot += 1;
+  unsigned long long read = bv_share.read_done[slot];
+  pthread_mutex_unlock(&bv_lock);
+  if (read) {  // Direct3D is done drawing it (on the GPU)
+    BvSemWait wp = { 0 };
+    wp.params.fence.value = read;
+    bv_ext_wait(&bv_share.sem_d3d, &wp, 1, NULL);
+  }
+  BvShareCopy c = { 0 };
+  c.srcMemoryType = 2, c.srcDevice = at, c.srcPitch = (size_t)fw * 4;  // device
+  c.dstMemoryType = 3, c.dstArray = bv_share.arr[slot];                // array
+  c.WidthInBytes = (size_t)fw * 4, c.Height = (size_t)fh;
+  BvSemSignal sp = { 0 };
+  sp.params.fence.value = bv_share.cuda_value + 1;
+  if (bv_ext_copy(&c, NULL) != CUDA_SUCCESS || bv_ext_signal(&bv_share.sem_cuda, &sp, 1, NULL) != CUDA_SUCCESS) {
+    return false;
+  }
+  bv_share.cuda_value += 1;
+  bv_share.pending = slot, bv_share.pending_value = bv_share.cuda_value;
+  return true;
+}
+#endif
+
 Term viz_show_run(Env e, Term* f, IoWork* w) {
   Term   a  = f[0];
   u32*   px = (u32*)blk_ptr(e.mem, blk_loc(e.mem, a), 0);
@@ -171,6 +385,7 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
   }
   bool on_device = false, copied = false;
   bool gpu_drew = bv_now_word >> 31 != 0 && io_gpu;  // else the frame is in host memory
+  bool shared = false;                                 // it went into a shared texture
   unsigned long long at = 0;
 #if BEND_CUDA
   // On the device the frame stays where Bend drew it: the program draws into two buffers in turn,
@@ -180,6 +395,9 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
   pthread_mutex_unlock(&bv_lock);
   if (device) {
     at = gpu_at(px, n * 4), on_device = copied = true;
+#ifdef _WIN32
+    shared = bv_share_frame(at, fw, fh);
+#endif
   }
 #endif
   if (!on_device) {
@@ -207,7 +425,17 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
     sched_yield();
     pthread_mutex_lock(&bv_lock);
   }
-  if (on_device) {
+  if (shared) {
+#if BEND_CUDA && defined(_WIN32)
+    if (bv_share.imported == bv_share.gen) {  // (not a set shared since)
+      bv_share.published = bv_share.pending, bv_share.pub_value = bv_share.pending_value;
+    } else {
+      shared = false;
+    }
+    bv_share.pending = -1;
+#endif
+    on_device = false;
+  } else if (on_device) {
     bv_dev_front = at;
 #if BEND_CUDA && defined(_WIN32)
     // The frame shown before this one is in the buffer drawn into next: that drawing waits, on the
@@ -220,6 +448,7 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
     bv_front = bv_back, bv_back = t;
   }
   bv_front_on_device = on_device;
+  bv_front_shared = shared;
   bv_draw_ms = (double)(drawn - bv_began) / 1e6, bv_copy_ms = (double)(now - drawn) / 1e6;
   bv_wait_frame = drawn_wait - bv_wait_began;
   bv_launch_frame = drawn_launch - bv_launch_began;
@@ -326,7 +555,7 @@ const u32* bendviz_borrow(int* w, int* h, bool* gpu, double* ms) {
   pthread_mutex_lock(&bv_lock);
   const u32* frame = NULL;
   bv_trace("borrow-try", bv_fresh, bv_front_on_device);
-  if (bv_fresh && !bv_front_on_device && bv_front != NULL) {
+  if (bv_fresh && !bv_front_on_device && !bv_front_shared && bv_front != NULL) {
     frame = bv_front, bv_lent = true, bv_fresh = false;
     *w = bv_done_w, *h = bv_done_h, *gpu = bv_done_gpu, *ms = bv_ms;
   }
@@ -523,6 +752,64 @@ int bendviz_to_d3d11(void* texture, int tw, int th, int* w, int* h, bool* gpu, d
 void bendviz_release_d3d11(void) {
   bv_side_release(&bv_side[BV_SHARED]);
   bv_side_release(&bv_side[BV_APART]);
+}
+
+// Shares textures (three, w x h, B8G8R8A8, as NT handles) and two fences (NT handles: one CUDA
+// signals and Direct3D waits for, one the other way) for Bend to copy frames into; see bv_share.
+// Replaces any set shared before (bendviz_d3d11_unshare that first).
+void bendviz_d3d11_share(void* const tex[3], void* fence_cuda, void* fence_d3d, int w, int h) {
+  pthread_mutex_lock(&bv_lock);
+  for (int i = 0; i < 3; i += 1) bv_share.tex[i] = tex[i], bv_share.read_done[i] = 0;
+  bv_share.fence_cuda = fence_cuda, bv_share.fence_d3d = fence_d3d;
+  bv_share.w = w, bv_share.h = h, bv_share.failed = false;
+  bv_share.gen = bv_share.gen + 1 ? bv_share.gen + 1 : 1;
+  bv_share.shown = bv_share.published = -1;
+  pthread_mutex_unlock(&bv_lock);
+}
+
+// Stops sharing: waits until Bend isn't copying, and lets go of the imports (before the player lets
+// go of the textures and fences, or Direct3D).
+void bendviz_d3d11_unshare(void) {
+  pthread_mutex_lock(&bv_lock);
+  bv_share.gen = 0, bv_share.shown = bv_share.published = -1;
+  while (bv_share.busy) {
+    pthread_mutex_unlock(&bv_lock);
+    sched_yield();
+    pthread_mutex_lock(&bv_lock);
+  }
+  pthread_mutex_unlock(&bv_lock);
+  if (bv_share.imported && cuCtxSetCurrent(gpu_ctx) == CUDA_SUCCESS) {
+    cuCtxSynchronize();  // (copies into the textures may be queued)
+    bv_share_drop();
+  }
+}
+
+// Whether sharing failed (the player then takes frames by mapping its texture: bendviz_to_d3d11).
+bool bendviz_d3d11_failed(void) {
+  pthread_mutex_lock(&bv_lock);
+  bool failed = bv_share.failed;
+  pthread_mutex_unlock(&bv_lock);
+  return failed;
+}
+
+// Each frame: Direct3D will reach d3d_done (the player signalled it) once done with what it drew so
+// far, which covers the texture on screen. Returns the texture (0 to 2) of a new frame, after which
+// the player makes Direct3D wait for CUDA's fence to reach *wait_value before drawing it; or -1
+// when no new frame is waiting.
+int bendviz_d3d11_take(unsigned long long d3d_done, unsigned long long* wait_value, int* w, int* h, bool* gpu, double* ms) {
+  pthread_mutex_lock(&bv_lock);
+  if (bv_share.shown >= 0) {
+    bv_share.read_done[bv_share.shown] = d3d_done;
+  }
+  int slot = -1;
+  if (bv_fresh && bv_front_shared && bv_share.published >= 0) {
+    slot = bv_share.shown = bv_share.published, bv_share.published = -1;
+    *wait_value = bv_share.pub_value, bv_fresh = false;
+    *w = bv_done_w, *h = bv_done_h, *gpu = bv_done_gpu, *ms = bv_ms;
+  }
+  bv_trace("share-take", slot, 0);
+  pthread_mutex_unlock(&bv_lock);
+  return slot;
 }
 
 #endif

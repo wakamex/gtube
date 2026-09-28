@@ -28,6 +28,11 @@ void bendviz_device_frames(bool on);
 int bendviz_to_d3d11(void *texture, int tw, int th, int *w, int *h, bool *gpu, double *ms);
 void bendviz_release_d3d11(void);  // before destroying that texture or the renderer
 void bendviz_interop_apart(bool apart);  // presents wait for the vertical blank (vsync)
+// Frames into Direct3D textures shared with CUDA, without mapping them (see bridge.c).
+void bendviz_d3d11_share(void *const tex[3], void *fence_cuda, void *fence_d3d, int w, int h);
+void bendviz_d3d11_unshare(void);
+bool bendviz_d3d11_failed(void);
+int bendviz_d3d11_take(unsigned long long d3d_done, unsigned long long *wait_value, int *w, int *h, bool *gpu, double *ms);
 #endif
 bool bendviz_gpu(void);  // the GPU is in use
 // For measuring: the heap's span, and kernel launches, time spent in the launch calls and waiting for them so far.
