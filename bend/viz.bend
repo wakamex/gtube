@@ -125,28 +125,30 @@ def Viz.frame(+k: Viz.K, a: Array<U32>) -> Array<U32>:
 
 # Strided: 32,768 leaves (one per GPU lane: 128 groups of 256), leaf j drawing pixels j, j + 32768,
 # ... so that neighbouring lanes write neighbouring pixels, as CUDA's threads do.
-def Viz.lput(inside: Bool, +i: U32, +k: Viz.K, a: Array<U32>) -> Array<U32>:
+def Viz.lput(inside: Bool, +i: U32, +x: U32, +y: U32, +k: Viz.K, a: Array<U32>) -> Array<U32>:
   match inside:
     case True{}:
-      K{t, zoom, mid, hue, beat, w, h} = k
-      Array.set(U32, a, i, Viz.px((i % w : U32), (i / w : U32), k))
+      Array.set(U32, a, i, Viz.px(x, y, k))
     case False{}:
       a
 
-def Viz.lin(n: Nat, +i: U32, +k: Viz.K, a: Array<U32>) -> Array<U32>:
+# Pixel i is at column x and row y; the next, 32,768 on, is d columns and e rows further (d = 32768
+# % w, e = 32768 / w), wrapping into the next row at most once, so no pixel divides.
+def Viz.lin(n: Nat, +i: U32, +x: U32, +y: U32, +d: U32, +e: U32, +k: Viz.K, a: Array<U32>) -> Array<U32>:
   match n:
     case 0n:
       a
     case 1n+r:
       K{t, zoom, mid, hue, beat, w, h} = k
-      Viz.lin(r, (i + 32768 : U32), k, Viz.lput((i < w * h : U32), i, k, a))
+      +c = Bool.to_u32((x + d >= w : U32))
+      Viz.lin(r, (i + 32768 : U32), (x + d - c * w : U32), (y + e + c : U32), d, e, k, Viz.lput((i < w * h : U32), i, x, y, k, a))
 
 # A leaf: pixels j, j + 32768, ... It never forks, so the runtime's growing passes leave it queued,
 # and every lane starts its leaf together when the queues drain (a leaf run during growth would
 # hold its whole group at the next step).
 def Viz.leaf(+j: U32, +k: Viz.K, a: Array<U32>) -> Array<U32>:
   K{t, zoom, mid, hue, beat, w, h} = k
-  Viz.lin(U32.to_nat(((w * h + 32767) / 32768 : U32)), j, k, a)
+  Viz.lin(U32.to_nat(((w * h + 32767) / 32768 : U32)), j, (j % w : U32), (j / w : U32), (32768 % w : U32), (32768 / w : U32), k, a)
 
 # The whole frame on the GPU: a leaf on every lane. The runtime's growing passes split the spread
 # across the lanes, each making its own leaf at once (one group splits it 256 ways, then each group

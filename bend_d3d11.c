@@ -1,4 +1,4 @@
-// Frames of the Bend effect into Direct3D 11 textures shared with CUDA (Windows): three textures
+// Frames of the Bend effect into Direct3D 11 textures shared with CUDA (Windows): four textures
 // and two fences made here and shared as NT handles; Bend copies each frame into a texture on the
 // GPU and signals one fence, and each frame here Direct3D signals the other and waits for Bend's.
 // No texture is mapped, so taking a frame costs next to nothing and holds up none of Bend's calls
@@ -16,9 +16,9 @@
 
 struct bend_share {
     int w, h;
-    ID3D11Texture2D *tex[3];
-    SDL_Texture *sdl[3];
-    HANDLE handle[3];
+    ID3D11Texture2D *tex[BENDVIZ_TEXTURES];
+    SDL_Texture *sdl[BENDVIZ_TEXTURES];
+    HANDLE handle[BENDVIZ_TEXTURES];
     ID3D11Fence *fence_cuda, *fence_d3d;  // CUDA signals the first, Direct3D the second
     HANDLE fence_cuda_handle, fence_d3d_handle;
     ID3D11DeviceContext4 *ctx;
@@ -37,7 +37,7 @@ bend_share *bend_share_new(SDL_Renderer *ren, int w, int h) {
     s->w = w, s->h = h, s->shown = -1;
     D3D11_TEXTURE2D_DESC desc = { w, h, 1, 1, DXGI_FORMAT_B8G8R8A8_UNORM, { 1, 0 }, D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0,
                                   D3D11_RESOURCE_MISC_SHARED | D3D11_RESOURCE_MISC_SHARED_NTHANDLE };
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < BENDVIZ_TEXTURES; i++) {
         IDXGIResource1 *r = NULL;
         bool ok = SUCCEEDED(ID3D11Device_CreateTexture2D(dev, &desc, NULL, &s->tex[i]))
             && SUCCEEDED(ID3D11Texture2D_QueryInterface(s->tex[i], &IID_IDXGIResource1, (void **)&r))
@@ -62,7 +62,7 @@ bend_share *bend_share_new(SDL_Renderer *ren, int w, int h) {
         goto fail;
     ID3D11Device5_Release(dev5);
     ID3D11DeviceContext_Release(ctx);
-    bendviz_d3d11_share((void *const[3]){ s->handle[0], s->handle[1], s->handle[2] }, s->fence_cuda_handle, s->fence_d3d_handle, w, h);
+    bendviz_d3d11_share((void *const *)s->handle, s->fence_cuda_handle, s->fence_d3d_handle, w, h);
     return s;
 fail:
     if (dev5) ID3D11Device5_Release(dev5);
@@ -74,7 +74,7 @@ fail:
 void bend_share_free(bend_share *s) {
     if (!s) return;
     bendviz_d3d11_unshare();  // Bend lets go first
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < BENDVIZ_TEXTURES; i++) {
         if (s->sdl[i]) SDL_DestroyTexture(s->sdl[i]);
         if (s->handle[i]) CloseHandle(s->handle[i]);
         if (s->tex[i]) ID3D11Texture2D_Release(s->tex[i]);
@@ -98,7 +98,7 @@ SDL_Texture *bend_share_frame(bend_share *s, bool *fresh, bool *gpu, double *ms)
     ID3D11DeviceContext4_Signal(s->ctx, s->fence_d3d, ++s->d3d_value);
     unsigned long long wait;
     int w, h;
-    int slot = bendviz_d3d11_take(s->d3d_value, &wait, &w, &h, gpu, ms);
+    int slot = bendviz_d3d11_take(s->d3d_value, ID3D11Fence_GetCompletedValue(s->fence_d3d), &wait, &w, &h, gpu, ms);
     *fresh = slot >= 0;
     if (slot >= 0) {
         ID3D11DeviceContext4_Wait(s->ctx, s->fence_cuda, wait);  // Bend's copy into it is done

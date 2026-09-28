@@ -5,7 +5,7 @@
 
 typedef struct bend_share bend_share;
 
-// Three textures of w x h and two fences, shared with Bend; NULL if the renderer's Direct3D 11 device
+// Four textures (BENDVIZ_TEXTURES) of w x h and two fences, shared with Bend; NULL if the renderer's Direct3D 11 device
 // can't (the player then maps its texture each frame instead).
 bend_share *bend_share_new(SDL_Renderer *ren, int w, int h);
 void bend_share_free(bend_share *s);  // before the renderer goes

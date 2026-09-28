@@ -521,40 +521,40 @@ static const char* CLI_HELP =
 #define CID_VIZ_SHOW 17
 #define FID_ARRAY_SPREAD_RUN_0 0
 #define FID_VIZ_FILL 1
-#define FID_VIZ_FILL_K47 2
-#define FID_VIZ_FILL_K48 3
-#define FID_VIZ_FILL_K49 4
-#define FID_VIZ_FILL_K50 5
-#define FID_VIZ_FILL_J47 6
+#define FID_VIZ_FILL_K48 2
+#define FID_VIZ_FILL_K49 3
+#define FID_VIZ_FILL_K50 4
+#define FID_VIZ_FILL_K51 5
+#define FID_VIZ_FILL_J48 6
 #define FID_VIZ_FRAME_GPU 7
-#define FID_VIZ_FRAME_GPU_K57 8
-#define FID_VIZ_FRAME_GPU_J57 9
+#define FID_VIZ_FRAME_GPU_K58 8
+#define FID_VIZ_FRAME_GPU_J58 9
 #define FID_VIZ_DRAW 10
 #define FID_VIZ_STEP 11
-#define FID_VIZ_STEP_K61 12
+#define FID_VIZ_STEP_K62 12
 #define FID_IO_BIND 13
-#define FID_IO_BIND_C63 14
-#define FID_IO_BIND_K64 15
+#define FID_IO_BIND_C64 14
+#define FID_IO_BIND_K65 15
 #define FID_VIZ_BLANK 16
 #define FID_VIZ_LOOP 17
-#define FID_VIZ_LOOP_C67 18
-#define FID_VIZ_LOOP_C68 19
-#define FID_VIZ_LOOP_C69 20
-#define FID_VIZ_LOOP_C70 21
-#define FID_VIZ_LOOP_C71 22
-#define FID_VIZ_LOOP_C72 23
-#define FID_VIZ_LOOP_C73 24
-#define FID_VIZ_LOOP_C74 25
-#define FID_VIZ_LOOP_C75 26
-#define FID_VIZ_LOOP_C76 27
-#define FID_VIZ_LOOP_C77 28
-#define FID_VIZ_LOOP_C78 29
-#define FID_VIZ_LOOP_K79 30
-#define FID_VIZ_LOOP_C80 31
-#define FID_VIZ_LOOP_C81 32
+#define FID_VIZ_LOOP_C68 18
+#define FID_VIZ_LOOP_C69 19
+#define FID_VIZ_LOOP_C70 20
+#define FID_VIZ_LOOP_C71 21
+#define FID_VIZ_LOOP_C72 22
+#define FID_VIZ_LOOP_C73 23
+#define FID_VIZ_LOOP_C74 24
+#define FID_VIZ_LOOP_C75 25
+#define FID_VIZ_LOOP_C76 26
+#define FID_VIZ_LOOP_C77 27
+#define FID_VIZ_LOOP_C78 28
+#define FID_VIZ_LOOP_C79 29
+#define FID_VIZ_LOOP_K80 30
+#define FID_VIZ_LOOP_C81 31
+#define FID_VIZ_LOOP_C82 32
 #define FID_MAIN 33
-#define FID_MAIN_K83 34
-#define FID_MAIN_K84 35
+#define FID_MAIN_K84 34
+#define FID_MAIN_K85 35
 #define FID_VIZ_NEXT 36
 #define FID_VIZ_PARAM 37
 #define FID_VIZ_SHOW 38
@@ -620,7 +620,7 @@ CONSTV u8 CID_T[][2] = { { 2, 0 }, { 0, 0 }, { 2, 0 }, { 2, 1 }, { 1, 0 }, { 2, 
 
 #define WL_ALL e.mem, e.alc, sp, seq, rn, r0, r1, r2, r3, r4, r5, rp, r6, r7, r8, r9, r10
 
-#define WL_TABLE WL_X(FID_ARRAY_SPREAD_RUN_0) WL_X(FID_VIZ_FILL) WL_X(FID_VIZ_FILL_K47) WL_X(FID_VIZ_FILL_K48) WL_X(FID_VIZ_FILL_K49) WL_X(FID_VIZ_FILL_K50) WL_X(FID_VIZ_FILL_J47) WL_X(FID_VIZ_FRAME_GPU) WL_X(FID_VIZ_FRAME_GPU_K57) WL_X(FID_VIZ_FRAME_GPU_J57) WL_X(FID_VIZ_DRAW) WL_X(FID_VIZ_STEP) WL_X(FID_VIZ_STEP_K61) WL_X(FID_IO_BIND) WL_X(FID_IO_BIND_C63) WL_X(FID_IO_BIND_K64) WL_X(FID_VIZ_BLANK) WL_X(FID_VIZ_LOOP) WL_X(FID_VIZ_LOOP_C67) WL_X(FID_VIZ_LOOP_C68) WL_X(FID_VIZ_LOOP_C69) WL_X(FID_VIZ_LOOP_C70) WL_X(FID_VIZ_LOOP_C71) WL_X(FID_VIZ_LOOP_C72) WL_X(FID_VIZ_LOOP_C73) WL_X(FID_VIZ_LOOP_C74) WL_X(FID_VIZ_LOOP_C75) WL_X(FID_VIZ_LOOP_C76) WL_X(FID_VIZ_LOOP_C77) WL_X(FID_VIZ_LOOP_C78) WL_X(FID_VIZ_LOOP_K79) WL_X(FID_VIZ_LOOP_C80) WL_X(FID_VIZ_LOOP_C81) WL_X(FID_MAIN) WL_X(FID_MAIN_K83) WL_X(FID_MAIN_K84) WL_X(FID_VIZ_NEXT) WL_X(FID_VIZ_PARAM) WL_X(FID_VIZ_SHOW) WL_X(FID_IO_EMIT) WL_X(FID_CLO_APPLY) WL_X(FID_EXIT)
+#define WL_TABLE WL_X(FID_ARRAY_SPREAD_RUN_0) WL_X(FID_VIZ_FILL) WL_X(FID_VIZ_FILL_K48) WL_X(FID_VIZ_FILL_K49) WL_X(FID_VIZ_FILL_K50) WL_X(FID_VIZ_FILL_K51) WL_X(FID_VIZ_FILL_J48) WL_X(FID_VIZ_FRAME_GPU) WL_X(FID_VIZ_FRAME_GPU_K58) WL_X(FID_VIZ_FRAME_GPU_J58) WL_X(FID_VIZ_DRAW) WL_X(FID_VIZ_STEP) WL_X(FID_VIZ_STEP_K62) WL_X(FID_IO_BIND) WL_X(FID_IO_BIND_C64) WL_X(FID_IO_BIND_K65) WL_X(FID_VIZ_BLANK) WL_X(FID_VIZ_LOOP) WL_X(FID_VIZ_LOOP_C68) WL_X(FID_VIZ_LOOP_C69) WL_X(FID_VIZ_LOOP_C70) WL_X(FID_VIZ_LOOP_C71) WL_X(FID_VIZ_LOOP_C72) WL_X(FID_VIZ_LOOP_C73) WL_X(FID_VIZ_LOOP_C74) WL_X(FID_VIZ_LOOP_C75) WL_X(FID_VIZ_LOOP_C76) WL_X(FID_VIZ_LOOP_C77) WL_X(FID_VIZ_LOOP_C78) WL_X(FID_VIZ_LOOP_C79) WL_X(FID_VIZ_LOOP_K80) WL_X(FID_VIZ_LOOP_C81) WL_X(FID_VIZ_LOOP_C82) WL_X(FID_MAIN) WL_X(FID_MAIN_K84) WL_X(FID_MAIN_K85) WL_X(FID_VIZ_NEXT) WL_X(FID_VIZ_PARAM) WL_X(FID_VIZ_SHOW) WL_X(FID_IO_EMIT) WL_X(FID_CLO_APPLY) WL_X(FID_EXIT)
 #define MAIN_FID FID_MAIN
 #define MAIN_PURE 0
 #define BLK_SHR 1
@@ -1823,36 +1823,15 @@ INLINE Term spin_10(Env e, THR Term* o, Term r0, u32 r1, u32 r2, u32 r3, u32 r4,
   return 1;
 }
 
-INLINE Term spin_11(Env e, THR Term* o, u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, u32 r8, Term r9) {
+INLINE Term spin_11(Env e, THR Term* o, u32 r0) {
   u32 wpoll = 0;
-  Term _v_2 = 0;
-  u32 _inside_0 = r0;
-  u32 _i_1 = r1;
-  u32 _k_7 = r2;
-  u32 _k_8 = r3;
-  u32 _k_9 = r4;
-  u32 _k_10 = r5;
-  u32 _k_11 = r6;
-  u32 _k_12 = r7;
-  u32 _k_13 = r8;
-  Term _a_1 = r9;
+  u32 _v_2 = 0;
+  u32 _b_0 = r0;
   WL_SPIN
-    if (_inside_0 == 1) {
-      u32 _v_3 = 0;
-      u32 _v_4 = 0;
-      Term _o_0[1];
-      if (spin_1(e, _o_0, ((u32)(_k_12) == 0 ? _i_1 : U32_BIN(_i_1, -, U32_QUO((u32)(_i_1), (u32)(_k_12)) * _k_12)), ((u32)(_k_12) == 0 ? 0 : (u64)U32_QUO((u32)(_i_1), (u32)(_k_12))), _k_7, _k_8, _k_9, _k_10, _k_11, _k_12, _k_13) == 0) {
-        return 0;
-      }
-      _v_4 = _o_0[0];
-      _v_3 = _v_4;
-      Term _at_0 = blk_loc(e.mem, _a_1);
-      Term _at_1 = blk_at(_a_1, _i_1, 0);
-      u32 _c_0 = blk_read(e.mem, 0, _at_0, _at_1 + 0);
-      blk_write(e.mem, 0, _at_0, _at_1 + 0, _v_3);
-      _v_2 = _a_1;
+    if (_b_0 == 0) {
+      _v_2 = 0ull;
     } else {
-      _v_2 = _a_1;
+      _v_2 = 1ull;
     }
   break;
   }
@@ -1860,7 +1839,46 @@ INLINE Term spin_11(Env e, THR Term* o, u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, 
   return 1;
 }
 
-INLINE Term spin_12(Env e, THR Term* o, Term r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, u32 r8, u32 r9, Term r10) {
+INLINE Term spin_12(Env e, THR Term* o, u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, u32 r8, u32 r9, u32 r10, Term r11) {
+  u32 wpoll = 0;
+  Term _v_5 = 0;
+  u32 _inside_0 = r0;
+  u32 _i_1 = r1;
+  u32 _x_1 = r2;
+  u32 _y_1 = r3;
+  u32 _k_7 = r4;
+  u32 _k_8 = r5;
+  u32 _k_9 = r6;
+  u32 _k_10 = r7;
+  u32 _k_11 = r8;
+  u32 _k_12 = r9;
+  u32 _k_13 = r10;
+  Term _a_1 = r11;
+  WL_SPIN
+    if (_inside_0 == 1) {
+      u32 _v_6 = 0;
+      u32 _v_7 = 0;
+      Term _o_1[1];
+      if (spin_1(e, _o_1, _x_1, _y_1, _k_7, _k_8, _k_9, _k_10, _k_11, _k_12, _k_13) == 0) {
+        return 0;
+      }
+      _v_7 = _o_1[0];
+      _v_6 = _v_7;
+      Term _at_0 = blk_loc(e.mem, _a_1);
+      Term _at_1 = blk_at(_a_1, _i_1, 0);
+      u32 _c_0 = blk_read(e.mem, 0, _at_0, _at_1 + 0);
+      blk_write(e.mem, 0, _at_0, _at_1 + 0, _v_6);
+      _v_5 = _a_1;
+    } else {
+      _v_5 = _a_1;
+    }
+  break;
+  }
+  o[0] = _v_5;
+  return 1;
+}
+
+INLINE Term spin_13(Env e, THR Term* o, Term r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, u32 r8, u32 r9, Term r10) {
   u32 wpoll = 0;
   Term _v_1 = 0;
   Term _n_0 = r0;
@@ -1909,60 +1927,6 @@ INLINE Term spin_12(Env e, THR Term* o, Term r0, u32 r1, u32 r2, u32 r3, u32 r4,
       _k_12 = r8;
       _k_13 = r9;
       _a_1 = r10;
-      WL_AGAIN(spin_12);
-    }
-  break;
-  }
-  o[0] = _v_1;
-  return 1;
-}
-
-INLINE Term spin_13(Env e, THR Term* o, Term r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, u32 r8, Term r9) {
-  u32 wpoll = 0;
-  Term _v_1 = 0;
-  Term _n_0 = r0;
-  u32 _i_0 = r1;
-  u32 _k_7 = r2;
-  u32 _k_8 = r3;
-  u32 _k_9 = r4;
-  u32 _k_10 = r5;
-  u32 _k_11 = r6;
-  u32 _k_12 = r7;
-  u32 _k_13 = r8;
-  Term _a_3 = r9;
-  WL_SPIN
-    if (_n_0 == 0) {
-      _v_1 = _a_3;
-    } else {
-      Term _r_0 = (_n_0 - 1);
-      Term _v_2 = 0;
-      Term _v_3 = 0;
-      Term _o_0[1];
-      if (spin_11(e, _o_0, U32_BIN(_i_0, <, U32_BIN(_k_12, *, _k_13)), _i_0, _k_7, _k_8, _k_9, _k_10, _k_11, _k_12, _k_13, _a_3) == 0) {
-        return 0;
-      }
-      _v_3 = _o_0[0];
-      _v_2 = _v_3;
-      r0 = _r_0;
-      r1 = U32_BIN(_i_0, +, 32768ull);
-      r2 = _k_7;
-      r3 = _k_8;
-      r4 = _k_9;
-      r5 = _k_10;
-      r6 = _k_11;
-      r7 = _k_12;
-      r8 = _k_13;
-      r9 = _v_2;
-      _n_0 = r0;
-      _i_0 = r1;
-      _k_7 = r2;
-      _k_8 = r3;
-      _k_9 = r4;
-      _k_10 = r5;
-      _k_11 = r6;
-      _k_12 = r7;
-      _k_13 = r8;
-      _a_3 = r9;
       WL_AGAIN(spin_13);
     }
   break;
@@ -1971,7 +1935,81 @@ INLINE Term spin_13(Env e, THR Term* o, Term r0, u32 r1, u32 r2, u32 r3, u32 r4,
   return 1;
 }
 
-INLINE Term spin_14(Env e, THR Term* o, u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, Term r8) {
+INLINE Term spin_14(Env e, THR Term* o, Term r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, u32 r8, u32 r9, u32 r10, u32 r11, u32 r12, Term r13) {
+  u32 wpoll = 0;
+  Term _v_1 = 0;
+  Term _n_0 = r0;
+  u32 _i_0 = r1;
+  u32 _x_0 = r2;
+  u32 _y_0 = r3;
+  u32 _d_0 = r4;
+  u32 _e_0 = r5;
+  u32 _k_7 = r6;
+  u32 _k_8 = r7;
+  u32 _k_9 = r8;
+  u32 _k_10 = r9;
+  u32 _k_11 = r10;
+  u32 _k_12 = r11;
+  u32 _k_13 = r12;
+  Term _a_5 = r13;
+  WL_SPIN
+    if (_n_0 == 0) {
+      _v_1 = _a_5;
+    } else {
+      Term _r_0 = (_n_0 - 1);
+      u32 _v_2 = 0;
+      u32 _v_3 = 0;
+      Term _o_0[1];
+      if (spin_11(e, _o_0, U32_BIN(U32_BIN(_x_0, +, _d_0), >=, _k_12)) == 0) {
+        return 0;
+      }
+      _v_3 = _o_0[0];
+      _v_2 = _v_3;
+      Term _v_4 = 0;
+      Term _v_5 = 0;
+      Term _o_1[1];
+      if (spin_12(e, _o_1, U32_BIN(_i_0, <, U32_BIN(_k_12, *, _k_13)), _i_0, _x_0, _y_0, _k_7, _k_8, _k_9, _k_10, _k_11, _k_12, _k_13, _a_5) == 0) {
+        return 0;
+      }
+      _v_5 = _o_1[0];
+      _v_4 = _v_5;
+      r0 = _r_0;
+      r1 = U32_BIN(_i_0, +, 32768ull);
+      r2 = U32_BIN(U32_BIN(_x_0, +, _d_0), -, U32_BIN(_v_2, *, _k_12));
+      r3 = U32_BIN(U32_BIN(_y_0, +, _e_0), +, _v_2);
+      r4 = _d_0;
+      r5 = _e_0;
+      r6 = _k_7;
+      r7 = _k_8;
+      r8 = _k_9;
+      r9 = _k_10;
+      r10 = _k_11;
+      r11 = _k_12;
+      r12 = _k_13;
+      r13 = _v_4;
+      _n_0 = r0;
+      _i_0 = r1;
+      _x_0 = r2;
+      _y_0 = r3;
+      _d_0 = r4;
+      _e_0 = r5;
+      _k_7 = r6;
+      _k_8 = r7;
+      _k_9 = r8;
+      _k_10 = r9;
+      _k_11 = r10;
+      _k_12 = r11;
+      _k_13 = r12;
+      _a_5 = r13;
+      WL_AGAIN(spin_14);
+    }
+  break;
+  }
+  o[0] = _v_1;
+  return 1;
+}
+
+INLINE Term spin_15(Env e, THR Term* o, u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, Term r8) {
   u32 wpoll = 0;
   Term _v_2 = 0;
   u32 _j_0 = r0;
@@ -1986,9 +2024,11 @@ INLINE Term spin_14(Env e, THR Term* o, u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, 
   WL_SPIN
     Term _a_2 = U32_BIN(U32_BIN(_k_5, *, _k_6), +, 32767ull);
     Term _a_3 = 32768ull;
+    Term _a_4 = 32768ull;
+    Term _a_5 = 32768ull;
     Term _v_3 = 0;
     Term _o_0[1];
-    if (spin_13(e, _o_0, ((u32)(_a_3) == 0 ? 0 : (u64)U32_QUO((u32)(_a_2), (u32)(_a_3))), _j_0, _k_0, _k_1, _k_2, _k_3, _k_4, _k_5, _k_6, _a_1) == 0) {
+    if (spin_14(e, _o_0, ((u32)(_a_3) == 0 ? 0 : (u64)U32_QUO((u32)(_a_2), (u32)(_a_3))), _j_0, ((u32)(_k_5) == 0 ? _j_0 : U32_BIN(_j_0, -, U32_QUO((u32)(_j_0), (u32)(_k_5)) * _k_5)), ((u32)(_k_5) == 0 ? 0 : (u64)U32_QUO((u32)(_j_0), (u32)(_k_5))), ((u32)(_k_5) == 0 ? _a_4 : U32_BIN(_a_4, -, U32_QUO((u32)(_a_4), (u32)(_k_5)) * _k_5)), ((u32)(_k_5) == 0 ? 0 : (u64)U32_QUO((u32)(_a_5), (u32)(_k_5))), _k_0, _k_1, _k_2, _k_3, _k_4, _k_5, _k_6, _a_1) == 0) {
       return 0;
     }
     _v_3 = _o_0[0];
@@ -2067,7 +2107,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
       Term _v_0 = 0;
       Term _v_1 = 0;
       Term _o_1[1];
-      if (spin_14(e, _o_1, _i_0, _x_0, _x_1, _x_2, _x_3, _x_4, _x_5, _x_6, _a_0) == 0) {
+      if (spin_15(e, _o_1, _i_0, _x_0, _x_1, _x_2, _x_3, _x_4, _x_5, _x_6, _a_0) == 0) {
         return 0;
       }
       _v_1 = _o_1[0];
@@ -2130,7 +2170,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
       if (_d_0 == 0) {
         Term _v_2 = 0;
         Term _o_1[1];
-        if (spin_12(e, _o_1, 16ull, _y_0, _x_0, _k_0, _k_1, _k_2, _k_3, _k_4, _k_5, _k_6, _a_0) == 0) {
+        if (spin_13(e, _o_1, 16ull, _y_0, _x_0, _k_0, _k_1, _k_2, _k_3, _k_4, _k_5, _k_6, _a_0) == 0) {
           return 0;
         }
         _v_2 = _o_1[0];
@@ -2179,8 +2219,8 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
         u32 _x1_0 = U32_BIN(_x_0, +, _h_0);
         u32 _y1_0 = U32_BIN(_y_0, +, _h_0);
         if (!seq) {
-          u64 _t_0 = task_node(e, FID_VIZ_FILL_J47, WL_CONT, WL_IDX, 4);
-          u64 _t_1 = task_node(e, FID_VIZ_FILL, term_tsk(FID_VIZ_FILL_J47, _t_0), 0, 0);
+          u64 _t_0 = task_node(e, FID_VIZ_FILL_J48, WL_CONT, WL_IDX, 4);
+          u64 _t_1 = task_node(e, FID_VIZ_FILL, term_tsk(FID_VIZ_FILL_J48, _t_0), 0, 0);
           e.mem[_t_1 + 0] = _e_0;
           e.mem[_t_1 + 1] = _x_0;
           e.mem[_t_1 + 2] = _y_0;
@@ -2193,7 +2233,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
           e.mem[_t_1 + 9] = _k_6;
           e.mem[_t_1 + 10] = _v_3;
           e.mem[_t_0 + 0] = term_tsk(FID_VIZ_FILL, _t_1);
-          u64 _t_2 = task_node(e, FID_VIZ_FILL, term_tsk(FID_VIZ_FILL_J47, _t_0), 1, 0);
+          u64 _t_2 = task_node(e, FID_VIZ_FILL, term_tsk(FID_VIZ_FILL_J48, _t_0), 1, 0);
           e.mem[_t_2 + 0] = _e_0;
           e.mem[_t_2 + 1] = _x1_0;
           e.mem[_t_2 + 2] = _y_0;
@@ -2206,7 +2246,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
           e.mem[_t_2 + 9] = _k_6;
           e.mem[_t_2 + 10] = _v_7;
           e.mem[_t_0 + 1] = term_tsk(FID_VIZ_FILL, _t_2);
-          u64 _t_3 = task_node(e, FID_VIZ_FILL, term_tsk(FID_VIZ_FILL_J47, _t_0), 2, 0);
+          u64 _t_3 = task_node(e, FID_VIZ_FILL, term_tsk(FID_VIZ_FILL_J48, _t_0), 2, 0);
           e.mem[_t_3 + 0] = _e_0;
           e.mem[_t_3 + 1] = _x_0;
           e.mem[_t_3 + 2] = _y1_0;
@@ -2219,7 +2259,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
           e.mem[_t_3 + 9] = _k_6;
           e.mem[_t_3 + 10] = _v_11;
           e.mem[_t_0 + 2] = term_tsk(FID_VIZ_FILL, _t_3);
-          u64 _t_4 = task_node(e, FID_VIZ_FILL, term_tsk(FID_VIZ_FILL_J47, _t_0), 3, 0);
+          u64 _t_4 = task_node(e, FID_VIZ_FILL, term_tsk(FID_VIZ_FILL_J48, _t_0), 3, 0);
           e.mem[_t_4 + 0] = _e_0;
           e.mem[_t_4 + 1] = _x1_0;
           e.mem[_t_4 + 2] = _y1_0;
@@ -2232,7 +2272,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
           e.mem[_t_4 + 9] = _k_6;
           e.mem[_t_4 + 10] = _v_12;
           e.mem[_t_0 + 3] = term_tsk(FID_VIZ_FILL, _t_4);
-          return term_tsk(FID_VIZ_FILL_J47, _t_0);
+          return term_tsk(FID_VIZ_FILL_J48, _t_0);
         }
         WL_ROOM(16);
         STK(0) = _e_0;
@@ -2250,7 +2290,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
         STK(12) = _v_12;
         STK(13) = _x1_0;
         STK(14) = _y1_0;
-        STK(15) = FID_VIZ_FILL_K47;
+        STK(15) = FID_VIZ_FILL_K48;
         WL_PUSHN(16);
         r0 = _e_0;
         r1 = _x_0;
@@ -2282,7 +2322,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_FILL_K47)
+  WL_CASE(FID_VIZ_FILL_K48)
   {
     Term _e_1 = STK(-15);
     u32 _x_1 = STK(-14);
@@ -2303,7 +2343,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     WL_OPEN
     WL_ROOM(2);
     STK(0) = _q_0;
-    STK(1) = FID_VIZ_FILL_K48;
+    STK(1) = FID_VIZ_FILL_K49;
     WL_PUSHN(2);
     if (!DEVICE && !seq && fid_nofk(FID_VIZ_FILL)) {
       u64 _t_5 = task_node(e, FID_VIZ_FILL, WL_CONT, WL_IDX, 0);
@@ -2336,7 +2376,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_FILL_K48)
+  WL_CASE(FID_VIZ_FILL_K49)
   {
     Term _e_2 = STK(-16);
     u32 _x_2 = STK(-15);
@@ -2356,7 +2396,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     WL_OPEN
     WL_ROOM(2);
     STK(0) = _w_0;
-    STK(1) = FID_VIZ_FILL_K49;
+    STK(1) = FID_VIZ_FILL_K50;
     WL_PUSHN(2);
     if (!DEVICE && !seq && fid_nofk(FID_VIZ_FILL)) {
       u64 _t_6 = task_node(e, FID_VIZ_FILL, WL_CONT, WL_IDX, 0);
@@ -2389,7 +2429,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_FILL_K49)
+  WL_CASE(FID_VIZ_FILL_K50)
   {
     Term _e_3 = STK(-17);
     u32 _k_21 = STK(-14);
@@ -2408,7 +2448,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     WL_OPEN
     WL_ROOM(2);
     STK(0) = _r_0;
-    STK(1) = FID_VIZ_FILL_K50;
+    STK(1) = FID_VIZ_FILL_K51;
     WL_PUSHN(2);
     if (!DEVICE && !seq && fid_nofk(FID_VIZ_FILL)) {
       u64 _t_7 = task_node(e, FID_VIZ_FILL, WL_CONT, WL_IDX, 0);
@@ -2441,7 +2481,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_FILL_K50)
+  WL_CASE(FID_VIZ_FILL_K51)
   {
     WL_POPN(18);
     Term _q_3 = STK(15);
@@ -2449,24 +2489,24 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     Term _r_1 = STK(17);
     Term _z_0 = r0;
     WL_OPEN
-    if (!DEVICE && !seq && fid_nofk(FID_VIZ_FILL_J47)) {
-      u64 _t_8 = task_node(e, FID_VIZ_FILL_J47, WL_CONT, WL_IDX, 0);
+    if (!DEVICE && !seq && fid_nofk(FID_VIZ_FILL_J48)) {
+      u64 _t_8 = task_node(e, FID_VIZ_FILL_J48, WL_CONT, WL_IDX, 0);
       e.mem[_t_8 + 0] = _q_3;
       e.mem[_t_8 + 1] = _w_2;
       e.mem[_t_8 + 2] = _r_1;
       e.mem[_t_8 + 3] = _z_0;
-      return term_tsk(FID_VIZ_FILL_J47, _t_8);
+      return term_tsk(FID_VIZ_FILL_J48, _t_8);
     }
     r0 = _q_3;
     r1 = _w_2;
     r2 = _r_1;
     r3 = _z_0;
-    WL_JMP(FID_VIZ_FILL_J47);
+    WL_JMP(FID_VIZ_FILL_J48);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_FILL_J47)
+  WL_CASE(FID_VIZ_FILL_J48)
   {
     Term _q_4 = r0;
     Term _w_3 = r1;
@@ -2513,8 +2553,8 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     WL_OPEN
     u32 _n_0 = 32768ull;
     if (!seq) {
-      u64 _t_0 = task_node(e, FID_VIZ_FRAME_GPU_J57, WL_CONT, WL_IDX, 1);
-      u64 _t_1 = task_node(e, FID_ARRAY_SPREAD_RUN_0, term_tsk(FID_VIZ_FRAME_GPU_J57, _t_0), 0, 0);
+      u64 _t_0 = task_node(e, FID_VIZ_FRAME_GPU_J58, WL_CONT, WL_IDX, 1);
+      u64 _t_1 = task_node(e, FID_ARRAY_SPREAD_RUN_0, term_tsk(FID_VIZ_FRAME_GPU_J58, _t_0), 0, 0);
       e.mem[_t_1 + 0] = _n_0;
       e.mem[_t_1 + 1] = _a_0;
       e.mem[_t_1 + 2] = 0ull;
@@ -2527,10 +2567,10 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
       e.mem[_t_1 + 9] = _k_5;
       e.mem[_t_1 + 10] = _k_6;
       e.mem[_t_0 + 0] = term_tsk(FID_ARRAY_SPREAD_RUN_0, _t_1);
-      return term_tsk(FID_VIZ_FRAME_GPU_J57, _t_0);
+      return term_tsk(FID_VIZ_FRAME_GPU_J58, _t_0);
     }
     WL_ROOM(1);
-    STK(0) = FID_VIZ_FRAME_GPU_K57;
+    STK(0) = FID_VIZ_FRAME_GPU_K58;
     WL_PUSHN(1);
     if (!DEVICE && !seq && fid_nofk(FID_ARRAY_SPREAD_RUN_0)) {
       u64 _t_2 = task_node(e, FID_ARRAY_SPREAD_RUN_0, WL_CONT, WL_IDX, 0);
@@ -2561,20 +2601,20 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     WL_JMP(FID_ARRAY_SPREAD_RUN_0);
   }}
 
-  WL_CASE(FID_VIZ_FRAME_GPU_K57)
+  WL_CASE(FID_VIZ_FRAME_GPU_K58)
   {
     Term _r_0 = r0;
     WL_OPEN
-    if (!DEVICE && !seq && fid_nofk(FID_VIZ_FRAME_GPU_J57)) {
-      u64 _t_3 = task_node(e, FID_VIZ_FRAME_GPU_J57, WL_CONT, WL_IDX, 0);
+    if (!DEVICE && !seq && fid_nofk(FID_VIZ_FRAME_GPU_J58)) {
+      u64 _t_3 = task_node(e, FID_VIZ_FRAME_GPU_J58, WL_CONT, WL_IDX, 0);
       e.mem[_t_3 + 0] = _r_0;
-      return term_tsk(FID_VIZ_FRAME_GPU_J57, _t_3);
+      return term_tsk(FID_VIZ_FRAME_GPU_J58, _t_3);
     }
     r0 = _r_0;
-    WL_JMP(FID_VIZ_FRAME_GPU_J57);
+    WL_JMP(FID_VIZ_FRAME_GPU_J58);
   }}
 
-  WL_CASE(FID_VIZ_FRAME_GPU_J57)
+  WL_CASE(FID_VIZ_FRAME_GPU_J58)
   {
     Term _r_1 = r0;
     WL_OPEN
@@ -2667,11 +2707,11 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     Term _a_2 = 31ull;
     if (seq) {
       WL_ROOM(1);
-      STK(0) = FID_VIZ_STEP_K61;
+      STK(0) = FID_VIZ_STEP_K62;
       WL_PUSHN(1);
     } else {
-      u64 _t_1 = task_node(e, FID_VIZ_STEP_K61, WL_CONT, WL_IDX, 1);
-      WL_CONT = term_tsk(FID_VIZ_STEP_K61, _t_1);
+      u64 _t_1 = task_node(e, FID_VIZ_STEP_K62, WL_CONT, WL_IDX, 1);
+      WL_CONT = term_tsk(FID_VIZ_STEP_K62, _t_1);
       WL_IDX = 0;
     }
     if (!DEVICE && !seq && fid_nofk(FID_VIZ_DRAW)) {
@@ -2701,7 +2741,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_STEP_K61)
+  WL_CASE(FID_VIZ_STEP_K62)
   {
     Term _h_0 = r0;
     WL_OPEN
@@ -2725,17 +2765,17 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     if (!DEVICE && !seq && fid_nofk(FID_CLO_APPLY)) {
       u64 _t_3 = task_node(e, FID_CLO_APPLY, WL_CONT, WL_IDX, 0);
       e.mem[_t_3 + 0] = _m_0;
-      e.mem[_t_3 + 1] = term_clo(FID_IO_BIND_C63, _nd_0);
+      e.mem[_t_3 + 1] = term_clo(FID_IO_BIND_C64, _nd_0);
       return term_tsk(FID_CLO_APPLY, _t_3);
     }
     r0 = _m_0;
-    r1 = term_clo(FID_IO_BIND_C63, _nd_0);
+    r1 = term_clo(FID_IO_BIND_C64, _nd_0);
     WL_JMP(FID_CLO_APPLY);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_IO_BIND_C63)
+  WL_CASE(FID_IO_BIND_C64)
   {
     Term _f_1 = r0;
     Term _k_1 = r1;
@@ -2744,12 +2784,12 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     if (seq) {
       WL_ROOM(2);
       STK(0) = _k_1;
-      STK(1) = FID_IO_BIND_K64;
+      STK(1) = FID_IO_BIND_K65;
       WL_PUSHN(2);
     } else {
-      u64 _t_0 = task_node(e, FID_IO_BIND_K64, WL_CONT, WL_IDX, 1);
+      u64 _t_0 = task_node(e, FID_IO_BIND_K65, WL_CONT, WL_IDX, 1);
       e.mem[_t_0 + 0] = _k_1;
-      WL_CONT = term_tsk(FID_IO_BIND_K64, _t_0);
+      WL_CONT = term_tsk(FID_IO_BIND_K65, _t_0);
       WL_IDX = 1;
     }
     if (!DEVICE && !seq && fid_nofk(FID_CLO_APPLY)) {
@@ -2765,7 +2805,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_IO_BIND_K64)
+  WL_CASE(FID_IO_BIND_K65)
   {
     WL_POPN(1);
     Term _k_2 = STK(0);
@@ -2802,13 +2842,13 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     u64 _nd_0 = heap_alloc(e, cls_fit(2));
     e.mem[_nd_0 + 0] = _a_0;
     e.mem[_nd_0 + 1] = _other_0;
-    r0 = term_clo(FID_VIZ_LOOP_C67, _nd_0);
+    r0 = term_clo(FID_VIZ_LOOP_C68, _nd_0);
     WL_RETN(1);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_LOOP_C67)
+  WL_CASE(FID_VIZ_LOOP_C68)
   {
     Term _a_1 = r0;
     Term _other_1 = r1;
@@ -2820,19 +2860,19 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     if (!DEVICE && !seq && fid_nofk(FID_IO_BIND)) {
       u64 _t_9 = task_node(e, FID_IO_BIND, WL_CONT, WL_IDX, 0);
       e.mem[_t_9 + 0] = term_clo(FID_VIZ_NEXT, 0);
-      e.mem[_t_9 + 1] = term_clo(FID_VIZ_LOOP_C68, _nd_1);
+      e.mem[_t_9 + 1] = term_clo(FID_VIZ_LOOP_C69, _nd_1);
       e.mem[_t_9 + 2] = _x_0;
       return term_tsk(FID_IO_BIND, _t_9);
     }
     r0 = term_clo(FID_VIZ_NEXT, 0);
-    r1 = term_clo(FID_VIZ_LOOP_C68, _nd_1);
+    r1 = term_clo(FID_VIZ_LOOP_C69, _nd_1);
     r2 = _x_0;
     WL_JMP(FID_IO_BIND);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_LOOP_C68)
+  WL_CASE(FID_VIZ_LOOP_C69)
   {
     Term _a_2 = r0;
     Term _other_2 = r1;
@@ -2842,13 +2882,13 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     e.mem[_nd_2 + 0] = _a_2;
     e.mem[_nd_2 + 1] = _other_2;
     e.mem[_nd_2 + 2] = _x_1;
-    r0 = term_clo(FID_VIZ_LOOP_C69, _nd_2);
+    r0 = term_clo(FID_VIZ_LOOP_C70, _nd_2);
     WL_RETN(1);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_LOOP_C69)
+  WL_CASE(FID_VIZ_LOOP_C70)
   {
     Term _a_3 = r0;
     Term _other_3 = r1;
@@ -2864,19 +2904,19 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     if (!DEVICE && !seq && fid_nofk(FID_IO_BIND)) {
       u64 _t_8 = task_node(e, FID_IO_BIND, WL_CONT, WL_IDX, 0);
       e.mem[_t_8 + 0] = term_clo(FID_VIZ_PARAM, _nd_3);
-      e.mem[_t_8 + 1] = term_clo(FID_VIZ_LOOP_C70, _nd_4);
+      e.mem[_t_8 + 1] = term_clo(FID_VIZ_LOOP_C71, _nd_4);
       e.mem[_t_8 + 2] = _x_2;
       return term_tsk(FID_IO_BIND, _t_8);
     }
     r0 = term_clo(FID_VIZ_PARAM, _nd_3);
-    r1 = term_clo(FID_VIZ_LOOP_C70, _nd_4);
+    r1 = term_clo(FID_VIZ_LOOP_C71, _nd_4);
     r2 = _x_2;
     WL_JMP(FID_IO_BIND);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_LOOP_C70)
+  WL_CASE(FID_VIZ_LOOP_C71)
   {
     Term _a_4 = r0;
     Term _other_4 = r1;
@@ -2888,13 +2928,13 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     e.mem[_nd_5 + 1] = _other_4;
     e.mem[_nd_5 + 2] = _x_5;
     e.mem[_nd_5 + 3] = _x_4;
-    r0 = term_clo(FID_VIZ_LOOP_C71, _nd_5);
+    r0 = term_clo(FID_VIZ_LOOP_C72, _nd_5);
     WL_RETN(1);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_LOOP_C71)
+  WL_CASE(FID_VIZ_LOOP_C72)
   {
     Term _a_5 = r0;
     Term _other_5 = r1;
@@ -2912,19 +2952,19 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     if (!DEVICE && !seq && fid_nofk(FID_IO_BIND)) {
       u64 _t_7 = task_node(e, FID_IO_BIND, WL_CONT, WL_IDX, 0);
       e.mem[_t_7 + 0] = term_clo(FID_VIZ_PARAM, _nd_6);
-      e.mem[_t_7 + 1] = term_clo(FID_VIZ_LOOP_C72, _nd_7);
+      e.mem[_t_7 + 1] = term_clo(FID_VIZ_LOOP_C73, _nd_7);
       e.mem[_t_7 + 2] = _x_6;
       return term_tsk(FID_IO_BIND, _t_7);
     }
     r0 = term_clo(FID_VIZ_PARAM, _nd_6);
-    r1 = term_clo(FID_VIZ_LOOP_C72, _nd_7);
+    r1 = term_clo(FID_VIZ_LOOP_C73, _nd_7);
     r2 = _x_6;
     WL_JMP(FID_IO_BIND);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_LOOP_C72)
+  WL_CASE(FID_VIZ_LOOP_C73)
   {
     Term _a_6 = r0;
     Term _other_6 = r1;
@@ -2938,13 +2978,13 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     e.mem[_nd_8 + 2] = _x_10;
     e.mem[_nd_8 + 3] = _x_11;
     e.mem[_nd_8 + 4] = _x_9;
-    r0 = term_clo(FID_VIZ_LOOP_C73, _nd_8);
+    r0 = term_clo(FID_VIZ_LOOP_C74, _nd_8);
     WL_RETN(1);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_LOOP_C73)
+  WL_CASE(FID_VIZ_LOOP_C74)
   {
     Term _a_7 = r0;
     Term _other_7 = r1;
@@ -2964,19 +3004,19 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     if (!DEVICE && !seq && fid_nofk(FID_IO_BIND)) {
       u64 _t_6 = task_node(e, FID_IO_BIND, WL_CONT, WL_IDX, 0);
       e.mem[_t_6 + 0] = term_clo(FID_VIZ_PARAM, _nd_9);
-      e.mem[_t_6 + 1] = term_clo(FID_VIZ_LOOP_C74, _nd_10);
+      e.mem[_t_6 + 1] = term_clo(FID_VIZ_LOOP_C75, _nd_10);
       e.mem[_t_6 + 2] = _x_12;
       return term_tsk(FID_IO_BIND, _t_6);
     }
     r0 = term_clo(FID_VIZ_PARAM, _nd_9);
-    r1 = term_clo(FID_VIZ_LOOP_C74, _nd_10);
+    r1 = term_clo(FID_VIZ_LOOP_C75, _nd_10);
     r2 = _x_12;
     WL_JMP(FID_IO_BIND);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_LOOP_C74)
+  WL_CASE(FID_VIZ_LOOP_C75)
   {
     Term _a_8 = r0;
     Term _other_8 = r1;
@@ -2992,13 +3032,13 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     e.mem[_nd_11 + 3] = _x_18;
     e.mem[_nd_11 + 4] = _x_19;
     e.mem[_nd_11 + 5] = _x_16;
-    r0 = term_clo(FID_VIZ_LOOP_C75, _nd_11);
+    r0 = term_clo(FID_VIZ_LOOP_C76, _nd_11);
     WL_RETN(1);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_LOOP_C75)
+  WL_CASE(FID_VIZ_LOOP_C76)
   {
     Term _a_9 = r0;
     Term _other_9 = r1;
@@ -3020,19 +3060,19 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     if (!DEVICE && !seq && fid_nofk(FID_IO_BIND)) {
       u64 _t_5 = task_node(e, FID_IO_BIND, WL_CONT, WL_IDX, 0);
       e.mem[_t_5 + 0] = term_clo(FID_VIZ_PARAM, _nd_12);
-      e.mem[_t_5 + 1] = term_clo(FID_VIZ_LOOP_C76, _nd_13);
+      e.mem[_t_5 + 1] = term_clo(FID_VIZ_LOOP_C77, _nd_13);
       e.mem[_t_5 + 2] = _x_20;
       return term_tsk(FID_IO_BIND, _t_5);
     }
     r0 = term_clo(FID_VIZ_PARAM, _nd_12);
-    r1 = term_clo(FID_VIZ_LOOP_C76, _nd_13);
+    r1 = term_clo(FID_VIZ_LOOP_C77, _nd_13);
     r2 = _x_20;
     WL_JMP(FID_IO_BIND);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_LOOP_C76)
+  WL_CASE(FID_VIZ_LOOP_C77)
   {
     Term _a_10 = r0;
     Term _other_10 = r1;
@@ -3050,13 +3090,13 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     e.mem[_nd_14 + 4] = _x_28;
     e.mem[_nd_14 + 5] = _x_29;
     e.mem[_nd_14 + 6] = _x_25;
-    r0 = term_clo(FID_VIZ_LOOP_C77, _nd_14);
+    r0 = term_clo(FID_VIZ_LOOP_C78, _nd_14);
     WL_RETN(1);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_LOOP_C77)
+  WL_CASE(FID_VIZ_LOOP_C78)
   {
     Term _a_11 = r0;
     Term _other_11 = r1;
@@ -3080,19 +3120,19 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     if (!DEVICE && !seq && fid_nofk(FID_IO_BIND)) {
       u64 _t_4 = task_node(e, FID_IO_BIND, WL_CONT, WL_IDX, 0);
       e.mem[_t_4 + 0] = term_clo(FID_VIZ_PARAM, _nd_15);
-      e.mem[_t_4 + 1] = term_clo(FID_VIZ_LOOP_C78, _nd_16);
+      e.mem[_t_4 + 1] = term_clo(FID_VIZ_LOOP_C79, _nd_16);
       e.mem[_t_4 + 2] = _x_30;
       return term_tsk(FID_IO_BIND, _t_4);
     }
     r0 = term_clo(FID_VIZ_PARAM, _nd_15);
-    r1 = term_clo(FID_VIZ_LOOP_C78, _nd_16);
+    r1 = term_clo(FID_VIZ_LOOP_C79, _nd_16);
     r2 = _x_30;
     WL_JMP(FID_IO_BIND);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_LOOP_C78)
+  WL_CASE(FID_VIZ_LOOP_C79)
   {
     Term _a_12 = r0;
     Term _other_12 = r1;
@@ -3106,12 +3146,12 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     if (seq) {
       WL_ROOM(2);
       STK(0) = _other_12;
-      STK(1) = FID_VIZ_LOOP_K79;
+      STK(1) = FID_VIZ_LOOP_K80;
       WL_PUSHN(2);
     } else {
-      u64 _t_0 = task_node(e, FID_VIZ_LOOP_K79, WL_CONT, WL_IDX, 1);
+      u64 _t_0 = task_node(e, FID_VIZ_LOOP_K80, WL_CONT, WL_IDX, 1);
       e.mem[_t_0 + 0] = _other_12;
-      WL_CONT = term_tsk(FID_VIZ_LOOP_K79, _t_0);
+      WL_CONT = term_tsk(FID_VIZ_LOOP_K80, _t_0);
       WL_IDX = 1;
     }
     if (!DEVICE && !seq && fid_nofk(FID_VIZ_STEP)) {
@@ -3137,7 +3177,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_LOOP_K79)
+  WL_CASE(FID_VIZ_LOOP_K80)
   {
     WL_POPN(1);
     Term _other_13 = STK(0);
@@ -3146,13 +3186,13 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     u64 _nd_17 = heap_alloc(e, cls_fit(2));
     e.mem[_nd_17 + 0] = _other_13;
     e.mem[_nd_17 + 1] = _h_0;
-    r0 = term_clo(FID_VIZ_LOOP_C80, _nd_17);
+    r0 = term_clo(FID_VIZ_LOOP_C81, _nd_17);
     WL_RETN(1);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_LOOP_C80)
+  WL_CASE(FID_VIZ_LOOP_C81)
   {
     Term _other_14 = r0;
     Term _h_1 = r1;
@@ -3163,19 +3203,19 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     if (!DEVICE && !seq && fid_nofk(FID_IO_BIND)) {
       u64 _t_3 = task_node(e, FID_IO_BIND, WL_CONT, WL_IDX, 0);
       e.mem[_t_3 + 0] = _h_1;
-      e.mem[_t_3 + 1] = term_clo(FID_VIZ_LOOP_C81, _nd_18);
+      e.mem[_t_3 + 1] = term_clo(FID_VIZ_LOOP_C82, _nd_18);
       e.mem[_t_3 + 2] = _x_42;
       return term_tsk(FID_IO_BIND, _t_3);
     }
     r0 = _h_1;
-    r1 = term_clo(FID_VIZ_LOOP_C81, _nd_18);
+    r1 = term_clo(FID_VIZ_LOOP_C82, _nd_18);
     r2 = _x_42;
     WL_JMP(FID_IO_BIND);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_LOOP_C81)
+  WL_CASE(FID_VIZ_LOOP_C82)
   {
     Term _other_15 = r0;
     Term _x_43 = r1;
@@ -3198,11 +3238,11 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     WL_OPEN
     if (seq) {
       WL_ROOM(1);
-      STK(0) = FID_MAIN_K83;
+      STK(0) = FID_MAIN_K84;
       WL_PUSHN(1);
     } else {
-      u64 _t_0 = task_node(e, FID_MAIN_K83, WL_CONT, WL_IDX, 1);
-      WL_CONT = term_tsk(FID_MAIN_K83, _t_0);
+      u64 _t_0 = task_node(e, FID_MAIN_K84, WL_CONT, WL_IDX, 1);
+      WL_CONT = term_tsk(FID_MAIN_K84, _t_0);
       WL_IDX = 0;
     }
     if (!seq) {
@@ -3216,19 +3256,19 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_MAIN_K83)
+  WL_CASE(FID_MAIN_K84)
   {
     Term _h_0 = r0;
     WL_OPEN
     if (seq) {
       WL_ROOM(2);
       STK(0) = _h_0;
-      STK(1) = FID_MAIN_K84;
+      STK(1) = FID_MAIN_K85;
       WL_PUSHN(2);
     } else {
-      u64 _t_2 = task_node(e, FID_MAIN_K84, WL_CONT, WL_IDX, 1);
+      u64 _t_2 = task_node(e, FID_MAIN_K85, WL_CONT, WL_IDX, 1);
       e.mem[_t_2 + 0] = _h_0;
-      WL_CONT = term_tsk(FID_MAIN_K84, _t_2);
+      WL_CONT = term_tsk(FID_MAIN_K85, _t_2);
       WL_IDX = 1;
     }
     if (!seq) {
@@ -3242,7 +3282,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_MAIN_K84)
+  WL_CASE(FID_MAIN_K85)
   {
     WL_POPN(1);
     Term _h_2 = STK(0);
@@ -5498,6 +5538,7 @@ OUTLINE void io_loop(u64* H) {
 
 #define BENDVIZ_MAX 4096
 #define BENDVIZ_PIXELS (1L << 23)  // the most pixels: the program's buffers (as in bendviz.h)
+#define BENDVIZ_TEXTURES 4          // textures shared with Direct3D (as in bendviz.h)
 
 static pthread_mutex_t bv_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t  bv_asked = PTHREAD_COND_INITIALIZER;
@@ -5547,6 +5588,14 @@ typedef struct CUevent_st* BvReadEvent;
 static BvReadEvent bv_read_front;  // the player's copy out of the frame shown last
 static CUresult (CUDAAPI* bv_ev_wait)(CUstream, BvReadEvent, unsigned);
 static CUresult (CUDAAPI* bv_ev_mark)(BvReadEvent, CUstream);
+// A frame's copy queued behind its kernels (bv_early_copy).
+static struct {
+  unsigned long long shown[2];  // the buffers of the last two frames shown, newest first
+  pthread_t thread;             // Bend's thread
+  bool drawing;                 // from the frame's start (viz_next_pack) to its show
+  u32 waits;                    // waits for the GPU since the frame started
+  unsigned long long at;        // the buffer copied early, or 0
+} bv_early;
 #endif
 static int             bv_done_w, bv_done_h;
 static bool            bv_fresh, bv_done_gpu;
@@ -5586,6 +5635,9 @@ static double bv_before_frame, bv_after_frame;   // the last frame's host time b
 static Term viz_next_pack(Env e, IoWork* w) {
 #ifdef BENDVIZ_EMBED
   bv_count_launches();
+#endif
+#if BEND_CUDA && defined(_WIN32)
+  bv_early.thread = pthread_self(), bv_early.drawing = true, bv_early.waits = 0, bv_early.at = 0;
 #endif
   bv_began = io_tick();
   bv_trace("began", 0, 0);
@@ -5645,7 +5697,7 @@ static bool bv_room(size_t n) {
 #if BEND_CUDA && defined(_WIN32)
 // ---- Frames into Direct3D textures shared with CUDA ----
 
-// The player's side (gtube's viz.c) makes three textures and two fences, shared as NT handles
+// The player's side (gtube's viz.c) makes four textures and two fences, shared as NT handles
 // (bendviz_d3d11_share). Bend imports them into CUDA once, and after each frame copies it into a
 // texture neither on screen nor waiting to be taken, on its own stream, after waiting (on the GPU)
 // for Direct3D to be done with that texture, then signals its fence. The player makes Direct3D wait
@@ -5708,7 +5760,7 @@ typedef struct {
 } BvShareCopy;  // CUDA_MEMCPY2D
 
 static struct {
-  void* tex[3];                     // from the player: NT handles, the size, and a generation
+  void* tex[BENDVIZ_TEXTURES];      // from the player: NT handles, the size, and a generation
   void* fence_cuda;                 // (CUDA signals it, Direct3D waits)
   void* fence_d3d;                  // (Direct3D signals it, CUDA waits)
   int   w, h;
@@ -5716,16 +5768,17 @@ static struct {
   // Bend's thread: the imports, of generation imported
   u32   imported;
   bool  failed;
-  void* mem[3];
-  void* mip[3];
-  void* arr[3];
+  void* mem[BENDVIZ_TEXTURES];
+  void* mip[BENDVIZ_TEXTURES];
+  void* arr[BENDVIZ_TEXTURES];
   void* sem_cuda;
   void* sem_d3d;
   unsigned long long cuda_value;
   // Under bv_lock: the texture on screen, the one waiting to be taken (-1 none), the Direct3D fence
   // value after which each texture was last read, and the value CUDA signals for the waiting one.
   int   shown, published;
-  unsigned long long read_done[3], pub_value;
+  unsigned long long read_done[BENDVIZ_TEXTURES], pub_value;
+  unsigned long long completed;     // a value Direct3D's fence has reached (as of the last take)
   int   pending;                    // written this frame, published at the swap (-1 none)
   unsigned long long pending_value;
   bool  busy;                       // Bend's thread is using the imports (under bv_lock)
@@ -5765,7 +5818,7 @@ static bool bv_share_load(void) {
 
 // Drops the imports (Bend's context must be current).
 static void bv_share_drop(void) {
-  for (int i = 0; i < 3; i += 1) {
+  for (int i = 0; i < BENDVIZ_TEXTURES; i += 1) {
     if (bv_share.mip[i]) bv_ext_free_mip(bv_share.mip[i]);
     if (bv_share.mem[i]) bv_ext_free_mem(bv_share.mem[i]);
     bv_share.mip[i] = bv_share.mem[i] = bv_share.arr[i] = NULL;
@@ -5776,15 +5829,17 @@ static void bv_share_drop(void) {
   bv_share.imported = 0;
 }
 
-static bool bv_share_go(u32 gen, void* const tex[3], void* fc, void* fd, unsigned long long at, int fw, int fh);
+static bool bv_share_go(u32 gen, void* const tex[BENDVIZ_TEXTURES], void* fc, void* fd, unsigned long long at, int fw, int fh, bool idle);
 
 // On Bend's thread, the frame at `at` just drawn (fw x fh): into a shared texture, if the player
-// has shared some of this size. Whether it went; the swap then publishes it.
-static bool bv_share_frame(unsigned long long at, int fw, int fh) {
+// has shared some of this size (and, if idle, only into one Direct3D is known to be done with).
+// Whether it went; the swap then publishes it.
+static bool bv_share_frame(unsigned long long at, int fw, int fh, bool idle) {
   pthread_mutex_lock(&bv_lock);
   u32 gen = bv_share.gen;
   bool fits = gen != 0 && !bv_share.failed && bv_share.w == fw && bv_share.h == fh;
-  void* tex[3] = { bv_share.tex[0], bv_share.tex[1], bv_share.tex[2] };
+  void* tex[BENDVIZ_TEXTURES];
+  memcpy(tex, bv_share.tex, sizeof tex);
   void* fc = bv_share.fence_cuda;
   void* fd = bv_share.fence_d3d;
   bv_share.busy = fits;
@@ -5792,21 +5847,47 @@ static bool bv_share_frame(unsigned long long at, int fw, int fh) {
   if (!fits) {
     return false;
   }
-  bool went = bv_share_go(gen, tex, fc, fd, at, fw, fh);
+  bool went = bv_share_go(gen, tex, fc, fd, at, fw, fh, idle);
   pthread_mutex_lock(&bv_lock);
   bv_share.busy = false;
   pthread_mutex_unlock(&bv_lock);
   return went;
 }
 
-static bool bv_share_go(u32 gen, void* const tex[3], void* fc, void* fd, unsigned long long at, int fw, int fh) {
+// A frame's copy queued behind its kernels. The program draws into two buffers in turn, so a
+// frame's buffer is the one shown two frames before, and at the frame's wait for its kernels
+// (bv_timed_sync, on Bend's thread) its copy into a texture is queued before the wait. The GPU
+// then goes on from the kernels to the copy, rather than turning to Direct3D's work while Bend's
+// thread makes those calls after the wait (four driver calls, 100 us), and back (each turn leaves
+// the GPU idle 50 us). The show checks the guess (the same buffer, done in that one wait) and
+// else copies as before. Only into a texture Direct3D is known to be done with: the wait for the
+// kernels waits for everything queued, and waiting there for Direct3D (a vertical blank, with
+// vsync) held Bend to 35 frames a second.
+// (bv_early, above)
+
+static void bv_early_copy(void) {
+  if (!bv_early.drawing || !pthread_equal(pthread_self(), bv_early.thread)) {
+    return;
+  }
+  bv_early.waits += 1;
+  unsigned long long at = bv_early.shown[1];
+  pthread_mutex_lock(&bv_lock);
+  bool device = bv_device_ok;
+  pthread_mutex_unlock(&bv_lock);
+  int fw = (int)(bv_now_word & 8191), fh = (int)(bv_now_word >> 13 & 8191);
+  if (bv_early.waits == 1 && at != 0 && device && bv_now_word >> 31 != 0 && bv_share_frame(at, fw, fh, true)) {
+    bv_early.at = at;
+  }
+}
+
+static bool bv_share_go(u32 gen, void* const tex[BENDVIZ_TEXTURES], void* fc, void* fd, unsigned long long at, int fw, int fh, bool idle) {
   if (!bv_share_load()) {
     return false;
   }
   if (bv_share.imported != gen) {
     bv_share_drop();
     bool ok = true;
-    for (int i = 0; ok && i < 3; i += 1) {
+    for (int i = 0; ok && i < BENDVIZ_TEXTURES; i += 1) {
       BvExtMemDesc md = { 0 };
       md.type = 6, md.handle.win32.handle = tex[i];  // CU_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_RESOURCE
       md.size = (unsigned long long)fw * fh * 4, md.flags = 1;  // CUDA_EXTERNAL_MEMORY_DEDICATED
@@ -5831,10 +5912,16 @@ static bool bv_share_go(u32 gen, void* const tex[3], void* fc, void* fd, unsigne
     bv_share.imported = gen;
   }
   pthread_mutex_lock(&bv_lock);
-  int slot = 0;
-  while (slot == bv_share.shown || slot == bv_share.published) slot += 1;
+  int slot = -1;  // of those neither on screen nor waiting, the one Direct3D last read longest ago
+  for (int i = 0; i < BENDVIZ_TEXTURES; i += 1) {
+    if (i != bv_share.shown && i != bv_share.published && (slot < 0 || bv_share.read_done[i] < bv_share.read_done[slot])) slot = i;
+  }
   unsigned long long read = bv_share.read_done[slot];
+  bool busy = read > bv_share.completed;
   pthread_mutex_unlock(&bv_lock);
+  if (idle && busy) {
+    return false;
+  }
   if (read) {  // Direct3D is done drawing it (on the GPU)
     BvSemWait wp = { 0 };
     wp.params.fence.value = read;
@@ -5882,9 +5969,18 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
   bool device = gpu_drew && bv_device_ok;
   pthread_mutex_unlock(&bv_lock);
   if (device) {
-    at = gpu_at(px, n * 4), on_device = copied = true;
+    on_device = copied = true;
 #ifdef _WIN32
-    shared = bv_share_frame(at, fw, fh);
+    unsigned long long mine = gpu_base + (unsigned long long)((char*)px - (char*)CORPUS);
+    if (bv_early.at != 0 && bv_early.at == mine && bv_early.waits == 1) {
+      at = mine, shared = true;  // (copied already, behind the kernels)
+    } else {
+      at = gpu_at(px, n * 4);
+      shared = bv_share_frame(at, fw, fh, false);
+    }
+    bv_early.shown[1] = bv_early.shown[0], bv_early.shown[0] = at, bv_early.drawing = false;
+#else
+    at = gpu_at(px, n * 4);
 #endif
   }
 #endif
@@ -6242,12 +6338,12 @@ void bendviz_release_d3d11(void) {
   bv_side_release(&bv_side[BV_APART]);
 }
 
-// Shares textures (three, w x h, B8G8R8A8, as NT handles) and two fences (NT handles: one CUDA
+// Shares textures (BENDVIZ_TEXTURES, w x h, B8G8R8A8, as NT handles) and two fences (NT handles: one CUDA
 // signals and Direct3D waits for, one the other way) for Bend to copy frames into; see bv_share.
 // Replaces any set shared before (bendviz_d3d11_unshare that first).
-void bendviz_d3d11_share(void* const tex[3], void* fence_cuda, void* fence_d3d, int w, int h) {
+void bendviz_d3d11_share(void* const tex[BENDVIZ_TEXTURES], void* fence_cuda, void* fence_d3d, int w, int h) {
   pthread_mutex_lock(&bv_lock);
-  for (int i = 0; i < 3; i += 1) bv_share.tex[i] = tex[i], bv_share.read_done[i] = 0;
+  for (int i = 0; i < BENDVIZ_TEXTURES; i += 1) bv_share.tex[i] = tex[i], bv_share.read_done[i] = 0;
   bv_share.fence_cuda = fence_cuda, bv_share.fence_d3d = fence_d3d;
   bv_share.w = w, bv_share.h = h, bv_share.failed = false;
   bv_share.gen = bv_share.gen + 1 ? bv_share.gen + 1 : 1;
@@ -6284,8 +6380,10 @@ bool bendviz_d3d11_failed(void) {
 // far, which covers the texture on screen. Returns the texture (0 to 2) of a new frame, after which
 // the player makes Direct3D wait for CUDA's fence to reach *wait_value before drawing it; or -1
 // when no new frame is waiting.
-int bendviz_d3d11_take(unsigned long long d3d_done, unsigned long long* wait_value, int* w, int* h, bool* gpu, double* ms) {
+int bendviz_d3d11_take(unsigned long long d3d_done, unsigned long long d3d_completed, unsigned long long* wait_value, int* w, int* h,
+  bool* gpu, double* ms) {
   pthread_mutex_lock(&bv_lock);
+  bv_share.completed = d3d_completed;
   if (bv_share.shown >= 0) {
     bv_share.read_done[bv_share.shown] = d3d_done;
   }
@@ -6466,6 +6564,9 @@ static CUresult CUDAAPI bv_counted_launch(CUfunction f, unsigned gx, unsigned gy
   return r;
 }
 static CUresult CUDAAPI bv_timed_sync(void) {
+#ifdef _WIN32
+  bv_early_copy();
+#endif
   u64 t = io_tick();
   CUresult r = bv_real_sync();
   bv_last_sync = io_tick();

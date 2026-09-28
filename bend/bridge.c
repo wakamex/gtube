@@ -10,6 +10,7 @@
 
 #define BENDVIZ_MAX 4096
 #define BENDVIZ_PIXELS (1L << 23)  // the most pixels: the program's buffers (as in bendviz.h)
+#define BENDVIZ_TEXTURES 4          // textures shared with Direct3D (as in bendviz.h)
 
 static pthread_mutex_t bv_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t  bv_asked = PTHREAD_COND_INITIALIZER;
@@ -59,6 +60,14 @@ typedef struct CUevent_st* BvReadEvent;
 static BvReadEvent bv_read_front;  // the player's copy out of the frame shown last
 static CUresult (CUDAAPI* bv_ev_wait)(CUstream, BvReadEvent, unsigned);
 static CUresult (CUDAAPI* bv_ev_mark)(BvReadEvent, CUstream);
+// A frame's copy queued behind its kernels (bv_early_copy).
+static struct {
+  unsigned long long shown[2];  // the buffers of the last two frames shown, newest first
+  pthread_t thread;             // Bend's thread
+  bool drawing;                 // from the frame's start (viz_next_pack) to its show
+  u32 waits;                    // waits for the GPU since the frame started
+  unsigned long long at;        // the buffer copied early, or 0
+} bv_early;
 #endif
 static int             bv_done_w, bv_done_h;
 static bool            bv_fresh, bv_done_gpu;
@@ -98,6 +107,9 @@ static double bv_before_frame, bv_after_frame;   // the last frame's host time b
 static Term viz_next_pack(Env e, IoWork* w) {
 #ifdef BENDVIZ_EMBED
   bv_count_launches();
+#endif
+#if BEND_CUDA && defined(_WIN32)
+  bv_early.thread = pthread_self(), bv_early.drawing = true, bv_early.waits = 0, bv_early.at = 0;
 #endif
   bv_began = io_tick();
   bv_trace("began", 0, 0);
@@ -157,7 +169,7 @@ static bool bv_room(size_t n) {
 #if BEND_CUDA && defined(_WIN32)
 // ---- Frames into Direct3D textures shared with CUDA ----
 
-// The player's side (gtube's viz.c) makes three textures and two fences, shared as NT handles
+// The player's side (gtube's viz.c) makes four textures and two fences, shared as NT handles
 // (bendviz_d3d11_share). Bend imports them into CUDA once, and after each frame copies it into a
 // texture neither on screen nor waiting to be taken, on its own stream, after waiting (on the GPU)
 // for Direct3D to be done with that texture, then signals its fence. The player makes Direct3D wait
@@ -220,7 +232,7 @@ typedef struct {
 } BvShareCopy;  // CUDA_MEMCPY2D
 
 static struct {
-  void* tex[3];                     // from the player: NT handles, the size, and a generation
+  void* tex[BENDVIZ_TEXTURES];      // from the player: NT handles, the size, and a generation
   void* fence_cuda;                 // (CUDA signals it, Direct3D waits)
   void* fence_d3d;                  // (Direct3D signals it, CUDA waits)
   int   w, h;
@@ -228,16 +240,17 @@ static struct {
   // Bend's thread: the imports, of generation imported
   u32   imported;
   bool  failed;
-  void* mem[3];
-  void* mip[3];
-  void* arr[3];
+  void* mem[BENDVIZ_TEXTURES];
+  void* mip[BENDVIZ_TEXTURES];
+  void* arr[BENDVIZ_TEXTURES];
   void* sem_cuda;
   void* sem_d3d;
   unsigned long long cuda_value;
   // Under bv_lock: the texture on screen, the one waiting to be taken (-1 none), the Direct3D fence
   // value after which each texture was last read, and the value CUDA signals for the waiting one.
   int   shown, published;
-  unsigned long long read_done[3], pub_value;
+  unsigned long long read_done[BENDVIZ_TEXTURES], pub_value;
+  unsigned long long completed;     // a value Direct3D's fence has reached (as of the last take)
   int   pending;                    // written this frame, published at the swap (-1 none)
   unsigned long long pending_value;
   bool  busy;                       // Bend's thread is using the imports (under bv_lock)
@@ -277,7 +290,7 @@ static bool bv_share_load(void) {
 
 // Drops the imports (Bend's context must be current).
 static void bv_share_drop(void) {
-  for (int i = 0; i < 3; i += 1) {
+  for (int i = 0; i < BENDVIZ_TEXTURES; i += 1) {
     if (bv_share.mip[i]) bv_ext_free_mip(bv_share.mip[i]);
     if (bv_share.mem[i]) bv_ext_free_mem(bv_share.mem[i]);
     bv_share.mip[i] = bv_share.mem[i] = bv_share.arr[i] = NULL;
@@ -288,15 +301,17 @@ static void bv_share_drop(void) {
   bv_share.imported = 0;
 }
 
-static bool bv_share_go(u32 gen, void* const tex[3], void* fc, void* fd, unsigned long long at, int fw, int fh);
+static bool bv_share_go(u32 gen, void* const tex[BENDVIZ_TEXTURES], void* fc, void* fd, unsigned long long at, int fw, int fh, bool idle);
 
 // On Bend's thread, the frame at `at` just drawn (fw x fh): into a shared texture, if the player
-// has shared some of this size. Whether it went; the swap then publishes it.
-static bool bv_share_frame(unsigned long long at, int fw, int fh) {
+// has shared some of this size (and, if idle, only into one Direct3D is known to be done with).
+// Whether it went; the swap then publishes it.
+static bool bv_share_frame(unsigned long long at, int fw, int fh, bool idle) {
   pthread_mutex_lock(&bv_lock);
   u32 gen = bv_share.gen;
   bool fits = gen != 0 && !bv_share.failed && bv_share.w == fw && bv_share.h == fh;
-  void* tex[3] = { bv_share.tex[0], bv_share.tex[1], bv_share.tex[2] };
+  void* tex[BENDVIZ_TEXTURES];
+  memcpy(tex, bv_share.tex, sizeof tex);
   void* fc = bv_share.fence_cuda;
   void* fd = bv_share.fence_d3d;
   bv_share.busy = fits;
@@ -304,21 +319,47 @@ static bool bv_share_frame(unsigned long long at, int fw, int fh) {
   if (!fits) {
     return false;
   }
-  bool went = bv_share_go(gen, tex, fc, fd, at, fw, fh);
+  bool went = bv_share_go(gen, tex, fc, fd, at, fw, fh, idle);
   pthread_mutex_lock(&bv_lock);
   bv_share.busy = false;
   pthread_mutex_unlock(&bv_lock);
   return went;
 }
 
-static bool bv_share_go(u32 gen, void* const tex[3], void* fc, void* fd, unsigned long long at, int fw, int fh) {
+// A frame's copy queued behind its kernels. The program draws into two buffers in turn, so a
+// frame's buffer is the one shown two frames before, and at the frame's wait for its kernels
+// (bv_timed_sync, on Bend's thread) its copy into a texture is queued before the wait. The GPU
+// then goes on from the kernels to the copy, rather than turning to Direct3D's work while Bend's
+// thread makes those calls after the wait (four driver calls, 100 us), and back (each turn leaves
+// the GPU idle 50 us). The show checks the guess (the same buffer, done in that one wait) and
+// else copies as before. Only into a texture Direct3D is known to be done with: the wait for the
+// kernels waits for everything queued, and waiting there for Direct3D (a vertical blank, with
+// vsync) held Bend to 35 frames a second.
+// (bv_early, above)
+
+static void bv_early_copy(void) {
+  if (!bv_early.drawing || !pthread_equal(pthread_self(), bv_early.thread)) {
+    return;
+  }
+  bv_early.waits += 1;
+  unsigned long long at = bv_early.shown[1];
+  pthread_mutex_lock(&bv_lock);
+  bool device = bv_device_ok;
+  pthread_mutex_unlock(&bv_lock);
+  int fw = (int)(bv_now_word & 8191), fh = (int)(bv_now_word >> 13 & 8191);
+  if (bv_early.waits == 1 && at != 0 && device && bv_now_word >> 31 != 0 && bv_share_frame(at, fw, fh, true)) {
+    bv_early.at = at;
+  }
+}
+
+static bool bv_share_go(u32 gen, void* const tex[BENDVIZ_TEXTURES], void* fc, void* fd, unsigned long long at, int fw, int fh, bool idle) {
   if (!bv_share_load()) {
     return false;
   }
   if (bv_share.imported != gen) {
     bv_share_drop();
     bool ok = true;
-    for (int i = 0; ok && i < 3; i += 1) {
+    for (int i = 0; ok && i < BENDVIZ_TEXTURES; i += 1) {
       BvExtMemDesc md = { 0 };
       md.type = 6, md.handle.win32.handle = tex[i];  // CU_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_RESOURCE
       md.size = (unsigned long long)fw * fh * 4, md.flags = 1;  // CUDA_EXTERNAL_MEMORY_DEDICATED
@@ -343,10 +384,16 @@ static bool bv_share_go(u32 gen, void* const tex[3], void* fc, void* fd, unsigne
     bv_share.imported = gen;
   }
   pthread_mutex_lock(&bv_lock);
-  int slot = 0;
-  while (slot == bv_share.shown || slot == bv_share.published) slot += 1;
+  int slot = -1;  // of those neither on screen nor waiting, the one Direct3D last read longest ago
+  for (int i = 0; i < BENDVIZ_TEXTURES; i += 1) {
+    if (i != bv_share.shown && i != bv_share.published && (slot < 0 || bv_share.read_done[i] < bv_share.read_done[slot])) slot = i;
+  }
   unsigned long long read = bv_share.read_done[slot];
+  bool busy = read > bv_share.completed;
   pthread_mutex_unlock(&bv_lock);
+  if (idle && busy) {
+    return false;
+  }
   if (read) {  // Direct3D is done drawing it (on the GPU)
     BvSemWait wp = { 0 };
     wp.params.fence.value = read;
@@ -394,9 +441,18 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
   bool device = gpu_drew && bv_device_ok;
   pthread_mutex_unlock(&bv_lock);
   if (device) {
-    at = gpu_at(px, n * 4), on_device = copied = true;
+    on_device = copied = true;
 #ifdef _WIN32
-    shared = bv_share_frame(at, fw, fh);
+    unsigned long long mine = gpu_base + (unsigned long long)((char*)px - (char*)CORPUS);
+    if (bv_early.at != 0 && bv_early.at == mine && bv_early.waits == 1) {
+      at = mine, shared = true;  // (copied already, behind the kernels)
+    } else {
+      at = gpu_at(px, n * 4);
+      shared = bv_share_frame(at, fw, fh, false);
+    }
+    bv_early.shown[1] = bv_early.shown[0], bv_early.shown[0] = at, bv_early.drawing = false;
+#else
+    at = gpu_at(px, n * 4);
 #endif
   }
 #endif
@@ -754,12 +810,12 @@ void bendviz_release_d3d11(void) {
   bv_side_release(&bv_side[BV_APART]);
 }
 
-// Shares textures (three, w x h, B8G8R8A8, as NT handles) and two fences (NT handles: one CUDA
+// Shares textures (BENDVIZ_TEXTURES, w x h, B8G8R8A8, as NT handles) and two fences (NT handles: one CUDA
 // signals and Direct3D waits for, one the other way) for Bend to copy frames into; see bv_share.
 // Replaces any set shared before (bendviz_d3d11_unshare that first).
-void bendviz_d3d11_share(void* const tex[3], void* fence_cuda, void* fence_d3d, int w, int h) {
+void bendviz_d3d11_share(void* const tex[BENDVIZ_TEXTURES], void* fence_cuda, void* fence_d3d, int w, int h) {
   pthread_mutex_lock(&bv_lock);
-  for (int i = 0; i < 3; i += 1) bv_share.tex[i] = tex[i], bv_share.read_done[i] = 0;
+  for (int i = 0; i < BENDVIZ_TEXTURES; i += 1) bv_share.tex[i] = tex[i], bv_share.read_done[i] = 0;
   bv_share.fence_cuda = fence_cuda, bv_share.fence_d3d = fence_d3d;
   bv_share.w = w, bv_share.h = h, bv_share.failed = false;
   bv_share.gen = bv_share.gen + 1 ? bv_share.gen + 1 : 1;
@@ -796,8 +852,10 @@ bool bendviz_d3d11_failed(void) {
 // far, which covers the texture on screen. Returns the texture (0 to 2) of a new frame, after which
 // the player makes Direct3D wait for CUDA's fence to reach *wait_value before drawing it; or -1
 // when no new frame is waiting.
-int bendviz_d3d11_take(unsigned long long d3d_done, unsigned long long* wait_value, int* w, int* h, bool* gpu, double* ms) {
+int bendviz_d3d11_take(unsigned long long d3d_done, unsigned long long d3d_completed, unsigned long long* wait_value, int* w, int* h,
+  bool* gpu, double* ms) {
   pthread_mutex_lock(&bv_lock);
+  bv_share.completed = d3d_completed;
   if (bv_share.shown >= 0) {
     bv_share.read_done[bv_share.shown] = d3d_done;
   }
@@ -978,6 +1036,9 @@ static CUresult CUDAAPI bv_counted_launch(CUfunction f, unsigned gx, unsigned gy
   return r;
 }
 static CUresult CUDAAPI bv_timed_sync(void) {
+#ifdef _WIN32
+  bv_early_copy();
+#endif
   u64 t = io_tick();
   CUresult r = bv_real_sync();
   bv_last_sync = io_tick();
