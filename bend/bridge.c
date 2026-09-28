@@ -47,12 +47,15 @@ static void viz_next_call(IoWork* w) {  // an IO helper thread: no Bend heap her
 #ifdef BENDVIZ_EMBED
 static void bv_count_launches(void);
 #endif
+static double bv_wait_total(void);
+static double bv_wait_began, bv_wait_frame;  // waiting for the GPU: by the frame's start, and in the last frame
 
 static Term viz_next_pack(Env e, IoWork* w) {
 #ifdef BENDVIZ_EMBED
   bv_count_launches();
 #endif
   bv_began = io_tick();
+  bv_wait_began = bv_wait_total();
   return (Term)bv_now_word;
 }
 
@@ -172,6 +175,7 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
   }
   bv_front_on_device = on_device;
   bv_draw_ms = (double)(drawn - bv_began) / 1e6, bv_copy_ms = (double)(now - drawn) / 1e6;
+  bv_wait_frame = bv_wait_total() - bv_wait_began;
   bv_ms       = (double)(now - bv_began) / 1e6;
   bv_done_w   = fw, bv_done_h = fh;
   bv_done_gpu = gpu_drew;  // asked for, and there to use
@@ -365,10 +369,11 @@ void bendviz_return(void) {
   pthread_mutex_unlock(&bv_lock);
 }
 
-// How the last frame's time divides: drawing it, and bringing it to the host.
-void bendviz_times(double* draw_ms, double* copy_ms) {
+// How the last frame's time divides: drawing it (of which waiting for the GPU), and bringing it to
+// the host.
+void bendviz_times(double* draw_ms, double* wait_ms, double* copy_ms) {
   pthread_mutex_lock(&bv_lock);
-  *draw_ms = bv_draw_ms, *copy_ms = bv_copy_ms;
+  *draw_ms = bv_draw_ms, *wait_ms = bv_wait_frame, *copy_ms = bv_copy_ms;
   pthread_mutex_unlock(&bv_lock);
 }
 
@@ -484,6 +489,10 @@ static void bv_count_launches(void) {
     bv_real_sync = gpu_fn_cuCtxSynchronize, gpu_fn_cuCtxSynchronize = bv_timed_sync;
   }
 #endif
+}
+
+static double bv_wait_total(void) {
+  return bv_wait_ms;
 }
 
 void bendviz_heap(void** base, size_t* bytes) {

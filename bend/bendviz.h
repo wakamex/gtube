@@ -29,4 +29,4 @@ bool bendviz_gpu(void);  // the GPU is in use
 void bendviz_heap(void **base, size_t *bytes);
 void bendviz_launches(unsigned long long *launches, double *launch_ms, double *wait_ms);
 void bendviz_edges(double *before_ms, double *after_ms);
-void bendviz_times(double *draw_ms, double *copy_ms);  // the last frame's time: drawing, and copying it back
+void bendviz_times(double *draw_ms, double *wait_ms, double *copy_ms);  // the last frame's time: drawing (of which waiting for the GPU), and copying it back

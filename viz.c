@@ -642,9 +642,11 @@ bool viz_is_bend(const viz *v) { return v->fx == FX_BEND; }
 
 bool viz_bend_stats(const viz *v, char *out, size_t size) {
     if (!v->bend_shown) return false;  // not drawn yet
-    double draw, copy;
-    bendviz_times(&draw, &copy);
-    snprintf(out, size, "bend %s %.1f ms (draw %.1f, copy %.1f%s) %dx%d", v->bend_drawn_gpu ? "gpu" : "cpu", v->bend_ms, draw, copy, v->bend_on_device ? " on gpu" : "", v->bend_w, v->bend_h);
+    double draw, wait, copy;
+    bendviz_times(&draw, &wait, &copy);
+    char waited[32] = "";
+    if (v->bend_drawn_gpu) snprintf(waited, sizeof waited, " of which gpu %.1f", wait);
+    snprintf(out, size, "bend %s %.1f ms (draw %.1f%s, copy %.1f%s) %dx%d", v->bend_drawn_gpu ? "gpu" : "cpu", v->bend_ms, draw, waited, copy, v->bend_on_device ? " on gpu" : "", v->bend_w, v->bend_h);
     return true;
 }
 void viz_bend_switch(viz *v) { v->bend_on_gpu = !v->bend_on_gpu; }

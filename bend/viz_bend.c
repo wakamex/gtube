@@ -95,6 +95,7 @@ CUresult CUDAAPI cuInit(unsigned int flags);
 CUresult CUDAAPI cuDeviceGet(CUdevice* dev, int ordinal);
 CUresult CUDAAPI cuDeviceGetAttribute(int* v, CUdevice_attribute a, CUdevice dev);
 CUresult CUDAAPI cuDevicePrimaryCtxRetain(CUcontext* ctx, CUdevice dev);
+CUresult CUDAAPI cuDevicePrimaryCtxSetFlags(CUdevice dev, unsigned int flags);
 CUresult CUDAAPI cuCtxSetCurrent(CUcontext ctx);
 CUresult CUDAAPI cuCtxSynchronize(void);
 CUresult CUDAAPI cuMemAllocManaged(CUdeviceptr* p, size_t bytes, unsigned int flags);
@@ -126,6 +127,7 @@ nvrtcResult nvrtcDestroyProgram(nvrtcProgram* p);
   X(cuInit, cuInit) X(cuDeviceGet, cuDeviceGet) \
   X(cuDeviceGetAttribute, cuDeviceGetAttribute) \
   X(cuDevicePrimaryCtxRetain, cuDevicePrimaryCtxRetain) \
+  X(cuDevicePrimaryCtxSetFlags, cuDevicePrimaryCtxSetFlags_v2) \
   X(cuCtxSetCurrent, cuCtxSetCurrent) X(cuCtxSynchronize, cuCtxSynchronize) \
   X(cuMemAllocManaged, cuMemAllocManaged) X(cuMemAdvise, cuMemAdvise_v2) \
   X(cuMemsetD8, cuMemsetD8_v2) X(cuDeviceTotalMem, cuDeviceTotalMem_v2) \
@@ -152,6 +154,7 @@ GPU_RTC_FNS(GPU_FN_PTR)
 #define cuDeviceGet              (*gpu_fn_cuDeviceGet)
 #define cuDeviceGetAttribute     (*gpu_fn_cuDeviceGetAttribute)
 #define cuDevicePrimaryCtxRetain (*gpu_fn_cuDevicePrimaryCtxRetain)
+#define cuDevicePrimaryCtxSetFlags (*gpu_fn_cuDevicePrimaryCtxSetFlags)
 #define cuCtxSetCurrent          (*gpu_fn_cuCtxSetCurrent)
 #define cuCtxSynchronize         (*gpu_fn_cuCtxSynchronize)
 #define cuMemAllocManaged        (*gpu_fn_cuMemAllocManaged)
@@ -4152,6 +4155,11 @@ static bool gpu_probe(void) {
     per_sm *= 2;
   }
   gpu_shape(units > per_sm ? units : per_sm);
+  // The host sleeps while it waits for the device, rather than spinning a
+  // core (CU_CTX_SCHED_BLOCKING_SYNC; ignored if the context is already open).
+  if (managed != 0) {
+    cuDevicePrimaryCtxSetFlags(gpu_dev, 0x04);
+  }
   return managed != 0
     && cuDevicePrimaryCtxRetain(&ctx, gpu_dev) == CUDA_SUCCESS
     && (gpu_ctx = ctx) != NULL
@@ -5323,12 +5331,15 @@ static void viz_next_call(IoWork* w) {  // an IO helper thread: no Bend heap her
 #ifdef BENDVIZ_EMBED
 static void bv_count_launches(void);
 #endif
+static double bv_wait_total(void);
+static double bv_wait_began, bv_wait_frame;  // waiting for the GPU: by the frame's start, and in the last frame
 
 static Term viz_next_pack(Env e, IoWork* w) {
 #ifdef BENDVIZ_EMBED
   bv_count_launches();
 #endif
   bv_began = io_tick();
+  bv_wait_began = bv_wait_total();
   return (Term)bv_now_word;
 }
 
@@ -5448,6 +5459,7 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
   }
   bv_front_on_device = on_device;
   bv_draw_ms = (double)(drawn - bv_began) / 1e6, bv_copy_ms = (double)(now - drawn) / 1e6;
+  bv_wait_frame = bv_wait_total() - bv_wait_began;
   bv_ms       = (double)(now - bv_began) / 1e6;
   bv_done_w   = fw, bv_done_h = fh;
   bv_done_gpu = gpu_drew;  // asked for, and there to use
@@ -5641,10 +5653,11 @@ void bendviz_return(void) {
   pthread_mutex_unlock(&bv_lock);
 }
 
-// How the last frame's time divides: drawing it, and bringing it to the host.
-void bendviz_times(double* draw_ms, double* copy_ms) {
+// How the last frame's time divides: drawing it (of which waiting for the GPU), and bringing it to
+// the host.
+void bendviz_times(double* draw_ms, double* wait_ms, double* copy_ms) {
   pthread_mutex_lock(&bv_lock);
-  *draw_ms = bv_draw_ms, *copy_ms = bv_copy_ms;
+  *draw_ms = bv_draw_ms, *wait_ms = bv_wait_frame, *copy_ms = bv_copy_ms;
   pthread_mutex_unlock(&bv_lock);
 }
 
@@ -5760,6 +5773,10 @@ static void bv_count_launches(void) {
     bv_real_sync = gpu_fn_cuCtxSynchronize, gpu_fn_cuCtxSynchronize = bv_timed_sync;
   }
 #endif
+}
+
+static double bv_wait_total(void) {
+  return bv_wait_ms;
 }
 
 void bendviz_heap(void** base, size_t* bytes) {
