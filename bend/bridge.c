@@ -529,15 +529,17 @@ void bendviz_return(void) {
 // How the last frame's time divides: drawing it (of which waiting for the GPU), and bringing it to
 // the host.
 // Totals so far: frames Bend finished and dropped, the time from a request to the helper taking it
-// and from there to Bend starting on it, summed over the frames, and heap pages fetched on a fault.
+// and from there to Bend starting on it, summed over the frames, and heap pages fetched on a fault
+// and the time fetching them.
 void bendviz_cycle(unsigned long long* drawn, unsigned long long* dropped, double* took_ms, double* began_ms,
-  unsigned long long* faults) {
+  unsigned long long* faults, double* fault_ms) {
   pthread_mutex_lock(&bv_lock);
   *drawn = bv_n_drawn, *dropped = bv_n_dropped, *took_ms = bv_took_ms, *began_ms = bv_began_ms;
 #if BEND_CUDA
-  *faults = gpu_fault_count();  // (Windows: heap pages the host fetched on a fault)
+  *faults = gpu_fault_count();  // (Windows: heap pages the host fetched on a fault, and the time)
+  *fault_ms = (double)gpu_fault_time() / 1e6;
 #else
-  *faults = 0;
+  *faults = 0, *fault_ms = 0;
 #endif
   pthread_mutex_unlock(&bv_lock);
 }

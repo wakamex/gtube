@@ -71,7 +71,7 @@ struct viz {
     double bend_take_ms, bend_take_max;  // and the time taking frames into the texture
     char bend_player[64];              // the last second's, as a stats line
     unsigned long long bend_drawn0, bend_dropped0, bend_faults0;  // Bend's totals at the second's start
-    double bend_took0, bend_began0;
+    double bend_took0, bend_began0, bend_fault_ms0;
     uint8_t *heat;
     float *radius;          // the plasma's distance from the centre, per pixel
     float fuel[BANDS];      // the fire's fuel per band, following the spectrum slowly
@@ -441,11 +441,12 @@ static void bend_count_frame(viz *v, bool fresh, double take_ms) {
         double secs = (now - v->bend_count_from) / 1e9;
         v->bend_fps = v->bend_count / secs;
         unsigned long long drawn, dropped, faults;
-        double took, began;
-        bendviz_cycle(&drawn, &dropped, &took, &began, &faults);
+        double took, began, fault_ms;
+        bendviz_cycle(&drawn, &dropped, &took, &began, &faults, &fault_ms);
+        unsigned long long nf = faults - v->bend_faults0;
         unsigned long long nd = drawn - v->bend_drawn0;
-        snprintf(v->bend_player, sizeof v->bend_player, "bend taken %d, none %d; take %.2f ms (max %.1f); faults %.1f", v->bend_count, v->bend_empty, v->bend_take_ms / (v->bend_count ? v->bend_count : 1), v->bend_take_max, nd ? (double)(faults - v->bend_faults0) / nd : 0);
-        v->bend_drawn0 = drawn, v->bend_dropped0 = dropped, v->bend_took0 = took, v->bend_began0 = began, v->bend_faults0 = faults;
+        snprintf(v->bend_player, sizeof v->bend_player, "bend taken %d, take %.2f ms; faults %.1f, %.3f ms each", v->bend_count, v->bend_take_ms / (v->bend_count ? v->bend_count : 1), nd ? (double)nf / nd : 0, nf ? (fault_ms - v->bend_fault_ms0) / nf : 0);
+        v->bend_drawn0 = drawn, v->bend_dropped0 = dropped, v->bend_took0 = took, v->bend_began0 = began, v->bend_faults0 = faults, v->bend_fault_ms0 = fault_ms;
         v->bend_count = v->bend_calls = v->bend_empty = v->bend_short = v->bend_long = 0, v->bend_take_ms = v->bend_take_max = 0;
         v->bend_count_from = now;
     }

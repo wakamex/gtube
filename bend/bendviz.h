@@ -36,4 +36,4 @@ void bendviz_edges(double *before_ms, double *after_ms);
 int bendviz_kernels(double *ms, double *gap_ms, unsigned *groups, int most);
 void bendviz_times(double *draw_ms, double *wait_ms, double *copy_ms);  // the last frame's time: drawing (of which waiting for the GPU), and copying it back
 void bendviz_host_parts(double *before_ms, double *launch_ms, double *after_ms);  // the host's part of that drawing
-void bendviz_cycle(unsigned long long *drawn, unsigned long long *dropped, double *took_ms, double *began_ms, unsigned long long *faults);  // totals: see bridge.c
+void bendviz_cycle(unsigned long long *drawn, unsigned long long *dropped, double *took_ms, double *began_ms, unsigned long long *faults, double *fault_ms);  // totals: see bridge.c

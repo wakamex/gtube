@@ -8459,7 +8459,9 @@ static u32*        gpu_last;  // the pages held when last given up
 static u32         gpu_nlast;
 static u64         gpu_pages;
 static SRWLOCK     gpu_lock = SRWLOCK_INIT;
-static u64         gpu_faults;  // pages fetched on a fault, so far (for measuring)
+static u64 io_tick(void);
+static u64         gpu_faults;  // pages fetched on a fault, and the time, so far (for measuring)
+static u64         gpu_fault_ns;
 static CUfunction  gpu_pages_fn;
 static u32*        gpu_in_list;  // page-locked: pages going in and their words
 static u64*        gpu_in_stage;
@@ -8486,10 +8488,11 @@ static LONG CALLBACK gpu_fault(EXCEPTION_POINTERS* x) {
   bool ok = true;
   AcquireSRWLockExclusive(&gpu_lock);
   if (gpu_held[i] == 0) {
-    gpu_faults += 1;
+    u64 t = io_tick();
     cuCtxSetCurrent(gpu_ctx);
     ok = cuMemcpyDtoH(gpu_fill + (i << 12), gpu_base + (i << 12), 4096)
       == CUDA_SUCCESS;
+    gpu_faults += 1, gpu_fault_ns += io_tick() - t;
     gpu_held[i]              = 1;
     gpu_list[gpu_nheld++]    = (u32)i;
   }
@@ -8648,6 +8651,7 @@ static CUdeviceptr gpu_at(const void* p, u64 bytes) {
 
 #define gpu_dev_base() gpu_base
 #define gpu_fault_count() gpu_faults
+#define gpu_fault_time()  gpu_fault_ns
 
 #else
 
@@ -8657,6 +8661,7 @@ static CUdeviceptr gpu_at(const void* p, u64 bytes) {
 #define gpu_at(p, bytes) ((CUdeviceptr)(uintptr_t)(p))
 #define gpu_dev_base() ((CUdeviceptr)(uintptr_t)CORPUS)
 #define gpu_fault_count() 0ull
+#define gpu_fault_time()  0ull
 
 static u64* gpu_map(u64 bytes) {
   CUdeviceptr p = 0;
@@ -10202,15 +10207,17 @@ void bendviz_return(void) {
 // How the last frame's time divides: drawing it (of which waiting for the GPU), and bringing it to
 // the host.
 // Totals so far: frames Bend finished and dropped, the time from a request to the helper taking it
-// and from there to Bend starting on it, summed over the frames, and heap pages fetched on a fault.
+// and from there to Bend starting on it, summed over the frames, and heap pages fetched on a fault
+// and the time fetching them.
 void bendviz_cycle(unsigned long long* drawn, unsigned long long* dropped, double* took_ms, double* began_ms,
-  unsigned long long* faults) {
+  unsigned long long* faults, double* fault_ms) {
   pthread_mutex_lock(&bv_lock);
   *drawn = bv_n_drawn, *dropped = bv_n_dropped, *took_ms = bv_took_ms, *began_ms = bv_began_ms;
 #if BEND_CUDA
-  *faults = gpu_fault_count();  // (Windows: heap pages the host fetched on a fault)
+  *faults = gpu_fault_count();  // (Windows: heap pages the host fetched on a fault, and the time)
+  *fault_ms = (double)gpu_fault_time() / 1e6;
 #else
-  *faults = 0;
+  *faults = 0, *fault_ms = 0;
 #endif
   pthread_mutex_unlock(&bv_lock);
 }
