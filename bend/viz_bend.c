@@ -7651,7 +7651,12 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     } else {
       WL_LOAD(a, war)
     }
-    heap_free(e, cls_fit(war + 2), a);
+    // A bang's root task (continued by the root) was made by the host, which
+    // frees it after the bang (corpus_eval): on the device it would leave the
+    // host's supply a node short each bang, refilled from the device's.
+    if (!DEVICE || e.mem[a + war] != TERM_HOLE) {
+      heap_free(e, cls_fit(war + 2), a);
+    }
     WL_DYN(f);
   }}
 
@@ -8927,8 +8932,15 @@ OUTLINE Term corpus_eval(u64* H, Term t) {
         u32  idx  = (u32)(H[tl + 1] >> 32) & 0xFFFF;
         H[tl]     = TERM_HOLE;
         a32_store(a32_at(H, H_CURSOR), 1);
+        // Ring 0 is empty between bangs, so it starts from its first slot
+        // again: the host then writes one slot, on one page, not the next of
+        // its 1,024 (a page apart), which on Windows is a fetch every bang.
+        if (*ring_get(H, 0) == *ring_put(H, 0)) {
+          *ring_get(H, 0) = *ring_put(H, 0) = 0;
+        }
         ring_push(H, 0, t);
         cube_run(H, true);
+        heap_free(e, cls_fit(fid_arity((u32)term_aux(t)) + 2), term_loc(t));
         Term p = task_deliver(H, cont, idx, rv, root_take(H, rv));
         if (root_done(H)) {
           break;
