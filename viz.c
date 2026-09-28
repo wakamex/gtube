@@ -64,6 +64,9 @@ struct viz {
     int bend_count;             // new frames since bend_count_from (ns), and their rate over the last second
     uint64_t bend_count_from;
     double bend_fps;
+    int bend_calls, bend_empty;        // this second: frames drawn, and those with no new Bend frame
+    double bend_take_ms, bend_take_max;  // and the time taking frames into the texture
+    char bend_player[64];              // the last second's, as a stats line
     uint8_t *heat;
     float *radius;          // the plasma's distance from the centre, per pixel
     float fuel[BANDS];      // the fire's fuel per band, following the spectrum slowly
@@ -417,14 +420,19 @@ static void bend_release(viz *v) {
     v->bend_tex = NULL;
 }
 
-// A new Bend frame arrived: its rate, counted over whole seconds.
-static void bend_counted(viz *v) {
+// Counts over whole seconds: frames the player drew, how many brought a new Bend frame (fresh), and
+// the time taking them into the texture.
+static void bend_count_frame(viz *v, bool fresh, double take_ms) {
     uint64_t now = SDL_GetTicksNS();
     if (!v->bend_count_from) v->bend_count_from = now;
-    v->bend_count++;
+    v->bend_calls++, v->bend_count += fresh, v->bend_empty += !fresh;
+    v->bend_take_ms += take_ms, v->bend_take_max = SDL_max(v->bend_take_max, take_ms);
     if (now - v->bend_count_from >= SDL_NS_PER_SECOND) {
-        v->bend_fps = v->bend_count * 1e9 / (double)(now - v->bend_count_from);
-        v->bend_count = 0, v->bend_count_from = now;
+        double secs = (now - v->bend_count_from) / 1e9;
+        v->bend_fps = v->bend_count / secs;
+        snprintf(v->bend_player, sizeof v->bend_player, "bend taken %d, none %d; take %.2f ms (max %.2f)", v->bend_count, v->bend_empty, v->bend_take_ms / v->bend_calls, v->bend_take_max);
+        v->bend_count = v->bend_calls = v->bend_empty = 0, v->bend_take_ms = v->bend_take_max = 0;
+        v->bend_count_from = now;
     }
 }
 
@@ -448,6 +456,8 @@ static void fx_bend(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
     int fw, fh;
     bool gpu;
     double ms;
+    bool fresh = false;
+    uint64_t take_from = SDL_GetTicksNS();
 #ifdef _WIN32
     // On Direct3D 11, a frame drawn on the GPU goes into the texture on the GPU, never crossing to
     // the host; anything else (the CPU's frames, or interop failing) comes through the host.
@@ -465,7 +475,7 @@ static void fx_bend(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
             d3d = SDL_GetPointerProperty(SDL_GetTextureProperties(v->bend_tex), SDL_PROP_TEXTURE_D3D11_TEXTURE_POINTER, NULL);
             r = bendviz_to_d3d11(d3d, fw, fh, &fw, &fh, &gpu, &ms);
         }
-        if (r == 1) v->bend_drawn_gpu = gpu, v->bend_ms = ms, v->bend_shown = true, v->bend_on_device = true, bend_counted(v);
+        if (r == 1) v->bend_drawn_gpu = gpu, v->bend_ms = ms, v->bend_shown = true, v->bend_on_device = true, fresh = true;
         if (r < 0) {
             SDL_Log("bend: graphics interop failed; frames come through the host");
             v->bend_interop = -1;
@@ -480,8 +490,9 @@ static void fx_bend(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
         bendviz_return();
         v->bend_drawn_gpu = gpu, v->bend_ms = ms;
         v->bend_shown = true, v->bend_on_device = false;
-        bend_counted(v);
+        fresh = true;
     }
+    bend_count_frame(v, fresh, (SDL_GetTicksNS() - take_from) / 1e6);
     if (v->bend_shown && v->bend_tex) {
         SDL_SetTextureBlendMode(v->bend_tex, SDL_BLENDMODE_NONE);
         SDL_RenderTexture(v->ren, v->bend_tex, NULL, &a);
@@ -674,8 +685,9 @@ bool viz_bend_stats(const viz *v, char *out, size_t size) {
     if (v->bend_drawn_gpu && n > 0 && (size_t)n < size) {
         double before, launch, after;
         bendviz_host_parts(&before, &launch, &after);
-        snprintf(out + n, size - (size_t)n, "\nbend draw: gpu %.1f, before %.1f, launch %.1f, after %.1f", wait, before, launch, after);
+        n += snprintf(out + n, size - (size_t)n, "\nbend draw: gpu %.1f, before %.1f, launch %.1f, after %.1f", wait, before, launch, after);
     }
+    if (v->bend_player[0] && n > 0 && (size_t)n < size) snprintf(out + n, size - (size_t)n, "\n%s", v->bend_player);
     return true;
 }
 void viz_bend_switch(viz *v) { v->bend_on_gpu = !v->bend_on_gpu; }
