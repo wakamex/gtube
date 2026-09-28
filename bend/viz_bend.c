@@ -5871,20 +5871,41 @@ static u64 bv_first_launch, bv_last_sync;  // this frame's first launch, and the
 #if BEND_CUDA
 static __typeof__(gpu_fn_cuLaunchKernel) bv_real_launch;
 static __typeof__(gpu_fn_cuCtxSynchronize) bv_real_sync;
-// With BENDVIZ_KERNELS set, each launch is waited for, and its time kept by its place in the frame.
-static int bv_ktime = -1;
-static double bv_kms[8];
+// With BENDVIZ_KERNELS set, each launch is waited for, and its time kept by its place in the frame;
+// set to "events", the device's own clock times each kernel and the gap before it, without waiting.
+static int bv_ktime = -1;  // 0 off, 1 waiting, 2 events
+static double bv_kms[8], bv_kgap[8];
 static u64 bv_kn[8];
-static u32 bv_kidx, bv_kgrid[8];
+static u32 bv_kidx, bv_kgrid[8], bv_kprev;
+typedef struct CUevent_st* BvEvent;
+static CUresult (CUDAAPI* bv_ev_create)(BvEvent*, unsigned);
+static CUresult (CUDAAPI* bv_ev_record)(BvEvent, CUstream);
+static CUresult (CUDAAPI* bv_ev_sync)(BvEvent);
+static CUresult (CUDAAPI* bv_ev_elapsed)(float*, BvEvent, BvEvent);
+static BvEvent bv_ev[8][2];
+// The last frame's event times, added up once they are done.
+static void bv_events_take(void) {
+  if (bv_ktime != 2 || bv_kprev == 0) return;
+  u32 n = bv_kprev < 8 ? bv_kprev : 8;
+  bv_ev_sync(bv_ev[n - 1][1]);
+  for (u32 i = 0; i < n; i += 1) {
+    float k = 0, g = 0;
+    bv_ev_elapsed(&k, bv_ev[i][0], bv_ev[i][1]);
+    if (i > 0) bv_ev_elapsed(&g, bv_ev[i - 1][1], bv_ev[i][0]);
+    bv_kms[i] += k, bv_kgap[i] += g, bv_kn[i] += 1;
+  }
+  bv_kprev = 0;
+}
 static CUresult CUDAAPI bv_counted_launch(CUfunction f, unsigned gx, unsigned gy, unsigned gz, unsigned bx,
   unsigned by, unsigned bz, unsigned shared, CUstream st, void** params, void** extra) {
   bv_pages("before launch");
   u64 t = io_tick();
   if (bv_first_launch < bv_began) bv_first_launch = t;
+  if (bv_ktime == 2 && bv_kidx < 8) bv_ev_record(bv_ev[bv_kidx][0], st), bv_kgrid[bv_kidx] = gx;
   CUresult r = bv_real_launch(f, gx, gy, gz, bx, by, bz, shared, st, params, extra);
+  if (bv_ktime == 2 && bv_kidx < 8) bv_ev_record(bv_ev[bv_kidx][1], st), bv_kprev = bv_kidx + 1;
   bv_launches += 1, bv_launch_ms += (double)(io_tick() - t) / 1e6;
-  if (bv_ktime < 0) bv_ktime = getenv("BENDVIZ_KERNELS") != NULL;
-  if (bv_ktime && bv_kidx < 8) {
+  if (bv_ktime == 1 && bv_kidx < 8) {
     bv_real_sync();
     bv_kms[bv_kidx] += (double)(io_tick() - t) / 1e6, bv_kn[bv_kidx] += 1, bv_kgrid[bv_kidx] = gx;
   }
@@ -5906,10 +5927,23 @@ static CUresult CUDAAPI bv_timed_sync(void) {
 static void bv_count_launches(void) {
 #if BEND_CUDA
   bv_pages_frame_start();
+  bv_events_take();
   bv_kidx = 0;
   if (io_gpu && bv_real_launch == NULL) {
+    const char* how = getenv("BENDVIZ_KERNELS");
+    bv_ktime = how == NULL ? 0 : strcmp(how, "events") ? 1 : 2;
+    if (bv_ktime == 2) {
+      static const char* const names[] = { "nvcuda.dll", "libcuda.so.1", "libcuda.so", NULL };
+      void* lib = gpu_lib_open(names);
+      bv_ev_create  = (__typeof__(bv_ev_create))gpu_sym(lib, "cuEventCreate");
+      bv_ev_record  = (__typeof__(bv_ev_record))gpu_sym(lib, "cuEventRecord");
+      bv_ev_sync    = (__typeof__(bv_ev_sync))gpu_sym(lib, "cuEventSynchronize");
+      bv_ev_elapsed = (__typeof__(bv_ev_elapsed))gpu_sym(lib, "cuEventElapsedTime_v2");
+      if (!bv_ev_elapsed) bv_ev_elapsed = (__typeof__(bv_ev_elapsed))gpu_sym(lib, "cuEventElapsedTime");
+      for (u32 i = 0; i < 8; i += 1) bv_ev_create(&bv_ev[i][0], 0), bv_ev_create(&bv_ev[i][1], 0);
+    }
     bv_real_launch = gpu_fn_cuLaunchKernel, gpu_fn_cuLaunchKernel = bv_counted_launch;
-    memset(bv_kms, 0, sizeof bv_kms), memset(bv_kn, 0, sizeof bv_kn);
+    memset(bv_kms, 0, sizeof bv_kms), memset(bv_kn, 0, sizeof bv_kn), memset(bv_kgap, 0, sizeof bv_kgap);
     bv_real_sync = gpu_fn_cuCtxSynchronize, gpu_fn_cuCtxSynchronize = bv_timed_sync;
   }
 #endif
@@ -5921,12 +5955,12 @@ static double bv_wait_total(void) {
 
 // With BENDVIZ_KERNELS set: the kernels' mean times by their place in a frame since the last call,
 // and their groups.
-int bendviz_kernels(double* ms, unsigned* groups, int most) {
+int bendviz_kernels(double* ms, double* gap_ms, unsigned* groups, int most) {
   int n = 0;
   for (; n < most && n < 8 && bv_kn[n] > 0; n += 1) {
-    ms[n] = bv_kms[n] / (double)bv_kn[n], groups[n] = bv_kgrid[n];
+    ms[n] = bv_kms[n] / (double)bv_kn[n], gap_ms[n] = bv_kgap[n] / (double)bv_kn[n], groups[n] = bv_kgrid[n];
   }
-  memset(bv_kms, 0, sizeof bv_kms), memset(bv_kn, 0, sizeof bv_kn);  // counting starts again
+  memset(bv_kms, 0, sizeof bv_kms), memset(bv_kn, 0, sizeof bv_kn), memset(bv_kgap, 0, sizeof bv_kgap);
   return n;
 }
 
