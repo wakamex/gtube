@@ -25,4 +25,8 @@ void bendviz_device_frames(bool on);
 int bendviz_to_d3d11(void *texture, int tw, int th, int *w, int *h, bool *gpu, double *ms);
 #endif
 bool bendviz_gpu(void);  // the GPU is in use
+// For measuring: the heap's span, and kernel launches, time spent in the launch calls and waiting for them so far.
+void bendviz_heap(void **base, size_t *bytes);
+void bendviz_launches(unsigned long long *launches, double *launch_ms, double *wait_ms);
+void bendviz_edges(double *before_ms, double *after_ms);
 void bendviz_times(double *draw_ms, double *copy_ms);  // the last frame's time: drawing, and copying it back

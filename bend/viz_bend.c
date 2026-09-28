@@ -5185,7 +5185,7 @@ static int             bv_done_w, bv_done_h;
 static bool            bv_fresh, bv_done_gpu;
 static double          bv_ms;                          // how long the last frame took, all told
 static double          bv_draw_ms, bv_copy_ms;          // of which drawing, and bringing it to the host
-static u64             bv_began;
+static u64             bv_began, bv_drawn;
 
 // ---- The effects ----
 
@@ -5200,7 +5200,14 @@ static void viz_next_call(IoWork* w) {  // an IO helper thread: no Bend heap her
   pthread_mutex_unlock(&bv_lock);
 }
 
+#ifdef BENDVIZ_EMBED
+static void bv_count_launches(void);
+#endif
+
 static Term viz_next_pack(Env e, IoWork* w) {
+#ifdef BENDVIZ_EMBED
+  bv_count_launches();
+#endif
   bv_began = io_tick();
   return (Term)bv_now_word;
 }
@@ -5273,6 +5280,7 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
   int    fw = (int)(bv_now_word & 8191), fh = (int)(bv_now_word >> 13 & 8191);
   size_t n  = (size_t)fw * (size_t)fh;
   u64    drawn = io_tick();  // the bang (or the CPU's work) is done
+  bv_drawn = drawn;
   if (n > ((size_t)1 << blk_cls(a))) {
     return a;
   }
@@ -5517,6 +5525,57 @@ void bendviz_times(double* draw_ms, double* copy_ms) {
   pthread_mutex_lock(&bv_lock);
   *draw_ms = bv_draw_ms, *copy_ms = bv_copy_ms;
   pthread_mutex_unlock(&bv_lock);
+}
+
+// ---- Diagnostics ----
+
+// The heap's span, and on the GPU a count of kernel launches and of the time spent waiting for
+// them, through wrappers around the runtime's driver calls (installed on the first frame, after
+// the runtime has loaded the driver). For measuring what a frame costs; the player doesn't use them.
+static u64 bv_launches;
+static double bv_wait_ms, bv_launch_ms;
+static u64 bv_first_launch, bv_last_sync;  // this frame's first launch, and the end of its last wait
+#if BEND_CUDA
+static __typeof__(gpu_fn_cuLaunchKernel) bv_real_launch;
+static __typeof__(gpu_fn_cuCtxSynchronize) bv_real_sync;
+static CUresult CUDAAPI bv_counted_launch(CUfunction f, unsigned gx, unsigned gy, unsigned gz, unsigned bx,
+  unsigned by, unsigned bz, unsigned shared, CUstream st, void** params, void** extra) {
+  u64 t = io_tick();
+  if (bv_first_launch < bv_began) bv_first_launch = t;
+  CUresult r = bv_real_launch(f, gx, gy, gz, bx, by, bz, shared, st, params, extra);
+  bv_launches += 1, bv_launch_ms += (double)(io_tick() - t) / 1e6;
+  return r;
+}
+static CUresult CUDAAPI bv_timed_sync(void) {
+  u64 t = io_tick();
+  CUresult r = bv_real_sync();
+  bv_last_sync = io_tick();
+  bv_wait_ms += (double)(io_tick() - t) / 1e6;
+  return r;
+}
+#endif
+
+static void bv_count_launches(void) {
+#if BEND_CUDA
+  if (io_gpu && bv_real_launch == NULL) {
+    bv_real_launch = gpu_fn_cuLaunchKernel, gpu_fn_cuLaunchKernel = bv_counted_launch;
+    bv_real_sync = gpu_fn_cuCtxSynchronize, gpu_fn_cuCtxSynchronize = bv_timed_sync;
+  }
+#endif
+}
+
+void bendviz_heap(void** base, size_t* bytes) {
+  *base = CORPUS, *bytes = corpus_size;
+}
+
+// The last frame's time before its first launch, and after its last wait until the frame came back.
+void bendviz_edges(double* before_ms, double* after_ms) {
+  *before_ms = (double)(bv_first_launch - bv_began) / 1e6;
+  *after_ms = (double)(bv_drawn - bv_last_sync) / 1e6;
+}
+
+void bendviz_launches(unsigned long long* launches, double* launch_ms, double* wait_ms) {
+  *launches = bv_launches, *launch_ms = bv_launch_ms, *wait_ms = bv_wait_ms;
 }
 
 // Whether the GPU is in use (false until the program has started and probed it).
