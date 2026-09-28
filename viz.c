@@ -473,7 +473,7 @@ static void fx_bend(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
     if (!v->bend_started) v->bend_started = bendviz_start("768MB"), v->bend_on_gpu = true;
     int w = (int)a.w < BENDVIZ_MAX ? (int)a.w : BENDVIZ_MAX, h = (int)a.h < BENDVIZ_MAX ? (int)a.h : BENDVIZ_MAX;
     float params[5] = { (float)v->t, v->bass, v->mid, v->hue, v->beat };
-    bendviz_request(params, w, h, v->bend_on_gpu);
+    if (!v->bend_shown) bendviz_request(params, w, h, v->bend_on_gpu);
     // Without vsync the player would present as fast as it can, most often the frame already on
     // screen, and each present takes the GPU from Bend: a moment's wait for Bend's next frame (drawn
     // on the GPU, a millisecond or two) lets the player show only new ones.
@@ -551,6 +551,9 @@ static void fx_bend(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
         v->bend_shown = true, v->bend_on_device = false;
         fresh = true, v->bend_draw = v->bend_tex;
     }
+    // The next frame is asked for once this one is taken, so Bend draws it while the player draws
+    // and presents this one, rather than each waiting for the other.
+    bendviz_request(params, w, h, v->bend_on_gpu);
     bend_count_frame(v, fresh, (SDL_GetTicksNS() - take_from) / 1e6);
     if (v->bend_shown && v->bend_draw) {
         SDL_SetTextureBlendMode(v->bend_draw, SDL_BLENDMODE_NONE);
