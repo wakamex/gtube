@@ -665,13 +665,17 @@ void viz_step(viz *v, int dir) {
 const char *viz_name(const viz *v) { return fx_names[v->fx]; }
 bool viz_is_bend(const viz *v) { return v->fx == FX_BEND; }
 
+// Lines of at most 63 characters (the stats overlay's width).
 bool viz_bend_stats(const viz *v, char *out, size_t size) {
     if (!v->bend_shown) return false;  // not drawn yet
     double draw, wait, copy;
     bendviz_times(&draw, &wait, &copy);
-    char waited[32] = "";
-    if (v->bend_drawn_gpu) snprintf(waited, sizeof waited, " of which gpu %.1f", wait);
-    snprintf(out, size, "bend %s %.1f ms, %.0f fps (draw %.1f%s, copy %.1f%s) %dx%d", v->bend_drawn_gpu ? "gpu" : "cpu", v->bend_ms, v->bend_fps, draw, waited, copy, v->bend_on_device ? " on gpu" : "", v->bend_w, v->bend_h);
+    int n = snprintf(out, size, "bend %s %.1f ms, %.0f fps, %dx%d\nbend draw %.1f, copy %.1f%s", v->bend_drawn_gpu ? "gpu" : "cpu", v->bend_ms, v->bend_fps, v->bend_w, v->bend_h, draw, copy, v->bend_on_device ? " on gpu" : "");
+    if (v->bend_drawn_gpu && n > 0 && (size_t)n < size) {
+        double before, launch, after;
+        bendviz_host_parts(&before, &launch, &after);
+        snprintf(out + n, size - (size_t)n, "\nbend draw: gpu %.1f, before %.1f, launch %.1f, after %.1f", wait, before, launch, after);
+    }
     return true;
 }
 void viz_bend_switch(viz *v) { v->bend_on_gpu = !v->bend_on_gpu; }

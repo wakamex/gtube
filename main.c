@@ -887,9 +887,9 @@ listed:
 drawn:
     gs_stats_frame_end(&a->stats);
     if (a->show_stats) {
-        char pacing[200];
+        char pacing[400];
         gs_pace_describe(&a->pace, pacing, sizeof pacing);
-        char bend[80];
+        char bend[240];
         if (viz_bend_stats(a->viz, bend, sizeof bend)) SDL_strlcat(pacing, "\n", sizeof pacing), SDL_strlcat(pacing, bend, sizeof pacing);
         gs_stats_draw(&a->stats, a->ren, -12, 12, pacing);
     }

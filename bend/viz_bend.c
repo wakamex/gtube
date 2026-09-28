@@ -9620,10 +9620,16 @@ static void viz_next_call(IoWork* w) {  // an IO helper thread: no Bend heap her
 #ifdef BENDVIZ_EMBED
 static void bv_count_launches(void);
 static double bv_wait_total(void);
+static double bv_launch_total(void);
+static void bv_edges_of(u64 drawn, double* before, double* after);
 #else
 static double bv_wait_total(void) { return 0; }
+static double bv_launch_total(void) { return 0; }
+static void bv_edges_of(u64 drawn, double* before, double* after) { (void)drawn, *before = *after = 0; }
 #endif
 static double bv_wait_began, bv_wait_frame;  // waiting for the GPU: by the frame's start, and in the last frame
+static double bv_launch_began, bv_launch_frame;  // likewise in launch calls
+static double bv_before_frame, bv_after_frame;   // the last frame's host time before its first launch and after its last wait
 
 static Term viz_next_pack(Env e, IoWork* w) {
 #ifdef BENDVIZ_EMBED
@@ -9631,6 +9637,7 @@ static Term viz_next_pack(Env e, IoWork* w) {
 #endif
   bv_began = io_tick();
   bv_wait_began = bv_wait_total();
+  bv_launch_began = bv_launch_total();
   return (Term)bv_now_word;
 }
 
@@ -9702,7 +9709,9 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
   int    fw = (int)(bv_now_word & 8191), fh = (int)(bv_now_word >> 13 & 8191);
   size_t n  = (size_t)fw * (size_t)fh;
   u64    drawn = io_tick();  // the bang (or the CPU's work) is done
-  double drawn_wait = bv_wait_total();
+  double drawn_wait = bv_wait_total(), drawn_launch = bv_launch_total();
+  double before, after;
+  bv_edges_of(drawn, &before, &after);
   bv_drawn = drawn;
   if (n > ((size_t)1 << blk_cls(a))) {
     return a;
@@ -9752,6 +9761,8 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
   bv_front_on_device = on_device;
   bv_draw_ms = (double)(drawn - bv_began) / 1e6, bv_copy_ms = (double)(now - drawn) / 1e6;
   bv_wait_frame = drawn_wait - bv_wait_began;
+  bv_launch_frame = drawn_launch - bv_launch_began;
+  bv_before_frame = before, bv_after_frame = after;
   bv_ms       = (double)(now - bv_began) / 1e6;
   bv_done_w   = fw, bv_done_h = fh;
   bv_done_gpu = gpu_drew;  // asked for, and there to use
@@ -9955,6 +9966,14 @@ void bendviz_return(void) {
 
 // How the last frame's time divides: drawing it (of which waiting for the GPU), and bringing it to
 // the host.
+// The host's part of the last frame's drawing: before its first launch, in launch calls, and after
+// its last wait.
+void bendviz_host_parts(double* before_ms, double* launch_ms, double* after_ms) {
+  pthread_mutex_lock(&bv_lock);
+  *before_ms = bv_before_frame, *launch_ms = bv_launch_frame, *after_ms = bv_after_frame;
+  pthread_mutex_unlock(&bv_lock);
+}
+
 void bendviz_times(double* draw_ms, double* wait_ms, double* copy_ms) {
   pthread_mutex_lock(&bv_lock);
   *draw_ms = bv_draw_ms, *wait_ms = bv_wait_frame, *copy_ms = bv_copy_ms;
@@ -10124,6 +10143,17 @@ static void bv_count_launches(void) {
 
 static double bv_wait_total(void) {
   return bv_wait_ms;
+}
+
+static double bv_launch_total(void) {
+  return bv_launch_ms;
+}
+
+// The host's time in this frame before its first launch and after its last wait (0 if it made none).
+static void bv_edges_of(u64 drawn, double* before, double* after) {
+  bool launched = bv_first_launch >= bv_began && bv_last_sync >= bv_first_launch;
+  *before = launched ? (double)(bv_first_launch - bv_began) / 1e6 : 0;
+  *after  = launched && drawn >= bv_last_sync ? (double)(drawn - bv_last_sync) / 1e6 : 0;
 }
 
 // With BENDVIZ_KERNELS set: the kernels' mean times by their place in a frame since the last call,
