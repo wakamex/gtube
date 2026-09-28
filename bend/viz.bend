@@ -141,37 +141,46 @@ def Viz.lin(n: Nat, +i: U32, +k: Viz.K, a: Array<U32>) -> Array<U32>:
       K{t, zoom, mid, hue, beat, w, h} = k
       Viz.lin(r, (i + 16384 : U32), k, Viz.lput((i < w * h : U32), i, k, a))
 
+# A leaf: pixels j, j + 16384, ... It never forks, so the runtime's growing passes leave it queued,
+# and every lane starts its leaf together when the queues drain (a leaf run during growth would
+# hold its whole group at the next step).
+def Viz.leaf(+j: U32, +k: Viz.K, a: Array<U32>) -> Array<U32>:
+  K{t, zoom, mid, hue, beat, w, h} = k
+  Viz.lin(U32.to_nat(((w * h + 16383) / 16384 : U32)), j, k, a)
+
+# The subtree of 2^(e+1) leaves j, j + st, j + 2 st, ...: two subtrees, each of every other one of
+# them, or at the bottom two leaves. Forks are two-way so that the runtime's growing passes, which
+# stop once every lane of a group has a task, stop at exactly one per lane (four-way forks overshoot
+# from 64 tasks to 256, and lanes given two leaves draw them one after the other). The runtime
+# hands a fork's children to lanes round-robin, so child c of the task on lane t lands near lane
+# c * n + t (n tasks forking side by side): the fork's digit is high in the lane's number and the
+# parent's low. The tree is numbered the same way round (a fork's children st apart, their own
+# children 2 st apart), so neighbouring lanes draw neighbouring pixels.
 @unsafe
-def Viz.lfill(+d: Nat, +j: U32, +k: Viz.K, a: Array<U32>) -> Array<U32>:
-  match d:
+def Viz.lfill(+e: Nat, +j: U32, +st: U32, +k: Viz.K, a: Array<U32>) -> Array<U32>:
+  match e:
     case 0n:
-      K{t, zoom, mid, hue, beat, w, h} = k
-      Viz.lin(U32.to_nat(((w * h + 16383) / 16384 : U32)), j, k, a)
-    case 1n+e:
-      Viz.lfork1(e, j, k, Array.fork(U32, a))
+      Viz.lleaf(j, st, k, Array.fork(U32, a))
+    case 1n+f:
+      Viz.lfork(f, j, st, k, Array.fork(U32, a))
 
 @unsafe
-def Viz.lfork1(+e: Nat, +j: U32, +k: Viz.K, p: Array<U32> & Array<U32>) -> Array<U32>:
-  (a1, r) = p
-  Viz.lfork2(e, j, k, a1, Array.fork(U32, r))
+def Viz.lfork(+f: Nat, +j: U32, +st: U32, +k: Viz.K, p: Array<U32> & Array<U32>) -> Array<U32>:
+  (a1, a2) = p
+  +s2 = (st * 2 : U32)
+  q w = Viz.lfill(f, j, s2, k, a1) Viz.lfill(f, (j + st : U32), s2, k, a2)
+  Array.join(U32, q, w)
 
 @unsafe
-def Viz.lfork2(+e: Nat, +j: U32, +k: Viz.K, a1: Array<U32>, p: Array<U32> & Array<U32>) -> Array<U32>:
-  (a2, r) = p
-  Viz.lfork3(e, j, k, a1, a2, Array.fork(U32, r))
-
-@unsafe
-def Viz.lfork3(+e: Nat, +j: U32, +k: Viz.K, a1: Array<U32>, a2: Array<U32>, p: Array<U32> & Array<U32>) -> Array<U32>:
-  (a3, a4) = p
-  +s = U32.shln(1, (e + e : Nat))
-  q w r z = Viz.lfill(e, j, k, a1) Viz.lfill(e, (j + s : U32), k, a2)
-    Viz.lfill(e, (j + s + s : U32), k, a3) Viz.lfill(e, (j + s + s + s : U32), k, a4)
-  Array.join(U32, Array.join(U32, q, w), Array.join(U32, r, z))
+def Viz.lleaf(+j: U32, +st: U32, +k: Viz.K, p: Array<U32> & Array<U32>) -> Array<U32>:
+  (a1, a2) = p
+  q w = Viz.leaf(j, k, a1) Viz.leaf((j + st : U32), k, a2)
+  Array.join(U32, q, w)
 
 # The whole frame on the GPU.
 @unsafe
 def Viz.frame.gpu(+k: Viz.K, a: Array<U32>) -> Array<U32>:
-  Viz.lfill(7n, 0, k, a)
+  Viz.lfill(13n, 0, 1, k, a)
 
 # The same pixels, on the GPU or on the CPU's threads.
 @unsafe
