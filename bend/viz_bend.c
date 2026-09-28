@@ -10002,6 +10002,13 @@ bool bendviz_wait(double ms) {
   return fresh;
 }
 
+// Marks the newest frame taken without taking it (for measuring the cost of taking frames).
+void bendviz_discard(void) {
+  pthread_mutex_lock(&bv_lock);
+  bv_fresh = false;
+  pthread_mutex_unlock(&bv_lock);
+}
+
 // Lends the newest finished frame (rows packed, w x h), if one arrived since the last call and is
 // on the host, until bendviz_return; NULL otherwise. gpu is where it was drawn and ms how long it
 // took, all told.

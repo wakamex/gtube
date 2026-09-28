@@ -12,6 +12,7 @@
 bool bendviz_start(const char *gpu_heap);  // once; "512MB" caps the GPU's heap, "off" keeps to the CPU
 void bendviz_request(const float params[5], int w, int h, bool gpu);  // time, bass, mids, hue, beat
 bool bendviz_wait(double ms);  // up to ms for a frame newer than the last taken: whether one is ready
+void bendviz_discard(void);  // marks the newest frame taken without taking it (for measuring)
 // Lends the newest finished frame (rows packed, w x h) if one arrived since the last call, else
 // NULL; hand it back with bendviz_return, soon (Bend waits for it before its next frame).
 const uint32_t *bendviz_borrow(int *w, int *h, bool *gpu, double *ms);

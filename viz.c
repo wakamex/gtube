@@ -474,6 +474,16 @@ static void fx_bend(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
     // on the GPU, a millisecond or two) lets the player show only new ones.
     if (!v->vsync && v->bend_shown && v->bend_drawn_gpu) bendviz_wait(8);
     uint64_t take_from = SDL_GetTicksNS();  // (the time taking a frame, for the stats)
+    // BENDVIZ_NO_TAKE: new frames are thrown away rather than copied into the texture, to measure
+    // what taking them costs Bend (the effect shows its first frame only).
+    static int no_take = -1;
+    if (no_take < 0) no_take = SDL_getenv("BENDVIZ_NO_TAKE") != NULL;
+    if (no_take && v->bend_shown && bendviz_wait(0)) {
+        bendviz_discard();
+        bend_count_frame(v, true, 0);
+        if (v->bend_tex) SDL_RenderTexture(v->ren, v->bend_tex, NULL, &a);
+        return;
+    }
     int fw, fh;
     bool gpu;
     double ms;
