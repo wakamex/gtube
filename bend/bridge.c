@@ -471,6 +471,11 @@ static u64 bv_first_launch, bv_last_sync;  // this frame's first launch, and the
 #if BEND_CUDA
 static __typeof__(gpu_fn_cuLaunchKernel) bv_real_launch;
 static __typeof__(gpu_fn_cuCtxSynchronize) bv_real_sync;
+// With BENDVIZ_KERNELS set, each launch is waited for, and its time kept by its place in the frame.
+static int bv_ktime = -1;
+static double bv_kms[8];
+static u64 bv_kn[8];
+static u32 bv_kidx, bv_kgrid[8];
 static CUresult CUDAAPI bv_counted_launch(CUfunction f, unsigned gx, unsigned gy, unsigned gz, unsigned bx,
   unsigned by, unsigned bz, unsigned shared, CUstream st, void** params, void** extra) {
   bv_pages("before launch");
@@ -478,6 +483,12 @@ static CUresult CUDAAPI bv_counted_launch(CUfunction f, unsigned gx, unsigned gy
   if (bv_first_launch < bv_began) bv_first_launch = t;
   CUresult r = bv_real_launch(f, gx, gy, gz, bx, by, bz, shared, st, params, extra);
   bv_launches += 1, bv_launch_ms += (double)(io_tick() - t) / 1e6;
+  if (bv_ktime < 0) bv_ktime = getenv("BENDVIZ_KERNELS") != NULL;
+  if (bv_ktime && bv_kidx < 8) {
+    bv_real_sync();
+    bv_kms[bv_kidx] += (double)(io_tick() - t) / 1e6, bv_kn[bv_kidx] += 1, bv_kgrid[bv_kidx] = gx;
+  }
+  bv_kidx += 1;
   bv_pages("after launch");
   return r;
 }
@@ -495,8 +506,10 @@ static CUresult CUDAAPI bv_timed_sync(void) {
 static void bv_count_launches(void) {
 #if BEND_CUDA
   bv_pages_frame_start();
+  bv_kidx = 0;
   if (io_gpu && bv_real_launch == NULL) {
     bv_real_launch = gpu_fn_cuLaunchKernel, gpu_fn_cuLaunchKernel = bv_counted_launch;
+    memset(bv_kms, 0, sizeof bv_kms), memset(bv_kn, 0, sizeof bv_kn);
     bv_real_sync = gpu_fn_cuCtxSynchronize, gpu_fn_cuCtxSynchronize = bv_timed_sync;
   }
 #endif
@@ -504,6 +517,17 @@ static void bv_count_launches(void) {
 
 static double bv_wait_total(void) {
   return bv_wait_ms;
+}
+
+// With BENDVIZ_KERNELS set: the kernels' mean times by their place in a frame since the last call,
+// and their groups.
+int bendviz_kernels(double* ms, unsigned* groups, int most) {
+  int n = 0;
+  for (; n < most && n < 8 && bv_kn[n] > 0; n += 1) {
+    ms[n] = bv_kms[n] / (double)bv_kn[n], groups[n] = bv_kgrid[n];
+  }
+  memset(bv_kms, 0, sizeof bv_kms), memset(bv_kn, 0, sizeof bv_kn);  // counting starts again
+  return n;
 }
 
 void bendviz_heap(void** base, size_t* bytes) {
