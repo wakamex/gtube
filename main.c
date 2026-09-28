@@ -11,6 +11,9 @@
 //   --api search|albums|playlists|browse|radio ARG   print one YouTube Music API answer (every page for browse)
 //   --view 1-4, --search QUERY, --radio VIDEO   start on a view, with a search, or playing a radio
 //   --effect N                                  start the visualizer on its Nth effect
+//   --full                                      start in full screen
+//   --stats FILE [--quit S]                     the performance overlay on, its text added to FILE each
+//                                               second (for measuring); quit after S seconds
 //   --sign-in                                   open the sign-in window at start
 //   --sign-out                                  forget the saved session
 // Views: 1 queue, 2 liked music, 3 playlists, 4 visualizer (Up/Down effect, Enter auto, t scroller,
@@ -83,6 +86,9 @@ typedef struct {
     bool show_stats, audio, demo;
     const char *shot;
     double shot_at;
+    const char *stats_file;  // --stats: the overlay's text goes here each second
+    double quit_at;          // --quit: seconds to run (0 for ever)
+    uint64_t stats_next;
     uint64_t started;
     float volume;
     SDL_FRect rows[64];
@@ -184,6 +190,9 @@ SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
         else if (!strcmp(argv[i], "--uncapped")) a->uncapped = true;
         else if (!strcmp(argv[i], "--shot") && i + 1 < argc) a->shot = argv[++i];
         else if (!strcmp(argv[i], "--at") && i + 1 < argc) a->shot_at = SDL_atof(argv[++i]);
+        else if (!strcmp(argv[i], "--full")) a->fullscreen = true;
+        else if (!strcmp(argv[i], "--stats") && i + 1 < argc) a->stats_file = argv[++i], a->show_stats = true;
+        else if (!strcmp(argv[i], "--quit") && i + 1 < argc) a->quit_at = SDL_atof(argv[++i]);
         else if (!strcmp(argv[i], "--import-cookies") && i + 1 < argc) import = argv[++i];
         else if (!strcmp(argv[i], "--refresh")) refresh = true;
         else if (!strcmp(argv[i], "--sign-out")) sign_out = true;
@@ -272,6 +281,7 @@ SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
         return SDL_Log("window: %s", SDL_GetError()), SDL_APP_FAILURE;
     if (on_a_display(a->window.x, a->window.y)) SDL_SetWindowPosition(a->win, a->window.x, a->window.y);
     if (a->window.maximized) SDL_MaximizeWindow(a->win);
+    if (a->fullscreen) SDL_SetWindowFullscreen(a->win, true);
     SDL_ShowWindow(a->win);
     gs_pace_set(&a->pace, a->win, a->ren, !a->uncapped, a->pace_cap = a->uncapped ? 0 : 30);
     a->viz = viz_new(a->ren, RATE);
@@ -893,7 +903,17 @@ drawn:
         char bend[240];
         if (viz_bend_stats(a->viz, bend, sizeof bend)) SDL_strlcat(pacing, "\n", sizeof pacing), SDL_strlcat(pacing, bend, sizeof pacing);
         gs_stats_draw(&a->stats, a->ren, -12, 12, pacing);
+        uint64_t now_ms = SDL_GetTicks();
+        if (a->stats_file && now_ms >= a->stats_next) {
+            a->stats_next = now_ms + 1000;
+            FILE *out = fopen(a->stats_file, "a");
+            if (out) {
+                fprintf(out, "%.1f s: %.0f fps, frame %.2f ms (max %.2f)\n%s\n\n", (now_ms - a->started) / 1000.0, a->stats.fps, a->stats.frame_ms, a->stats.frame_max_ms, pacing);
+                fclose(out);
+            }
+        }
     }
+    if (a->quit_at > 0 && SDL_GetTicks() - a->started >= a->quit_at * 1000) return SDL_APP_SUCCESS;
     if (a->shot && SDL_GetTicks() - a->started >= a->shot_at * 1000) {
         SDL_Surface *s = SDL_RenderReadPixels(a->ren, NULL), *c = s ? SDL_ConvertSurface(s, SDL_PIXELFORMAT_RGBA32) : NULL;
         bool ok = c && stbi_write_png(a->shot, c->w, c->h, 4, c->pixels, c->pitch);
