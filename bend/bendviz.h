@@ -11,6 +11,7 @@
 
 bool bendviz_start(const char *gpu_heap);  // once; "512MB" caps the GPU's heap, "off" keeps to the CPU
 void bendviz_request(const float params[5], int w, int h, bool gpu);  // time, bass, mids, hue, beat
+bool bendviz_wait(double ms);  // up to ms for a frame newer than the last taken: whether one is ready
 // Lends the newest finished frame (rows packed, w x h) if one arrived since the last call, else
 // NULL; hand it back with bendviz_return, soon (Bend waits for it before its next frame).
 const uint32_t *bendviz_borrow(int *w, int *h, bool *gpu, double *ms);
@@ -35,4 +36,4 @@ void bendviz_edges(double *before_ms, double *after_ms);
 int bendviz_kernels(double *ms, double *gap_ms, unsigned *groups, int most);
 void bendviz_times(double *draw_ms, double *wait_ms, double *copy_ms);  // the last frame's time: drawing (of which waiting for the GPU), and copying it back
 void bendviz_host_parts(double *before_ms, double *launch_ms, double *after_ms);  // the host's part of that drawing
-void bendviz_cycle(unsigned long long *drawn, unsigned long long *dropped, double *took_ms, double *began_ms);  // totals: see bridge.c
+void bendviz_cycle(unsigned long long *drawn, unsigned long long *dropped, double *took_ms, double *began_ms, unsigned long long *faults);  // totals: see bridge.c

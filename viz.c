@@ -61,6 +61,7 @@ struct viz {
     bool bend_drawn_gpu;    // where its newest frame was drawn, and how long that took
     double bend_ms;
     bool bend_started, bend_shown;
+    bool vsync;                 // presents wait for the vertical blank (viz_set_vsync)
     int bend_count;             // new frames since bend_count_from (ns), and their rate over the last second
     uint64_t bend_count_from;
     double bend_fps;
@@ -69,7 +70,7 @@ struct viz {
     uint64_t bend_last_call;
     double bend_take_ms, bend_take_max;  // and the time taking frames into the texture
     char bend_player[64];              // the last second's, as a stats line
-    unsigned long long bend_drawn0, bend_dropped0;  // Bend's totals at the second's start
+    unsigned long long bend_drawn0, bend_dropped0, bend_faults0;  // Bend's totals at the second's start
     double bend_took0, bend_began0;
     uint8_t *heat;
     float *radius;          // the plasma's distance from the centre, per pixel
@@ -439,12 +440,12 @@ static void bend_count_frame(viz *v, bool fresh, double take_ms) {
     if (now - v->bend_count_from >= SDL_NS_PER_SECOND) {
         double secs = (now - v->bend_count_from) / 1e9;
         v->bend_fps = v->bend_count / secs;
-        unsigned long long drawn, dropped;
+        unsigned long long drawn, dropped, faults;
         double took, began;
-        bendviz_cycle(&drawn, &dropped, &took, &began);
+        bendviz_cycle(&drawn, &dropped, &took, &began, &faults);
         unsigned long long nd = drawn - v->bend_drawn0;
-        snprintf(v->bend_player, sizeof v->bend_player, "bend taken %d, none %d, drew %llu; gaps <8ms %d, >25ms %d", v->bend_count, v->bend_empty, nd, v->bend_short, v->bend_long);
-        v->bend_drawn0 = drawn, v->bend_dropped0 = dropped, v->bend_took0 = took, v->bend_began0 = began;
+        snprintf(v->bend_player, sizeof v->bend_player, "bend taken %d, none %d, drew %llu; faults %.1f a frame", v->bend_count, v->bend_empty, nd, nd ? (double)(faults - v->bend_faults0) / nd : 0);
+        v->bend_drawn0 = drawn, v->bend_dropped0 = dropped, v->bend_took0 = took, v->bend_began0 = began, v->bend_faults0 = faults;
         v->bend_count = v->bend_calls = v->bend_empty = v->bend_short = v->bend_long = 0, v->bend_take_ms = v->bend_take_max = 0;
         v->bend_count_from = now;
     }
@@ -467,6 +468,10 @@ static void fx_bend(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
     int w = (int)a.w < BENDVIZ_MAX ? (int)a.w : BENDVIZ_MAX, h = (int)a.h < BENDVIZ_MAX ? (int)a.h : BENDVIZ_MAX;
     float params[5] = { (float)v->t, v->bass, v->mid, v->hue, v->beat };
     bendviz_request(params, w, h, v->bend_on_gpu);
+    // Without vsync the player would present as fast as it can, most often the frame already on
+    // screen, and each present takes the GPU from Bend: a moment's wait for Bend's next frame (drawn
+    // on the GPU, a millisecond or two) lets the player show only new ones.
+    if (!v->vsync && v->bend_shown && v->bend_drawn_gpu) bendviz_wait(8);
     int fw, fh;
     bool gpu;
     double ms;
@@ -706,7 +711,7 @@ bool viz_bend_stats(const viz *v, char *out, size_t size) {
 }
 void viz_bend_switch(viz *v) { v->bend_on_gpu = !v->bend_on_gpu; }
 void viz_set_vsync(viz *v, bool on) {
-    (void)v;
+    v->vsync = on;
 #ifdef _WIN32
     bendviz_interop_apart(on);
 #else
