@@ -123,8 +123,8 @@ def Viz.fork3(+e: Nat, +x: U32, +y: U32, +k: Viz.K, a1: Array<U32>, a2: Array<U3
 def Viz.frame(+k: Viz.K, a: Array<U32>) -> Array<U32>:
   Viz.fill(8n, 0, 0, k, a)
 
-# Strided: 16,384 leaves (4^7, one per GPU lane), leaf j drawing pixels j, j + 16384, ... so that
-# neighbouring lanes write neighbouring pixels, as CUDA's threads do.
+# Strided: 32,768 leaves (one per GPU lane: 128 groups of 256), leaf j drawing pixels j, j + 32768,
+# ... so that neighbouring lanes write neighbouring pixels, as CUDA's threads do.
 def Viz.lput(inside: Bool, +i: U32, +k: Viz.K, a: Array<U32>) -> Array<U32>:
   match inside:
     case True{}:
@@ -139,25 +139,22 @@ def Viz.lin(n: Nat, +i: U32, +k: Viz.K, a: Array<U32>) -> Array<U32>:
       a
     case 1n+r:
       K{t, zoom, mid, hue, beat, w, h} = k
-      Viz.lin(r, (i + 16384 : U32), k, Viz.lput((i < w * h : U32), i, k, a))
+      Viz.lin(r, (i + 32768 : U32), k, Viz.lput((i < w * h : U32), i, k, a))
 
-# A leaf: pixels j, j + 16384, ... It never forks, so the runtime's growing passes leave it queued,
+# A leaf: pixels j, j + 32768, ... It never forks, so the runtime's growing passes leave it queued,
 # and every lane starts its leaf together when the queues drain (a leaf run during growth would
 # hold its whole group at the next step).
 def Viz.leaf(+j: U32, +k: Viz.K, a: Array<U32>) -> Array<U32>:
   K{t, zoom, mid, hue, beat, w, h} = k
-  Viz.lin(U32.to_nat(((w * h + 16383) / 16384 : U32)), j, k, a)
+  Viz.lin(U32.to_nat(((w * h + 32767) / 32768 : U32)), j, k, a)
 
-# The tree over the 16,384 leaves, four levels deep: 16-way, 8-way, 16-way, 8-way. Each level
-# costs a round of the runtime's growing and a step of its joins (about 11 us each on an RTX 3080),
-# so wide forks keep it shallow; the widths make each growing pass stop at exactly one task per
-# lane (the first pass at 16 x 8 = 128 tasks, one per group, each group at another 128, one leaf
-# per lane). The runtime hands a fork's children to lanes round-robin, so child c of the task on
-# lane t lands near lane c * n + t (n tasks forking side by side): the fork's digit is high in the
-# lane's number and the parent's low. The leaves are numbered the same way round (a fork's
-# children st apart, their own children st times its width apart), so neighbouring lanes draw
-# neighbouring pixels. Each level splits the buffer into aliases through a chain of helpers,
-# since destructuring a computed pair is a match.
+# The tree over the 32,768 leaves, four levels deep: 16, 16, 16, 8-way. Each level costs a
+# round of the runtime's growing and a step of its joins, so wide forks keep it shallow; the widths
+# make each growing pass stop at exactly one task per lane. The runtime hands a fork's children to
+# lanes round-robin, so child c of the task on lane t lands near lane c * n + t: the leaves are
+# numbered the same way round (a fork's children st apart, their own children st times its width
+# apart), so neighbouring lanes draw neighbouring pixels. Each level splits the buffer into aliases
+# through a chain of helpers, since destructuring a computed pair is a match.
 @unsafe
 def Viz.t1(+j: U32, +st: U32, +k: Viz.K, a: Array<U32>) -> Array<U32>:
   Viz.t1.s1(j, st, k, Array.fork(U32, a))
@@ -274,10 +271,50 @@ def Viz.t2.s6(+j: U32, +st: U32, +k: Viz.K, a1: Array<U32>, a2: Array<U32>, a3: 
 
 @unsafe
 def Viz.t2.s7(+j: U32, +st: U32, +k: Viz.K, a1: Array<U32>, a2: Array<U32>, a3: Array<U32>, a4: Array<U32>, a5: Array<U32>, a6: Array<U32>, p: Array<U32> & Array<U32>) -> Array<U32>:
-  (a7, a8) = p
-  +sn = (st * 8 : U32)
-  x0 x1 x2 x3 x4 x5 x6 x7 = Viz.t3(j, sn, k, a1) Viz.t3((j + st * 1 : U32), sn, k, a2) Viz.t3((j + st * 2 : U32), sn, k, a3) Viz.t3((j + st * 3 : U32), sn, k, a4) Viz.t3((j + st * 4 : U32), sn, k, a5) Viz.t3((j + st * 5 : U32), sn, k, a6) Viz.t3((j + st * 6 : U32), sn, k, a7) Viz.t3((j + st * 7 : U32), sn, k, a8)
-  Array.join(U32, Array.join(U32, Array.join(U32, Array.join(U32, Array.join(U32, Array.join(U32, Array.join(U32, x0, x1), x2), x3), x4), x5), x6), x7)
+  (a7, r) = p
+  Viz.t2.s8(j, st, k, a1, a2, a3, a4, a5, a6, a7, Array.fork(U32, r))
+
+@unsafe
+def Viz.t2.s8(+j: U32, +st: U32, +k: Viz.K, a1: Array<U32>, a2: Array<U32>, a3: Array<U32>, a4: Array<U32>, a5: Array<U32>, a6: Array<U32>, a7: Array<U32>, p: Array<U32> & Array<U32>) -> Array<U32>:
+  (a8, r) = p
+  Viz.t2.s9(j, st, k, a1, a2, a3, a4, a5, a6, a7, a8, Array.fork(U32, r))
+
+@unsafe
+def Viz.t2.s9(+j: U32, +st: U32, +k: Viz.K, a1: Array<U32>, a2: Array<U32>, a3: Array<U32>, a4: Array<U32>, a5: Array<U32>, a6: Array<U32>, a7: Array<U32>, a8: Array<U32>, p: Array<U32> & Array<U32>) -> Array<U32>:
+  (a9, r) = p
+  Viz.t2.s10(j, st, k, a1, a2, a3, a4, a5, a6, a7, a8, a9, Array.fork(U32, r))
+
+@unsafe
+def Viz.t2.s10(+j: U32, +st: U32, +k: Viz.K, a1: Array<U32>, a2: Array<U32>, a3: Array<U32>, a4: Array<U32>, a5: Array<U32>, a6: Array<U32>, a7: Array<U32>, a8: Array<U32>, a9: Array<U32>, p: Array<U32> & Array<U32>) -> Array<U32>:
+  (a10, r) = p
+  Viz.t2.s11(j, st, k, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, Array.fork(U32, r))
+
+@unsafe
+def Viz.t2.s11(+j: U32, +st: U32, +k: Viz.K, a1: Array<U32>, a2: Array<U32>, a3: Array<U32>, a4: Array<U32>, a5: Array<U32>, a6: Array<U32>, a7: Array<U32>, a8: Array<U32>, a9: Array<U32>, a10: Array<U32>, p: Array<U32> & Array<U32>) -> Array<U32>:
+  (a11, r) = p
+  Viz.t2.s12(j, st, k, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, Array.fork(U32, r))
+
+@unsafe
+def Viz.t2.s12(+j: U32, +st: U32, +k: Viz.K, a1: Array<U32>, a2: Array<U32>, a3: Array<U32>, a4: Array<U32>, a5: Array<U32>, a6: Array<U32>, a7: Array<U32>, a8: Array<U32>, a9: Array<U32>, a10: Array<U32>, a11: Array<U32>, p: Array<U32> & Array<U32>) -> Array<U32>:
+  (a12, r) = p
+  Viz.t2.s13(j, st, k, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, Array.fork(U32, r))
+
+@unsafe
+def Viz.t2.s13(+j: U32, +st: U32, +k: Viz.K, a1: Array<U32>, a2: Array<U32>, a3: Array<U32>, a4: Array<U32>, a5: Array<U32>, a6: Array<U32>, a7: Array<U32>, a8: Array<U32>, a9: Array<U32>, a10: Array<U32>, a11: Array<U32>, a12: Array<U32>, p: Array<U32> & Array<U32>) -> Array<U32>:
+  (a13, r) = p
+  Viz.t2.s14(j, st, k, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, Array.fork(U32, r))
+
+@unsafe
+def Viz.t2.s14(+j: U32, +st: U32, +k: Viz.K, a1: Array<U32>, a2: Array<U32>, a3: Array<U32>, a4: Array<U32>, a5: Array<U32>, a6: Array<U32>, a7: Array<U32>, a8: Array<U32>, a9: Array<U32>, a10: Array<U32>, a11: Array<U32>, a12: Array<U32>, a13: Array<U32>, p: Array<U32> & Array<U32>) -> Array<U32>:
+  (a14, r) = p
+  Viz.t2.s15(j, st, k, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, Array.fork(U32, r))
+
+@unsafe
+def Viz.t2.s15(+j: U32, +st: U32, +k: Viz.K, a1: Array<U32>, a2: Array<U32>, a3: Array<U32>, a4: Array<U32>, a5: Array<U32>, a6: Array<U32>, a7: Array<U32>, a8: Array<U32>, a9: Array<U32>, a10: Array<U32>, a11: Array<U32>, a12: Array<U32>, a13: Array<U32>, a14: Array<U32>, p: Array<U32> & Array<U32>) -> Array<U32>:
+  (a15, a16) = p
+  +sn = (st * 16 : U32)
+  x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 = Viz.t3(j, sn, k, a1) Viz.t3((j + st * 1 : U32), sn, k, a2) Viz.t3((j + st * 2 : U32), sn, k, a3) Viz.t3((j + st * 3 : U32), sn, k, a4) Viz.t3((j + st * 4 : U32), sn, k, a5) Viz.t3((j + st * 5 : U32), sn, k, a6) Viz.t3((j + st * 6 : U32), sn, k, a7) Viz.t3((j + st * 7 : U32), sn, k, a8) Viz.t3((j + st * 8 : U32), sn, k, a9) Viz.t3((j + st * 9 : U32), sn, k, a10) Viz.t3((j + st * 10 : U32), sn, k, a11) Viz.t3((j + st * 11 : U32), sn, k, a12) Viz.t3((j + st * 12 : U32), sn, k, a13) Viz.t3((j + st * 13 : U32), sn, k, a14) Viz.t3((j + st * 14 : U32), sn, k, a15) Viz.t3((j + st * 15 : U32), sn, k, a16)
+  Array.join(U32, Array.join(U32, Array.join(U32, Array.join(U32, Array.join(U32, Array.join(U32, Array.join(U32, Array.join(U32, Array.join(U32, Array.join(U32, Array.join(U32, Array.join(U32, Array.join(U32, Array.join(U32, Array.join(U32, x0, x1), x2), x3), x4), x5), x6), x7), x8), x9), x10), x11), x12), x13), x14), x15)
 @unsafe
 def Viz.t3(+j: U32, +st: U32, +k: Viz.K, a: Array<U32>) -> Array<U32>:
   Viz.t3.s1(j, st, k, Array.fork(U32, a))

@@ -470,7 +470,7 @@ static void bend_texture(viz *v, int w, int h) {
 // function on the GPU or on the CPU's threads, as g chooses. It runs beside the player and draws
 // at its own pace: each frame asks for the next and shows the newest one finished.
 static void fx_bend(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
-    if (!v->bend_started) v->bend_started = bendviz_start("512MB"), v->bend_on_gpu = true;
+    if (!v->bend_started) v->bend_started = bendviz_start("768MB"), v->bend_on_gpu = true;
     int w = (int)a.w < BENDVIZ_MAX ? (int)a.w : BENDVIZ_MAX, h = (int)a.h < BENDVIZ_MAX ? (int)a.h : BENDVIZ_MAX;
     float params[5] = { (float)v->t, v->bass, v->mid, v->hue, v->beat };
     bendviz_request(params, w, h, v->bend_on_gpu);
