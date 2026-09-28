@@ -1481,6 +1481,24 @@ INLINE Term task_deliver(DEV u64* H, Term cont, u32 idx, THR Term* v, u32 n) {
   return 0;
 }
 
+// A fork's children go out as ring_push would push them, but the high words
+// (which a reader loads first, acquiring, and which make an entry whole)
+// wait until every child's slot is claimed and its low word written, after
+// one fence rather than one per child. (Claiming all the slots first, so the
+// claims overlap, made the kernel slower: the arrays it needs cost registers
+// throughout the one big kernel.)
+#define DEAL_BATCH 16
+
+INLINE void deal_publish(DEV u32* THR* hi, THR u32* hv, u32 n) {
+  if (n == 0) {
+    return;
+  }
+  FENCE();
+  for (u32 i = 0; i < n; i += 1) {
+    atomic_store_explicit(A32(hi[i]), hv[i], REL);
+  }
+}
+
 INLINE void task_deal(DEV u64* H, Term join, u32 base, u32 stride, TG u32* cur) {
   u64 loc = term_loc(join);
   u32 ar  = fid_arity((u32)term_aux(join));
@@ -1489,6 +1507,9 @@ INLINE void task_deal(DEV u64* H, Term join, u32 base, u32 stride, TG u32* cur) 
     u32 rem = (u32)H[loc + ar + 1];
     g = a32_add(a32_at(H, H_CURSOR), rem);
   }
+  DEV u32* hi[DEAL_BATCH];
+  u32      hv[DEAL_BATCH];
+  u32      n = 0;
   for (u32 i = 0; i < ar; i += 1) {
     Term k = H[loc + i];
     if (term_tag(k) == TAG_TSK) {
@@ -1500,9 +1521,21 @@ INLINE void task_deal(DEV u64* H, Term join, u32 base, u32 stride, TG u32* cur) 
         to = ring_flip(g & (u32)(LANES - 1));
         g += 1;
       }
-      ring_push(H, to, k);
+      u32 pos = a32_add(ring_put(H, to), 1);
+      if (pos - a32_load(ring_get(H, to)) >= RING_LEN) {
+        err_post(H, ERR_RING);
+        continue;
+      }
+      DEV u32* lo = (DEV u32*)ring_slot(H, to, pos);
+      a32_store(lo, (u32)k);
+      hi[n] = lo + 1, hv[n] = (u32)(k >> 32) | (ring_lap(pos) << 31), n += 1;
+      if (n == DEAL_BATCH) {
+        deal_publish(hi, hv, n);
+        n = 0;
+      }
     }
   }
+  deal_publish(hi, hv, n);
 }
 
 // Root
