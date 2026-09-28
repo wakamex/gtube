@@ -200,8 +200,8 @@ def Viz.loop(a: Array<U32>) -> IO(Unit):
     b : Array<U32> <- Viz.step(ask, t, bass, mid, hue, beat, a)
     Viz.loop(b)
 
-# The frame buffer, made on the GPU when there is one, so the host never writes its 64 MB (on
-# Windows, managed memory the host has written slows every later launch and copy).
+# The frame buffer, made on the GPU when there is one, so the host never writes its 64 MB, which
+# would then have to cross to the GPU.
 def Viz.blank(z: U32) -> Array<U32>:
   [z : U32^24n]
 

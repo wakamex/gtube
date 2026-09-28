@@ -109,6 +109,7 @@ CUresult CUDAAPI cuLaunchKernel(CUfunction f, unsigned int gx, unsigned int gy,
   unsigned int shared, CUstream stream, void** params, void** extra);
 CUresult CUDAAPI cuMemAlloc(CUdeviceptr* p, size_t bytes);
 CUresult CUDAAPI cuMemcpyDtoH(void* dst, CUdeviceptr src, size_t bytes);
+CUresult CUDAAPI cuMemcpyHtoD(CUdeviceptr dst, const void* src, size_t bytes);
 CUresult CUDAAPI cuMemFree(CUdeviceptr p);
 CUresult CUDAAPI cuMemcpyDtoD(CUdeviceptr dst, CUdeviceptr src, size_t bytes);
 CUresult CUDAAPI cuMemAllocHost(void** p, size_t bytes);
@@ -131,7 +132,8 @@ nvrtcResult nvrtcDestroyProgram(nvrtcProgram* p);
   X(cuModuleLoadData, cuModuleLoadData) \
   X(cuModuleGetFunction, cuModuleGetFunction) \
   X(cuLaunchKernel, cuLaunchKernel) X(cuMemAlloc, cuMemAlloc_v2) \
-  X(cuMemcpyDtoH, cuMemcpyDtoH_v2) X(cuMemFree, cuMemFree_v2) \
+  X(cuMemcpyDtoH, cuMemcpyDtoH_v2) X(cuMemcpyHtoD, cuMemcpyHtoD_v2) \
+  X(cuMemFree, cuMemFree_v2) \
   X(cuMemcpyDtoD, cuMemcpyDtoD_v2) X(cuMemAllocHost, cuMemAllocHost_v2)
 
 #define GPU_RTC_FNS(X) \
@@ -161,6 +163,7 @@ GPU_RTC_FNS(GPU_FN_PTR)
 #define cuLaunchKernel           (*gpu_fn_cuLaunchKernel)
 #define cuMemAlloc               (*gpu_fn_cuMemAlloc)
 #define cuMemcpyDtoH             (*gpu_fn_cuMemcpyDtoH)
+#define cuMemcpyHtoD             (*gpu_fn_cuMemcpyHtoD)
 #define cuMemFree                (*gpu_fn_cuMemFree)
 #define cuMemcpyDtoD             (*gpu_fn_cuMemcpyDtoD)
 #define cuMemAllocHost           (*gpu_fn_cuMemAllocHost)
@@ -4112,6 +4115,8 @@ static bool gpu_ready(void) {
   return true;
 }
 
+static CUcontext gpu_ctx;
+
 static bool gpu_probe(void) {
   int       managed = 0;
   CUcontext ctx;
@@ -4149,8 +4154,119 @@ static bool gpu_probe(void) {
   gpu_shape(units > per_sm ? units : per_sm);
   return managed != 0
     && cuDevicePrimaryCtxRetain(&ctx, gpu_dev) == CUDA_SUCCESS
+    && (gpu_ctx = ctx) != NULL
     && cuCtxSetCurrent(ctx) == CUDA_SUCCESS && gpu_ready();
 }
+
+#ifdef _WIN32
+
+// Windows gives the GPU no concurrent access to managed memory: each launch
+// takes back every managed page the host has touched, and the host's next
+// touch of each costs about 0.4 ms. So on Windows the corpus is device
+// memory, and the host works on a copy of it that it fetches a page at a
+// time: the first touch of a page after a launch faults, and the handler
+// copies the page from the device (tens of microseconds). Before the next
+// launch the pages the host wrote go back, and all are given up. The copy is
+// one section mapped twice, so the handler fills a page through the second
+// view before the host's view of it opens.
+
+static CUdeviceptr gpu_base;  // the corpus on the device
+static char*       gpu_fill;  // the host's copy, always writable
+static u8*         gpu_held;  // per page: 0 not held, 1 held, 2 held and written
+static u32*        gpu_list;  // the pages held
+static u32         gpu_nheld;
+static u64         gpu_pages;
+static SRWLOCK     gpu_lock = SRWLOCK_INIT;
+
+static bool gpu_guard(u64 i, u64 n, DWORD prot) {
+  DWORD old;
+  return VirtualProtect((char*)CORPUS + (i << 12), n << 12, prot, &old) != 0;
+}
+
+static LONG CALLBACK gpu_fault(EXCEPTION_POINTERS* x) {
+  char* at = (char*)x->ExceptionRecord->ExceptionInformation[1];
+  if (x->ExceptionRecord->ExceptionCode != EXCEPTION_ACCESS_VIOLATION
+    || at < (char*)CORPUS || at >= (char*)CORPUS + (gpu_pages << 12)) {
+    return EXCEPTION_CONTINUE_SEARCH;
+  }
+  u64  i  = (u64)(at - (char*)CORPUS) >> 12;
+  bool ok = true;
+  AcquireSRWLockExclusive(&gpu_lock);
+  if (gpu_held[i] == 0) {
+    cuCtxSetCurrent(gpu_ctx);
+    ok = cuMemcpyDtoH(gpu_fill + (i << 12), gpu_base + (i << 12), 4096)
+      == CUDA_SUCCESS;
+    gpu_held[i]              = 1;
+    gpu_list[gpu_nheld++]    = (u32)i;
+  }
+  if (x->ExceptionRecord->ExceptionInformation[0] == 1) {
+    gpu_held[i] = 2;
+  }
+  ok = ok && gpu_guard(i, 1, gpu_held[i] == 2 ? PAGE_READWRITE : PAGE_READONLY);
+  ReleaseSRWLockExclusive(&gpu_lock);
+  return ok ? EXCEPTION_CONTINUE_EXECUTION : EXCEPTION_CONTINUE_SEARCH;
+}
+
+static int gpu_page_cmp(const void* a, const void* b) {
+  u32 x = *(const u32*)a, y = *(const u32*)b;
+  return (x > y) - (x < y);
+}
+
+// Sends the written pages back to the device, in runs; with give_up, all
+// held pages are then given up (before a launch), else they stay, unwritten.
+static void gpu_send(bool give_up) {
+  AcquireSRWLockExclusive(&gpu_lock);
+  qsort(gpu_list, gpu_nheld, sizeof *gpu_list, gpu_page_cmp);
+  for (u32 k = 0, j; k < gpu_nheld; k = j) {
+    u64 i  = gpu_list[k];
+    u8  st = gpu_held[i];
+    for (j = k + 1; j < gpu_nheld && gpu_list[j] == i + (j - k)
+      && gpu_held[gpu_list[j]] == st; j += 1) {
+    }
+    u64 n = j - k;
+    if (st == 2 && cuMemcpyHtoD(gpu_base + (i << 12), gpu_fill + (i << 12),
+      n << 12) != CUDA_SUCCESS) {
+      err_fail("device copy failed");
+    }
+    if (give_up || st == 2) {
+      gpu_guard(i, n, give_up ? PAGE_NOACCESS : PAGE_READONLY);
+    }
+    memset(gpu_held + i, give_up ? 0 : 1, n);
+  }
+  gpu_nheld = give_up ? 0 : gpu_nheld;
+  ReleaseSRWLockExclusive(&gpu_lock);
+}
+
+static u64* gpu_map(u64 bytes) {
+  HANDLE sec = CreateFileMappingA(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE,
+    (DWORD)(bytes >> 32), (DWORD)bytes, NULL);
+  char*  view = sec ? MapViewOfFile(sec, FILE_MAP_ALL_ACCESS, 0, 0, bytes) : NULL;
+  gpu_fill    = sec ? MapViewOfFile(sec, FILE_MAP_ALL_ACCESS, 0, 0, bytes) : NULL;
+  gpu_pages   = bytes >> 12;
+  gpu_held    = calloc(gpu_pages, 1);
+  gpu_list    = malloc(gpu_pages * sizeof *gpu_list);
+  DWORD old;
+  if (view == NULL || gpu_fill == NULL || gpu_held == NULL || gpu_list == NULL
+    || !VirtualProtect(view, bytes, PAGE_NOACCESS, &old)
+    || cuMemAlloc(&gpu_base, bytes) != CUDA_SUCCESS
+    || cuMemsetD8(gpu_base, 0, bytes) != CUDA_SUCCESS) {
+    err_fail("corpus reservation failed");
+  }
+  AddVectoredExceptionHandler(1, gpu_fault);
+  return (u64*)view;
+}
+
+// A host address in the corpus, on the device, once the host's writes there
+// have gone back.
+static CUdeviceptr gpu_at(const void* p) {
+  gpu_send(false);
+  return gpu_base + (CUdeviceptr)((const char*)p - (const char*)CORPUS);
+}
+
+#else
+
+#define gpu_send(give_up)
+#define gpu_at(p) ((CUdeviceptr)(uintptr_t)(p))
 
 static u64* gpu_map(u64 bytes) {
   CUdeviceptr p = 0;
@@ -4165,6 +4281,8 @@ static u64* gpu_map(u64 bytes) {
 #endif
   return (u64*)(uintptr_t)p;
 }
+
+#endif
 
 static bool gpu_make(const char* path) {
   int cc[2] = {0, 0};
@@ -4243,7 +4361,8 @@ static void gpu_load(u64 bytes) {
 }
 
 static void gpu_kernel(u32 pass, u32 groups) {
-  void* args[] = { &CORPUS, &pass };
+  CUdeviceptr base = gpu_at(CORPUS);
+  void* args[] = { &base, &pass };
   if (cuLaunchKernel(gpu_pso, groups, 1, 1, CUBE_T, 1, 1, TG_HOLD * 8, NULL,
     args, NULL) != CUDA_SUCCESS) {
     err_fail("device launch failed");
@@ -4251,6 +4370,7 @@ static void gpu_kernel(u32 pass, u32 groups) {
 }
 
 static void gpu_pass(u32 f) {
+  gpu_send(true);
   gpu_run(f);
   if (cuCtxSynchronize() != CUDA_SUCCESS) {
     err_fail("device fault");
@@ -4372,7 +4492,7 @@ static u64* corpus_setup(bool gpu, long threads, u64 bytes) {
   u64* H     = CORPUS;
 #if BEND_CUDA
   if (gpu) {
-    cuMemsetD8((CUdeviceptr)(uintptr_t)H, 0, STAK_OFF * 8);
+    cuMemsetD8(gpu_at(H), 0, STAK_OFF * 8);
     cuCtxSynchronize();
   }
 #endif
@@ -5223,9 +5343,9 @@ Term viz_param_run(Env e, Term* f, IoWork* w) {
 
 // The frame is the buffer's first w * h pixels. It goes to the back buffer, which then swaps with
 // the front one for the player, so no frame is copied on the host. On the GPU the buffers are
-// page-locked and the copy is one bulk transfer (the heap is managed memory, which the host would
-// otherwise read a page at a time, slowly on Windows). Copying through plain device memory first
-// made no difference, on Linux or on Windows.
+// page-locked and the copy is one bulk transfer from the device (the host would otherwise read the
+// heap a page at a time). Copying through plain device memory first made no difference, on Linux or
+// on Windows. A frame the CPU drew is copied on the host.
 static bool bv_room(size_t n) {
   if (n <= bv_cap) {
     return true;
@@ -5285,12 +5405,13 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
     return a;
   }
   bool on_device = false, copied = false;
+  bool gpu_drew = bv_now_word >> 31 != 0 && io_gpu;  // else the frame is in host memory
 #if BEND_CUDA
   // On the device: one copy between device buffers, finished before the player may read it.
   pthread_mutex_lock(&bv_lock);
-  bool device = io_gpu && bv_device_ok && !bv_lent && bv_dev_room(n);
+  bool device = gpu_drew && bv_device_ok && !bv_lent && bv_dev_room(n);
   pthread_mutex_unlock(&bv_lock);
-  if (device && cuMemcpyDtoD(bv_dev_back, (CUdeviceptr)(uintptr_t)px, n * 4) == CUDA_SUCCESS
+  if (device && cuMemcpyDtoD(bv_dev_back, gpu_at(px), n * 4) == CUDA_SUCCESS
     && cuCtxSynchronize() == CUDA_SUCCESS) {
     on_device = copied = true;
   }
@@ -5303,8 +5424,8 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
       return a;
     }
 #if BEND_CUDA
-    if (io_gpu && bv_pinned) {
-      copied = cuMemcpyDtoH(bv_back, (CUdeviceptr)(uintptr_t)px, n * 4) == CUDA_SUCCESS;
+    if (gpu_drew && bv_pinned) {
+      copied = cuMemcpyDtoH(bv_back, gpu_at(px), n * 4) == CUDA_SUCCESS;
     }
 #endif
     if (!copied) {
@@ -5329,7 +5450,7 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
   bv_draw_ms = (double)(drawn - bv_began) / 1e6, bv_copy_ms = (double)(now - drawn) / 1e6;
   bv_ms       = (double)(now - bv_began) / 1e6;
   bv_done_w   = fw, bv_done_h = fh;
-  bv_done_gpu = bv_now_word >> 31 != 0 && io_gpu;  // asked for, and there to use
+  bv_done_gpu = gpu_drew;  // asked for, and there to use
   bv_fresh    = true;
   pthread_mutex_unlock(&bv_lock);
   return a;

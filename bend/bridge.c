@@ -67,9 +67,9 @@ Term viz_param_run(Env e, Term* f, IoWork* w) {
 
 // The frame is the buffer's first w * h pixels. It goes to the back buffer, which then swaps with
 // the front one for the player, so no frame is copied on the host. On the GPU the buffers are
-// page-locked and the copy is one bulk transfer (the heap is managed memory, which the host would
-// otherwise read a page at a time, slowly on Windows). Copying through plain device memory first
-// made no difference, on Linux or on Windows.
+// page-locked and the copy is one bulk transfer from the device (the host would otherwise read the
+// heap a page at a time). Copying through plain device memory first made no difference, on Linux or
+// on Windows. A frame the CPU drew is copied on the host.
 static bool bv_room(size_t n) {
   if (n <= bv_cap) {
     return true;
@@ -129,12 +129,13 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
     return a;
   }
   bool on_device = false, copied = false;
+  bool gpu_drew = bv_now_word >> 31 != 0 && io_gpu;  // else the frame is in host memory
 #if BEND_CUDA
   // On the device: one copy between device buffers, finished before the player may read it.
   pthread_mutex_lock(&bv_lock);
-  bool device = io_gpu && bv_device_ok && !bv_lent && bv_dev_room(n);
+  bool device = gpu_drew && bv_device_ok && !bv_lent && bv_dev_room(n);
   pthread_mutex_unlock(&bv_lock);
-  if (device && cuMemcpyDtoD(bv_dev_back, (CUdeviceptr)(uintptr_t)px, n * 4) == CUDA_SUCCESS
+  if (device && cuMemcpyDtoD(bv_dev_back, gpu_at(px), n * 4) == CUDA_SUCCESS
     && cuCtxSynchronize() == CUDA_SUCCESS) {
     on_device = copied = true;
   }
@@ -147,8 +148,8 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
       return a;
     }
 #if BEND_CUDA
-    if (io_gpu && bv_pinned) {
-      copied = cuMemcpyDtoH(bv_back, (CUdeviceptr)(uintptr_t)px, n * 4) == CUDA_SUCCESS;
+    if (gpu_drew && bv_pinned) {
+      copied = cuMemcpyDtoH(bv_back, gpu_at(px), n * 4) == CUDA_SUCCESS;
     }
 #endif
     if (!copied) {
@@ -173,7 +174,7 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
   bv_draw_ms = (double)(drawn - bv_began) / 1e6, bv_copy_ms = (double)(now - drawn) / 1e6;
   bv_ms       = (double)(now - bv_began) / 1e6;
   bv_done_w   = fw, bv_done_h = fh;
-  bv_done_gpu = bv_now_word >> 31 != 0 && io_gpu;  // asked for, and there to use
+  bv_done_gpu = gpu_drew;  // asked for, and there to use
   bv_fresh    = true;
   pthread_mutex_unlock(&bv_lock);
   return a;
