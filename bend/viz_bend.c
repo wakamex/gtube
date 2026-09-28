@@ -388,6 +388,7 @@ typedef u32 __attribute__((may_alias)) u32a;
 #define TAG_BUF 4ull
 #define TAG_TSK 5ull
 #define TAG_ARR 6ull
+#define TAG_SPR 7ull
 
 #define TERM_HOLE (~0ull)
 #define LOC_MASK  ((1ull << 40) - 1)
@@ -623,6 +624,7 @@ CONSTV u8 CID_T[][2] = { { 2, 0 }, { 0, 0 }, { 2, 0 }, { 2, 1 }, { 1, 0 }, { 2, 
 #define MAIN_FID FID_MAIN
 #define MAIN_PURE 0
 #define BLK_SHR 1
+#define SPRD_USED 1
 
 #define TAB_AT(T, S, I) T[S < I ? S : I]
 
@@ -1407,31 +1409,39 @@ INLINE Term task_deliver(DEV u64* H, Term cont, u32 idx, THR Term* v, u32 n) {
 }
 
 // A spread's loop (Array.spread.run in base.bend) keeps its words in this
-// order. Split, a loop becomes the join of its parts (spread_split): each
-// part owns a reference to the array and gives back a handle; one that gives
-// back the same handle is only counted, and the join returns those references
-// at once, when its last part is in, rather than one atomic each.
+// order. Split, a loop becomes the join of its parts (spread_split), and a
+// part is a cell rather than a task: the loop, and its own i, st and c
+// (tagged TAG_SPR; FID_ENTER reads the rest of its words off the loop). The
+// loop keeps c at 0 (resumed, it returns the array), counts in I the parts
+// giving back its array's handle, and holds the cells in ST (their address,
+// and the count of parts above bit 48). Each part owns a reference to the
+// array; those giving back the same handle are only counted, and the join
+// returns their references at once when the last part is in, rather than
+// one atomic each.
 #define SPRD_C  0
 #define SPRD_A  1
 #define SPRD_I  2
 #define SPRD_ST 3
+#define SPRD_CELL 3  // words a part's cell
 
 INLINE Term spread_give(Env e, Term cont, Term v) {
   DEV u64* H   = e.mem;
   u64      loc = term_loc(cont);
   if (v == H[loc + SPRD_A]) {
-    a32_add(a32_at(H, loc + SPRD_ST), 1);
+    a32_add(a32_at(H, loc + SPRD_I), 1);
   } else {
     term_sink(e, v);
   }
   u64 tl = task_tail(cont);
   if (a32_sub_rel(a32_at(H, tl + 1), 1) == 1) {
     a32_acq(a32_at(H, tl + 1));
-    u32  back = a32_load(a32_at(H, loc + SPRD_ST));
-    Term a    = H[loc + SPRD_A];
+    u32  back  = a32_load(a32_at(H, loc + SPRD_I));
+    Term a     = H[loc + SPRD_A];
+    u64  cells = H[loc + SPRD_ST];
     if (back != 0 && term_rfc(a)) {
       a32_sub(a32_at(H, term_loc(a)), back);  // (its own reference stays)
     }
+    heap_free(e, cls_fit((u32)(cells >> 48) * SPRD_CELL), cells & LOC_MASK);
     return cont;
   }
   return 0;
@@ -3297,6 +3307,21 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     u32 f   = (u32)term_aux(t);
     u64 a   = term_loc(t);
     u32 war = fid_arity(f);
+#if SPRD_USED
+    if (term_tag(t) == TAG_SPR) {  // a spread's part (spread_split)
+      Term lp = e.mem[a];
+      u64  is = e.mem[a + 1];
+      Term c  = e.mem[a + 2];
+      STK(0) = lp;
+      STK(1) = 0;
+      STK(2) = FID_EXIT;
+      sp += 3 * LANE_STEP;
+      seq |= fid_nofk(f) << 1;
+      WL_LOAD(term_loc(lp), war)
+      r0 = c, r2 = (u32)is, r3 = is >> 32;
+      WL_DYN(f);
+    }
+#endif
     WL_FRAME(t)
     seq |= fid_nofk(f) << 1;
     if (fid_resw(f)) {
@@ -3385,21 +3410,35 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
 // A growing lane that meets a spread's loop with two or more steps left posts
 // it for its group (monk_step returns 3 + 4 * its place in the list), and
 // after the round's barrier the group splits every loop posted at once
-// (spread_split): each loop's lane makes it the join of its parts, then each
-// lane makes one part, a loop over every parts-th step, and queues it on its
-// own ring. A loop of 32,768 steps takes two rounds: one group splits it into
-// 256, then each group splits its two into 128 each.
+// (spread_split): each loop's lane makes it the join of its parts and takes
+// a cell for each, then each lane fills one part's cell (a loop over every
+// parts-th step) and queues it on its own ring: three stores and a push, as
+// making a task per part (an allocation and a copy of its words, 50 us at
+// 32,768 lanes) is not. A part posted in turn becomes a loop of its own. A
+// loop of 32,768 steps takes two rounds: one group splits it into 256, then
+// each group splits its two into 128 each.
 #define SPRD_N    3   // vote: loops posted this round
 #define SPRD_STOP 4   // vote: too many to split; none more this pass
-#define SPRD_LIST 16  // vote: a posted loop's task, then its i, c and st
+#define SPRD_LIST 16  // vote: a posted loop's task, i, c and st, then its cells
+#define SPRD_LW   8   // vote: words a posted loop
+
+INLINE u64 spread_steps(DEV u64* H, Term t) {
+  return term_tag(t) == TAG_SPR ? H[term_loc(t) + 2]
+    : H[term_loc(t) + SPRD_C];
+}
 
 INLINE u32 spread_post(DEV u64* H, Term t, TG u32* vote) {
   u32     k   = a32_add(vote + SPRD_N, 1);
   u64     loc = term_loc(t);
-  TG u32* p   = vote + SPRD_LIST + 5 * k;
+  TG u32* p   = vote + SPRD_LIST + SPRD_LW * k;
   p[0] = (u32)t, p[1] = (u32)(t >> 32);
-  p[2] = (u32)H[loc + SPRD_I], p[3] = (u32)H[loc + SPRD_C];
-  p[4] = (u32)H[loc + SPRD_ST];
+  if (term_tag(t) == TAG_SPR) {
+    u64 is = H[loc + 1];
+    p[2] = (u32)is, p[3] = (u32)H[loc + 2], p[4] = (u32)(is >> 32);
+  } else {
+    p[2] = (u32)H[loc + SPRD_I], p[3] = (u32)H[loc + SPRD_C];
+    p[4] = (u32)H[loc + SPRD_ST];
+  }
   return k;
 }
 
@@ -3408,7 +3447,7 @@ INLINE void spread_split(Env e, TG u32* vote, u32 lane, u32 rg, u32 posted,
   DEV u64* H    = e.mem;
   u32      m    = CUBE_T / posted;  // lanes a loop
   bool     mine = (ran & 3) == 3;
-  TG u32*  own  = vote + SPRD_LIST + 5 * (ran >> 2);
+  TG u32*  own  = vote + SPRD_LIST + SPRD_LW * (ran >> 2);
   Term     t    = mine ? own[0] | (u64)own[1] << 32 : 0;
   if (m < 2) {
     if (mine) {
@@ -3422,38 +3461,45 @@ INLINE void spread_split(Env e, TG u32* vote, u32 lane, u32 rg, u32 posted,
     return;
   }
   if (mine) {
-    u64 loc   = term_loc(t);
-    u32 ar    = fid_arity((u32)term_aux(t));
+    u32 f     = (u32)term_aux(t);
+    u32 ar    = fid_arity(f);
     u32 parts = own[3] < m ? own[3] : m;
+    u64 loc   = term_loc(t);
+    if (term_tag(t) == TAG_SPR) {  // a part: a loop of its own now
+      Term lp = H[loc];
+      u64  n  = task_node(e, f, lp, 0, 0);
+      for (u32 w = 0; w < ar; w += 1) {
+        H[n + w] = H[term_loc(lp) + w];
+      }
+      loc = n, t = term_tsk(f, n);
+      own[0] = (u32)t, own[1] = (u32)(t >> 32);
+    }
     H[loc + SPRD_A] = term_keep(e, H[loc + SPRD_A], parts);
     for (u32 w = SPRD_ST + 1; w < ar; w += 1) {
       if (!term_triv(H[loc + w])) {
         H[loc + w] = term_keep(e, H[loc + w], parts);
       }
     }
-    H[loc + SPRD_C]      = 0;  // resumed, it returns the array
-    H[loc + SPRD_ST]     = 0;  // counts the parts giving it back
-    H[loc + ar + 1]      = (H[loc + ar + 1] & ~0xFFFFFFFFull) | parts;
+    u64 cells = heap_alloc(e, cls_fit(parts * SPRD_CELL));
+    own[5] = (u32)cells, own[6] = (u32)(cells >> 32);
+    H[loc + SPRD_C]  = 0;
+    H[loc + SPRD_I]  = 0;
+    H[loc + SPRD_ST] = cells | (u64)parts << 48;
+    H[loc + ar + 1]  = (H[loc + ar + 1] & ~0xFFFFFFFFull) | parts;
   }
   BARD();
   u32 k = lane / m, q = lane % m;
   if (k < posted) {
-    TG u32* p     = vote + SPRD_LIST + 5 * k;
-    Term    pt    = p[0] | (u64)p[1] << 32;
+    TG u32* p     = vote + SPRD_LIST + SPRD_LW * k;
     u32     c     = p[3];
     u32     parts = c < m ? c : m;
     if (q < parts) {
-      u32 f   = (u32)term_aux(pt);
-      u64 loc = term_loc(pt);
-      u32 ar  = fid_arity(f);
-      u64 n   = task_node(e, f, pt, 0, 0);
-      for (u32 w = 0; w < ar; w += 1) {
-        H[n + w] = H[loc + w];
-      }
-      H[n + SPRD_C]  = (c - q + parts - 1) / parts;
-      H[n + SPRD_I]  = (u32)(p[2] + q * p[4]);
-      H[n + SPRD_ST] = (u32)(p[4] * parts);
-      ring_push(H, rg, term_tsk(f, n));
+      Term pt   = p[0] | (u64)p[1] << 32;
+      u64  cell = (p[5] | (u64)p[6] << 32) + q * SPRD_CELL;
+      H[cell]     = pt;
+      H[cell + 1] = (u32)(p[2] + q * p[4]) | (u64)(u32)(p[4] * parts) << 32;
+      H[cell + 2] = (c - q + parts - 1) / parts;
+      ring_push(H, rg, term_make(TAG_SPR, term_aux(pt), cell));
     }
   }
   BARD();
@@ -3481,7 +3527,7 @@ INLINE u32 monk_step(Env e, DEV Term* stk, u32 rg, u32 put0, u32 base, u32 strid
     return 0;
   }
 #if DEVICE
-  if (!seq && fid_sprd((u32)term_aux(t)) && H[term_loc(t) + SPRD_C] >= 2
+  if (!seq && fid_sprd((u32)term_aux(t)) && spread_steps(H, t) >= 2
     && a32_load(cur + SPRD_STOP) == 0) {
     a32_store(get, *get + 1);
     return 3 + 4 * spread_post(H, t, cur);
