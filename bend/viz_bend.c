@@ -5532,6 +5532,78 @@ void bendviz_times(double* draw_ms, double* copy_ms) {
 // The heap's span, and on the GPU a count of kernel launches and of the time spent waiting for
 // them, through wrappers around the runtime's driver calls (installed on the first frame, after
 // the runtime has loaded the driver). For measuring what a frame costs; the player doesn't use them.
+// With BENDVIZ_PAGES set to a file name, one frame's heap pages resident on the host side (in the
+// process's working set) are written there at each launch and wait, and at the start of the next
+// frame, with the heap's layout: which parts of the heap the host touches around a bang. Windows only.
+#if defined(_WIN32) && defined(BENDVIZ_EMBED)
+#include <psapi.h>
+static FILE* bv_pages_out;
+static u32 bv_frame;
+static bool bv_pages_on;  // during the frame being recorded
+static void bv_pages(const char* label) {
+  if (!bv_pages_on) {
+    return;
+  }
+  size_t n = corpus_size / 4096;
+  PSAPI_WORKING_SET_EX_INFORMATION* info = calloc(n, sizeof *info);
+  for (size_t i = 0; i < n; i++) info[i].VirtualAddress = (char*)CORPUS + i * 4096;
+  if (info != NULL && K32QueryWorkingSetEx(GetCurrentProcess(), info, (DWORD)(n * sizeof *info))) {
+    fprintf(bv_pages_out, "%s:", label);
+    for (size_t i = 0; i < n; i++) {
+      if (info[i].VirtualAttributes.Valid) fprintf(bv_pages_out, " %zu", i);
+    }
+    fprintf(bv_pages_out, "\n");
+  }
+  free(info);
+}
+static void bv_pages_frame_start(void) {
+  bv_frame += 1;
+  if (bv_frame == 1) {
+    const char* path = getenv("BENDVIZ_PAGES");
+    bv_pages_out = path != NULL ? fopen(path, "w") : NULL;
+  }
+  if (bv_pages_out == NULL) {
+    return;
+  }
+  if (bv_frame == 6) {  // the fifth frame, from the end of the fourth to the start of the sixth
+    bv_pages_on = true;
+    bv_pages("frame start");
+  } else if (bv_pages_on) {
+    bv_pages("next frame");
+    bv_pages_on = false;
+    fprintf(bv_pages_out, "layout: alc %llu ring %llu stak %llu stat %llu heap %llu size %llu\n",
+      (unsigned long long)ALC_OFF, (unsigned long long)RING_OFF, (unsigned long long)STAK_OFF,
+      (unsigned long long)STAT_OFF, (unsigned long long)HEAP_OFF, (unsigned long long)(corpus_size / 8));
+    for (u32 c = 0; c < NCLS_ALL; c += 1) {
+      Bank* b = bank_at(CORPUS, c);
+      fprintf(bv_pages_out, "bank %u: off %llu rd %u wr %u top %u\n", c, (unsigned long long)b->off, b->rd, b->wr, b->top);
+    }
+    fclose(bv_pages_out), bv_pages_out = NULL;
+  }
+}
+// With BENDVIZ_TOUCH set, the time the host takes to read a word of three heap pages it uses (the
+// header, the start of the heap and one further in), twice each, after one frame's wait.
+static void bv_touch(void) {
+  if (bv_frame != 6 || getenv("BENDVIZ_TOUCH") == NULL) {
+    return;
+  }
+  static const size_t page[3] = { 0, 100416, 116801 };
+  volatile u64* H = CORPUS;
+  for (int k = 0; k < 3; k += 1) {
+    u64 t0 = io_tick();
+    (void)H[page[k] * 512];
+    u64 t1 = io_tick();
+    (void)H[page[k] * 512 + 1];
+    u64 t2 = io_tick();
+    fprintf(stderr, "  page %zu: first read %.1f us, second %.1f us\n", page[k], (double)(t1 - t0) / 1e3, (double)(t2 - t1) / 1e3);
+  }
+}
+#else
+static void bv_pages(const char* label) { (void)label; }
+static void bv_pages_frame_start(void) {}
+static void bv_touch(void) {}
+#endif
+
 static u64 bv_launches;
 static double bv_wait_ms, bv_launch_ms;
 static u64 bv_first_launch, bv_last_sync;  // this frame's first launch, and the end of its last wait
@@ -5540,16 +5612,20 @@ static __typeof__(gpu_fn_cuLaunchKernel) bv_real_launch;
 static __typeof__(gpu_fn_cuCtxSynchronize) bv_real_sync;
 static CUresult CUDAAPI bv_counted_launch(CUfunction f, unsigned gx, unsigned gy, unsigned gz, unsigned bx,
   unsigned by, unsigned bz, unsigned shared, CUstream st, void** params, void** extra) {
+  bv_pages("before launch");
   u64 t = io_tick();
   if (bv_first_launch < bv_began) bv_first_launch = t;
   CUresult r = bv_real_launch(f, gx, gy, gz, bx, by, bz, shared, st, params, extra);
   bv_launches += 1, bv_launch_ms += (double)(io_tick() - t) / 1e6;
+  bv_pages("after launch");
   return r;
 }
 static CUresult CUDAAPI bv_timed_sync(void) {
   u64 t = io_tick();
   CUresult r = bv_real_sync();
   bv_last_sync = io_tick();
+  bv_pages("after wait");
+  bv_touch();
   bv_wait_ms += (double)(io_tick() - t) / 1e6;
   return r;
 }
@@ -5557,6 +5633,7 @@ static CUresult CUDAAPI bv_timed_sync(void) {
 
 static void bv_count_launches(void) {
 #if BEND_CUDA
+  bv_pages_frame_start();
   if (io_gpu && bv_real_launch == NULL) {
     bv_real_launch = gpu_fn_cuLaunchKernel, gpu_fn_cuLaunchKernel = bv_counted_launch;
     bv_real_sync = gpu_fn_cuCtxSynchronize, gpu_fn_cuCtxSynchronize = bv_timed_sync;
