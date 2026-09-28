@@ -63,6 +63,7 @@ typedef struct {
     viz *viz;
     bool fullscreen;
     double pace_cap;
+    bool uncapped;  // --uncapped: no vsync and no frame cap
     float audio_buf[2048 * 2];
     double last_frame;
     account account;
@@ -180,6 +181,7 @@ SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
         else if (!strcmp(argv[i], "--seconds") && i + 1 < argc) seconds = SDL_atof(argv[++i]);
         else if (!strcmp(argv[i], "--tools")) tools_only = true;
         else if (!strcmp(argv[i], "--demo")) demo = a->demo = true;
+        else if (!strcmp(argv[i], "--uncapped")) a->uncapped = true;
         else if (!strcmp(argv[i], "--shot") && i + 1 < argc) a->shot = argv[++i];
         else if (!strcmp(argv[i], "--at") && i + 1 < argc) a->shot_at = SDL_atof(argv[++i]);
         else if (!strcmp(argv[i], "--import-cookies") && i + 1 < argc) import = argv[++i];
@@ -271,7 +273,7 @@ SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
     if (on_a_display(a->window.x, a->window.y)) SDL_SetWindowPosition(a->win, a->window.x, a->window.y);
     if (a->window.maximized) SDL_MaximizeWindow(a->win);
     SDL_ShowWindow(a->win);
-    gs_pace_set(&a->pace, a->win, a->ren, true, a->pace_cap = 30);
+    gs_pace_set(&a->pace, a->win, a->ren, !a->uncapped, a->pace_cap = a->uncapped ? 0 : 30);
     a->viz = viz_new(a->ren, RATE);
     for (int i = 1; i < effect; i++) viz_step(a->viz, 1);
     a->audio = !a->shot && gs_mix_open(RATE);
@@ -678,8 +680,8 @@ static void viz_frame(app *a, SDL_FRect area, const track *t) {
 
 SDL_AppResult SDL_AppIterate(void *state) {
     app *a = state;
-    double cap = a->view == V_VIZ ? 60 : 30;  // smooth motion for the visualizer, less work elsewhere
-    if (cap != a->pace_cap) gs_pace_set(&a->pace, a->win, a->ren, true, a->pace_cap = cap);
+    double cap = a->uncapped ? 0 : a->view == V_VIZ ? 60 : 30;  // smooth motion for the visualizer, less work elsewhere
+    if (cap != a->pace_cap) gs_pace_set(&a->pace, a->win, a->ren, !a->uncapped, a->pace_cap = cap);
     gs_stats_frame_begin(&a->stats);
     if (!a->demo) player_update(a->player);
     if (a->signin) {  // signing in: done when the page reaches YouTube signed in, or the window is closed

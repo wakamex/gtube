@@ -61,6 +61,9 @@ struct viz {
     bool bend_drawn_gpu;    // where its newest frame was drawn, and how long that took
     double bend_ms;
     bool bend_started, bend_shown;
+    int bend_count;             // new frames since bend_count_from (ns), and their rate over the last second
+    uint64_t bend_count_from;
+    double bend_fps;
     uint8_t *heat;
     float *radius;          // the plasma's distance from the centre, per pixel
     float fuel[BANDS];      // the fire's fuel per band, following the spectrum slowly
@@ -414,6 +417,17 @@ static void bend_release(viz *v) {
     v->bend_tex = NULL;
 }
 
+// A new Bend frame arrived: its rate, counted over whole seconds.
+static void bend_counted(viz *v) {
+    uint64_t now = SDL_GetTicksNS();
+    if (!v->bend_count_from) v->bend_count_from = now;
+    v->bend_count++;
+    if (now - v->bend_count_from >= SDL_NS_PER_SECOND) {
+        v->bend_fps = v->bend_count * 1e9 / (double)(now - v->bend_count_from);
+        v->bend_count = 0, v->bend_count_from = now;
+    }
+}
+
 // The Bend effect's texture, w x h. Static, because Direct3D 11 makes streaming textures dynamic
 // resources, which CUDA cannot write; ARGB, which Direct3D 11 stores in Bend's byte order (the
 // alpha byte is unused, drawn without blending).
@@ -451,7 +465,7 @@ static void fx_bend(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
             d3d = SDL_GetPointerProperty(SDL_GetTextureProperties(v->bend_tex), SDL_PROP_TEXTURE_D3D11_TEXTURE_POINTER, NULL);
             r = bendviz_to_d3d11(d3d, fw, fh, &fw, &fh, &gpu, &ms);
         }
-        if (r == 1) v->bend_drawn_gpu = gpu, v->bend_ms = ms, v->bend_shown = true, v->bend_on_device = true;
+        if (r == 1) v->bend_drawn_gpu = gpu, v->bend_ms = ms, v->bend_shown = true, v->bend_on_device = true, bend_counted(v);
         if (r < 0) {
             SDL_Log("bend: graphics interop failed; frames come through the host");
             v->bend_interop = -1;
@@ -466,6 +480,7 @@ static void fx_bend(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
         bendviz_return();
         v->bend_drawn_gpu = gpu, v->bend_ms = ms;
         v->bend_shown = true, v->bend_on_device = false;
+        bend_counted(v);
     }
     if (v->bend_shown && v->bend_tex) {
         SDL_SetTextureBlendMode(v->bend_tex, SDL_BLENDMODE_NONE);
@@ -656,7 +671,7 @@ bool viz_bend_stats(const viz *v, char *out, size_t size) {
     bendviz_times(&draw, &wait, &copy);
     char waited[32] = "";
     if (v->bend_drawn_gpu) snprintf(waited, sizeof waited, " of which gpu %.1f", wait);
-    snprintf(out, size, "bend %s %.1f ms (draw %.1f%s, copy %.1f%s) %dx%d", v->bend_drawn_gpu ? "gpu" : "cpu", v->bend_ms, draw, waited, copy, v->bend_on_device ? " on gpu" : "", v->bend_w, v->bend_h);
+    snprintf(out, size, "bend %s %.1f ms, %.0f fps (draw %.1f%s, copy %.1f%s) %dx%d", v->bend_drawn_gpu ? "gpu" : "cpu", v->bend_ms, v->bend_fps, draw, waited, copy, v->bend_on_device ? " on gpu" : "", v->bend_w, v->bend_h);
     return true;
 }
 void viz_bend_switch(viz *v) { v->bend_on_gpu = !v->bend_on_gpu; }
