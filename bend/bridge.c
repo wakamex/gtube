@@ -25,6 +25,16 @@ static bool            bv_device_ok;                   // the player can take th
 static unsigned long long bv_dev_front, bv_dev_back;   // two device buffers (CUdeviceptr)
 static size_t          bv_dev_cap;
 static bool            bv_front_on_device;             // the newest frame is bv_dev_front
+#if BEND_CUDA && defined(_WIN32)
+// The player's copy out of a device buffer into its texture is queued, and finishes on the GPU after
+// the player has moved on (at the next vertical blank, when Direct3D lets go of the texture). So each
+// buffer has an event marking its last copy out done, which writing that buffer again waits for, on
+// the GPU; the events swap with the buffers.
+typedef struct CUevent_st* BvReadEvent;
+static BvReadEvent bv_read_front, bv_read_back;
+static CUresult (CUDAAPI* bv_ev_wait)(CUstream, BvReadEvent, unsigned);
+static CUresult (CUDAAPI* bv_ev_mark)(BvReadEvent, CUstream);
+#endif
 static int             bv_done_w, bv_done_h;
 static bool            bv_fresh, bv_done_gpu;
 static double          bv_ms;                          // how long the last frame took, all told
@@ -151,6 +161,9 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
   // (while the player reads the front buffer, the back one is written, but neither is reallocated)
   bool device = gpu_drew && bv_device_ok && (n <= bv_dev_cap || (!bv_lent && bv_dev_room(n)));
   pthread_mutex_unlock(&bv_lock);
+#ifdef _WIN32
+  if (device && bv_read_back) bv_ev_wait(NULL, bv_read_back, 0);
+#endif
   if (device && cuMemcpyDtoD(bv_dev_back, gpu_at(px), n * 4) == CUDA_SUCCESS
     && cuCtxSynchronize() == CUDA_SUCCESS) {
     on_device = copied = true;
@@ -182,6 +195,10 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
   if (on_device) {
     unsigned long long t = bv_dev_front;
     bv_dev_front = bv_dev_back, bv_dev_back = t;
+#if BEND_CUDA && defined(_WIN32)
+    BvReadEvent r = bv_read_front;
+    bv_read_front = bv_read_back, bv_read_back = r;
+#endif
   } else {
     u32* t = bv_front;
     bv_front = bv_back, bv_back = t;
@@ -306,9 +323,11 @@ static CUresult (CUDAAPI* bv_unmap)(unsigned, CUgraphicsResource*, CUstream);
 static CUresult (CUDAAPI* bv_array)(CUarray*, CUgraphicsResource, unsigned, unsigned);
 static CUresult (CUDAAPI* bv_copy2d)(const BvCopy2D*, CUstream);
 static CUresult (CUDAAPI* bv_stream_create)(CUstream*, unsigned);
-static CUresult (CUDAAPI* bv_stream_sync)(CUstream);
-// The player's copies go on a stream of their own, which doesn't wait for the kernels drawing the
-// next frame (the default stream would, holding the front buffer lent all that time).
+static CUresult (CUDAAPI* bv_ev_create)(BvReadEvent*, unsigned);
+// The player's copies go on a stream of their own and aren't waited for: mapping the texture waits
+// for Direct3D's queued work, which at 60 fps sits behind the last present until the next vertical
+// blank. On the default stream the kernels drawing the next frame would queue behind it, and
+// waiting on the player's thread would stall the player a whole refresh.
 static CUstream bv_stream;
 
 static bool bv_interop_ready(void) {
@@ -324,12 +343,15 @@ static bool bv_interop_ready(void) {
     bv_array      = (__typeof__(bv_array))gpu_sym(lib, "cuGraphicsSubResourceGetMappedArray");
     bv_copy2d     = (__typeof__(bv_copy2d))gpu_sym(lib, "cuMemcpy2DAsync_v2");
     bv_stream_create = (__typeof__(bv_stream_create))gpu_sym(lib, "cuStreamCreate");
-    bv_stream_sync   = (__typeof__(bv_stream_sync))gpu_sym(lib, "cuStreamSynchronize");
+    bv_ev_create     = (__typeof__(bv_ev_create))gpu_sym(lib, "cuEventCreate");
+    bv_ev_mark       = (__typeof__(bv_ev_mark))gpu_sym(lib, "cuEventRecord");
+    bv_ev_wait       = (__typeof__(bv_ev_wait))gpu_sym(lib, "cuStreamWaitEvent");
     CUcontext ctx;  // this thread works in the runtime's context
     ready = bv_register && bv_unregister && bv_map_flags && bv_map && bv_unmap && bv_array && bv_copy2d
-      && bv_stream_create && bv_stream_sync
+      && bv_stream_create && bv_ev_create && bv_ev_mark && bv_ev_wait
       && cuDevicePrimaryCtxRetain(&ctx, gpu_dev) == CUDA_SUCCESS && cuCtxSetCurrent(ctx) == CUDA_SUCCESS
-      && bv_stream_create(&bv_stream, 1) == CUDA_SUCCESS;  // CU_STREAM_NON_BLOCKING
+      && bv_stream_create(&bv_stream, 1) == CUDA_SUCCESS  // CU_STREAM_NON_BLOCKING
+      && bv_ev_create(&bv_read_front, 2) == CUDA_SUCCESS && bv_ev_create(&bv_read_back, 2) == CUDA_SUCCESS;  // no timing
   }
   return ready == 1;
 }
@@ -373,7 +395,7 @@ int bendviz_to_d3d11(void* texture, int tw, int th, int* w, int* h, bool* gpu, d
         c.WidthInBytes = (size_t)tw * 4, c.Height = (size_t)th;
         result = bv_copy2d(&c, bv_stream) == CUDA_SUCCESS ? 1 : -1;
       }
-      if (bv_unmap(1, &bv_res, bv_stream) != CUDA_SUCCESS || bv_stream_sync(bv_stream) != CUDA_SUCCESS) result = -1;
+      if (bv_unmap(1, &bv_res, bv_stream) != CUDA_SUCCESS || bv_ev_mark(bv_read_front, bv_stream) != CUDA_SUCCESS) result = -1;
     }
   }
   pthread_mutex_lock(&bv_lock);
