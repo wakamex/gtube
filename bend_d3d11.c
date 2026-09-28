@@ -106,4 +106,32 @@ SDL_Texture *bend_share_frame(bend_share *s, bool *fresh, bool *gpu, double *ms)
     }
     return s->shown >= 0 ? s->sdl[s->shown] : NULL;
 }
+
+bend_heap *bend_heap_for(SDL_Renderer *ren, unsigned long long bytes) {
+    return bend_heap_new(SDL_GetPointerProperty(SDL_GetRendererProperties(ren), SDL_PROP_RENDERER_D3D11_DEVICE_POINTER, NULL), bytes);
+}
+
+bool bend_heap_render(bend_heap *hp, SDL_Renderer *ren, SDL_FRect a, bool *fresh, int *w, int *h, bool *gpu, double *ms) {
+    // The renderer's drawing so far goes first, and it sets all its state again after this.
+    SDL_FlushRenderer(ren);
+    SDL_PropertiesID props = SDL_GetRendererProperties(ren);
+    ID3D11Device *dev = SDL_GetPointerProperty(props, SDL_PROP_RENDERER_D3D11_DEVICE_POINTER, NULL);
+    SDL_Texture *target = SDL_GetRenderTarget(ren);
+    ID3D11Resource *res = NULL;
+    if (target) {
+        res = SDL_GetPointerProperty(SDL_GetTextureProperties(target), SDL_PROP_TEXTURE_D3D11_TEXTURE_POINTER, NULL);
+        if (res) ID3D11Resource_AddRef(res);
+    } else {
+        // The swap chain's current back buffer (buffer 0), for this frame only: a reference kept
+        // would stop the renderer resizing it.
+        IDXGISwapChain *chain = SDL_GetPointerProperty(props, SDL_PROP_RENDERER_D3D11_SWAPCHAIN_POINTER, NULL);
+        if (chain) IDXGISwapChain_GetBuffer(chain, 0, &IID_ID3D11Texture2D, (void **)&res);
+    }
+    ID3D11RenderTargetView *rtv = NULL;
+    if (dev && res) ID3D11Device_CreateRenderTargetView(dev, res, NULL, &rtv);
+    bool drew = bend_heap_draw(hp, rtv, a.x, a.y, a.w, a.h, fresh, w, h, gpu, ms);
+    if (rtv) ID3D11RenderTargetView_Release(rtv);
+    if (res) ID3D11Resource_Release(res);
+    return drew;
+}
 #endif

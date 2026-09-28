@@ -33,6 +33,11 @@ void bendviz_d3d11_share(void *const tex[3], void *fence_cuda, void *fence_d3d, 
 void bendviz_d3d11_unshare(void);
 bool bendviz_d3d11_failed(void);
 int bendviz_d3d11_take(unsigned long long d3d_done, unsigned long long *wait_value, int *w, int *h, bool *gpu, double *ms);
+// Bend's GPU heap as a Direct3D 11 buffer, frames drawn from it where they are (see bridge.c).
+void bendviz_d3d11_heap(void *buffer, unsigned long long bytes, void *fence_cuda, void *fence_d3d);  // before bendviz_start
+int bendviz_d3d11_heap_state(void);
+int bendviz_d3d11_heap_take(unsigned long long d3d_done, unsigned long long *wait_value, unsigned long long *at, int *w, int *h, bool *gpu, double *ms);
+void bendviz_d3d11_heap_stop(void);
 #endif
 bool bendviz_gpu(void);  // the GPU is in use
 // For measuring: the heap's span, and kernel launches, time spent in the launch calls and waiting for them so far.
