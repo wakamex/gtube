@@ -444,7 +444,7 @@ static void bend_count_frame(viz *v, bool fresh, double take_ms) {
         double took, began;
         bendviz_cycle(&drawn, &dropped, &took, &began, &faults);
         unsigned long long nd = drawn - v->bend_drawn0;
-        snprintf(v->bend_player, sizeof v->bend_player, "bend taken %d, none %d, drew %llu; faults %.1f a frame", v->bend_count, v->bend_empty, nd, nd ? (double)(faults - v->bend_faults0) / nd : 0);
+        snprintf(v->bend_player, sizeof v->bend_player, "bend taken %d, none %d; take %.2f ms (max %.1f); faults %.1f", v->bend_count, v->bend_empty, v->bend_take_ms / (v->bend_count ? v->bend_count : 1), v->bend_take_max, nd ? (double)(faults - v->bend_faults0) / nd : 0);
         v->bend_drawn0 = drawn, v->bend_dropped0 = dropped, v->bend_took0 = took, v->bend_began0 = began, v->bend_faults0 = faults;
         v->bend_count = v->bend_calls = v->bend_empty = v->bend_short = v->bend_long = 0, v->bend_take_ms = v->bend_take_max = 0;
         v->bend_count_from = now;
@@ -472,11 +472,12 @@ static void fx_bend(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
     // screen, and each present takes the GPU from Bend: a moment's wait for Bend's next frame (drawn
     // on the GPU, a millisecond or two) lets the player show only new ones.
     if (!v->vsync && v->bend_shown && v->bend_drawn_gpu) bendviz_wait(8);
+    take_from = SDL_GetTicksNS();
     int fw, fh;
     bool gpu;
     double ms;
     bool fresh = false;
-    uint64_t take_from = SDL_GetTicksNS();
+    uint64_t take_from;
 #ifdef _WIN32
     // On Direct3D 11, a frame drawn on the GPU goes into the texture on the GPU, never crossing to
     // the host; anything else (the CPU's frames, or interop failing) comes through the host.
