@@ -111,6 +111,8 @@ CUresult CUDAAPI cuLaunchKernel(CUfunction f, unsigned int gx, unsigned int gy,
 CUresult CUDAAPI cuMemAlloc(CUdeviceptr* p, size_t bytes);
 CUresult CUDAAPI cuMemcpyDtoH(void* dst, CUdeviceptr src, size_t bytes);
 CUresult CUDAAPI cuMemcpyHtoD(CUdeviceptr dst, const void* src, size_t bytes);
+CUresult CUDAAPI cuMemcpyHtoDAsync(CUdeviceptr dst, const void* src, size_t bytes, CUstream st);
+CUresult CUDAAPI cuMemcpyDtoHAsync(void* dst, CUdeviceptr src, size_t bytes, CUstream st);
 CUresult CUDAAPI cuMemFree(CUdeviceptr p);
 CUresult CUDAAPI cuMemcpyDtoD(CUdeviceptr dst, CUdeviceptr src, size_t bytes);
 CUresult CUDAAPI cuMemAllocHost(void** p, size_t bytes);
@@ -135,6 +137,8 @@ nvrtcResult nvrtcDestroyProgram(nvrtcProgram* p);
   X(cuModuleGetFunction, cuModuleGetFunction) \
   X(cuLaunchKernel, cuLaunchKernel) X(cuMemAlloc, cuMemAlloc_v2) \
   X(cuMemcpyDtoH, cuMemcpyDtoH_v2) X(cuMemcpyHtoD, cuMemcpyHtoD_v2) \
+  X(cuMemcpyHtoDAsync, cuMemcpyHtoDAsync_v2) \
+  X(cuMemcpyDtoHAsync, cuMemcpyDtoHAsync_v2) \
   X(cuMemFree, cuMemFree_v2) \
   X(cuMemcpyDtoD, cuMemcpyDtoD_v2) X(cuMemAllocHost, cuMemAllocHost_v2)
 
@@ -167,6 +171,8 @@ GPU_RTC_FNS(GPU_FN_PTR)
 #define cuMemAlloc               (*gpu_fn_cuMemAlloc)
 #define cuMemcpyDtoH             (*gpu_fn_cuMemcpyDtoH)
 #define cuMemcpyHtoD             (*gpu_fn_cuMemcpyHtoD)
+#define cuMemcpyHtoDAsync        (*gpu_fn_cuMemcpyHtoDAsync)
+#define cuMemcpyDtoHAsync        (*gpu_fn_cuMemcpyDtoHAsync)
 #define cuMemFree                (*gpu_fn_cuMemFree)
 #define cuMemcpyDtoD             (*gpu_fn_cuMemcpyDtoD)
 #define cuMemAllocHost           (*gpu_fn_cuMemAllocHost)
@@ -3632,6 +3638,23 @@ extern "C" __global__ void bend_dev(DEV u64* H, u32 pass) {
   dev_cut(e);
 }
 
+#ifndef __METAL_VERSION__
+// Moves whole pages (512 words, a group each) between the corpus and a
+// page-locked stage on the host: in, the stage's pages to list[i]; out, back.
+extern "C" __global__ void bend_pages(DEV u64* H, const u32* list, u32 n,
+  u64* stage, u32 in) {
+  DEV u64* h = H + ((u64)list[blockIdx.x] << 9);
+  u64*     s = stage + ((u64)blockIdx.x << 9);
+  for (u32 i = threadIdx.x; i < 512; i += blockDim.x) {
+    if (in) {
+      h[i] = s[i];
+    } else {
+      s[i] = h[i];
+    }
+  }
+}
+#endif
+
 #endif
 
 // Window
@@ -4179,14 +4202,32 @@ static bool gpu_probe(void) {
 // launch the pages the host wrote go back, and all are given up. The copy is
 // one section mapped twice, so the handler fills a page through the second
 // view before the host's view of it opens.
+//
+// A copy of its own costs about 20 microseconds of the device's time, even
+// queued, and the host touches much the same few pages every time, so small
+// pages cross in a kernel instead (bend_pages), through page-locked memory the
+// device reaches over the bus: the written pages go in just before a launch,
+// and the pages the host held last time come out just after it, in the same
+// wait, ready before the host asks.
 
 static CUdeviceptr gpu_base;  // the corpus on the device
 static char*       gpu_fill;  // the host's copy, always writable
 static u8*         gpu_held;  // per page: 0 not held, 1 held, 2 held and written
 static u32*        gpu_list;  // the pages held
 static u32         gpu_nheld;
+static u32*        gpu_last;  // the pages held when last given up
+static u32         gpu_nlast;
 static u64         gpu_pages;
 static SRWLOCK     gpu_lock = SRWLOCK_INIT;
+static CUfunction  gpu_pages_fn;
+static u32*        gpu_in_list;  // page-locked: pages going in and their words
+static u64*        gpu_in_stage;
+static u32*        gpu_out_list; // and pages coming out
+static u64*        gpu_out_stage;
+static u32         gpu_nout;
+
+#define GPU_STAGE 256  // pages a kernel moves
+#define GPU_RUN   16   // a run this long is one plain copy
 
 static bool gpu_guard(u64 i, u64 n, DWORD prot) {
   DWORD old;
@@ -4222,11 +4263,20 @@ static int gpu_page_cmp(const void* a, const void* b) {
   return (x > y) - (x < y);
 }
 
-// Sends the written pages back to the device, in runs; with give_up, all
-// held pages are then given up (before a launch), else they stay, unwritten.
+static void gpu_pages_run(u32* list, u32 n, u64* stage, u32 in) {
+  void* args[] = { &gpu_base, &list, &n, &stage, &in };
+  if (cuLaunchKernel(gpu_pages_fn, n, 1, 1, 128, 1, 1, 0, NULL, args, NULL)
+    != CUDA_SUCCESS) {
+    err_fail("device launch failed");
+  }
+}
+
+// Sends the written pages back to the device; with give_up, all held pages
+// are then given up (before a launch), else they stay, unwritten.
 static void gpu_send(bool give_up) {
   AcquireSRWLockExclusive(&gpu_lock);
   qsort(gpu_list, gpu_nheld, sizeof *gpu_list, gpu_page_cmp);
+  u32 m = 0;
   for (u32 k = 0, j; k < gpu_nheld; k = j) {
     u64 i  = gpu_list[k];
     u8  st = gpu_held[i];
@@ -4234,16 +4284,62 @@ static void gpu_send(bool give_up) {
       && gpu_held[gpu_list[j]] == st; j += 1) {
     }
     u64 n = j - k;
-    if (st == 2 && cuMemcpyHtoD(gpu_base + (i << 12), gpu_fill + (i << 12),
-      n << 12) != CUDA_SUCCESS) {
-      err_fail("device copy failed");
+    if (st == 2 && n >= GPU_RUN) {
+      if (cuMemcpyHtoD(gpu_base + (i << 12), gpu_fill + (i << 12), n << 12)
+        != CUDA_SUCCESS) {
+        err_fail("device copy failed");
+      }
+    } else if (st == 2) {
+      for (u64 p = i; p < i + n; p += 1) {
+        if (m == GPU_STAGE) {
+          gpu_pages_run(gpu_in_list, m, gpu_in_stage, 1);
+          cuCtxSynchronize();
+          m = 0;
+        }
+        memcpy(gpu_in_stage + ((u64)m << 9), gpu_fill + (p << 12), 4096);
+        gpu_in_list[m++] = (u32)p;
+      }
     }
     if (give_up || st == 2) {
       gpu_guard(i, n, give_up ? PAGE_NOACCESS : PAGE_READONLY);
     }
     memset(gpu_held + i, give_up ? 0 : 1, n);
   }
-  gpu_nheld = give_up ? 0 : gpu_nheld;
+  if (m > 0) {
+    // (the next use of the stage is after a wait, which this kernel precedes)
+    gpu_pages_run(gpu_in_list, m, gpu_in_stage, 1);
+  }
+  if (give_up) {
+    memcpy(gpu_last, gpu_list, gpu_nheld * sizeof *gpu_list);
+    gpu_nlast = gpu_nheld, gpu_nheld = 0;
+  }
+  ReleaseSRWLockExclusive(&gpu_lock);
+}
+
+// After a launch, before its wait: has the pages the host held last time
+// copied out.
+static void gpu_fetch_queue(void) {
+  gpu_nout = gpu_nlast < GPU_STAGE ? gpu_nlast : GPU_STAGE;
+  memcpy(gpu_out_list, gpu_last, gpu_nout * sizeof *gpu_out_list);
+  if (gpu_nout > 0) {
+    gpu_pages_run(gpu_out_list, gpu_nout, gpu_out_stage, 0);
+  }
+}
+
+// After the wait: those pages, readable (a write then faults only to mark the
+// page written).
+static void gpu_fetch_take(void) {
+  AcquireSRWLockExclusive(&gpu_lock);
+  for (u32 m = 0; m < gpu_nout; m += 1) {
+    u64 i = gpu_out_list[m];
+    if (gpu_held[i] == 0) {
+      memcpy(gpu_fill + (i << 12), gpu_out_stage + ((u64)m << 9), 4096);
+      gpu_guard(i, 1, PAGE_READONLY);
+      gpu_held[i]           = 1;
+      gpu_list[gpu_nheld++] = (u32)i;
+    }
+  }
+  gpu_nout = 0;
   ReleaseSRWLockExclusive(&gpu_lock);
 }
 
@@ -4255,8 +4351,14 @@ static u64* gpu_map(u64 bytes) {
   gpu_pages   = bytes >> 12;
   gpu_held    = calloc(gpu_pages, 1);
   gpu_list    = malloc(gpu_pages * sizeof *gpu_list);
+  gpu_last    = malloc(gpu_pages * sizeof *gpu_last);
   DWORD old;
   if (view == NULL || gpu_fill == NULL || gpu_held == NULL || gpu_list == NULL
+    || gpu_last == NULL
+    || cuMemAllocHost((void**)&gpu_in_list, GPU_STAGE * 4) != CUDA_SUCCESS
+    || cuMemAllocHost((void**)&gpu_out_list, GPU_STAGE * 4) != CUDA_SUCCESS
+    || cuMemAllocHost((void**)&gpu_in_stage, GPU_STAGE << 12) != CUDA_SUCCESS
+    || cuMemAllocHost((void**)&gpu_out_stage, GPU_STAGE << 12) != CUDA_SUCCESS
     || !VirtualProtect(view, bytes, PAGE_NOACCESS, &old)
     || cuMemAlloc(&gpu_base, bytes) != CUDA_SUCCESS
     || cuMemsetD8(gpu_base, 0, bytes) != CUDA_SUCCESS) {
@@ -4273,10 +4375,15 @@ static CUdeviceptr gpu_at(const void* p) {
   return gpu_base + (CUdeviceptr)((const char*)p - (const char*)CORPUS);
 }
 
+#define gpu_dev_base() gpu_base
+
 #else
 
 #define gpu_send(give_up)
+#define gpu_fetch_queue()
+#define gpu_fetch_take()
 #define gpu_at(p) ((CUdeviceptr)(uintptr_t)(p))
+#define gpu_dev_base() ((CUdeviceptr)(uintptr_t)CORPUS)
 
 static u64* gpu_map(u64 bytes) {
   CUdeviceptr p = 0;
@@ -4368,10 +4475,15 @@ static void gpu_load(u64 bytes) {
   if (cuModuleGetFunction(&gpu_pso, gpu_lib, "bend_dev") != CUDA_SUCCESS) {
     err_fail("cannot load the GPU program");
   }
+#ifdef _WIN32
+  if (cuModuleGetFunction(&gpu_pages_fn, gpu_lib, "bend_pages") != CUDA_SUCCESS) {
+    err_fail("cannot load the GPU program");
+  }
+#endif
 }
 
 static void gpu_kernel(u32 pass, u32 groups) {
-  CUdeviceptr base = gpu_at(CORPUS);
+  CUdeviceptr base = gpu_dev_base();
   void* args[] = { &base, &pass };
   if (cuLaunchKernel(gpu_pso, groups, 1, 1, CUBE_T, 1, 1, TG_HOLD * 8, NULL,
     args, NULL) != CUDA_SUCCESS) {
@@ -4382,9 +4494,11 @@ static void gpu_kernel(u32 pass, u32 groups) {
 static void gpu_pass(u32 f) {
   gpu_send(true);
   gpu_run(f);
+  gpu_fetch_queue();
   if (cuCtxSynchronize() != CUDA_SUCCESS) {
     err_fail("device fault");
   }
+  gpu_fetch_take();
 }
 
 #else
