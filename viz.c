@@ -405,11 +405,20 @@ static void fx_fire(viz *v, SDL_FRect a) {
     show(v, &v->fire, a);
 }
 
+// Destroys the Bend effect's texture, which CUDA may have registered.
+static void bend_release(viz *v) {
+#ifdef _WIN32
+    if (v->bend_interop == 1) bendviz_release_d3d11();
+#endif
+    if (v->bend_tex) SDL_DestroyTexture(v->bend_tex);
+    v->bend_tex = NULL;
+}
+
 // The Bend effect's texture, w x h. Static, because Direct3D 11 makes streaming textures dynamic
 // resources, which CUDA cannot write; ARGB, which Direct3D 11 stores in Bend's byte order (the
 // alpha byte is unused, drawn without blending).
 static void bend_texture(viz *v, int w, int h) {
-    if (v->bend_tex) SDL_DestroyTexture(v->bend_tex);
+    bend_release(v);
     v->bend_tex = SDL_CreateTexture(v->ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STATIC, w, h);
     v->bend_w = w, v->bend_h = h;
 }
@@ -623,6 +632,7 @@ viz *viz_new(SDL_Renderer *ren, int rate) {
 
 void viz_free(viz *v) {
     if (!v) return;
+    bend_release(v);
     SDL_Texture *all[] = { v->pattern, v->ball, v->glow, v->feed[0], v->feed[1], v->fire.tex, v->plasma.tex, v->bend_tex };
     for (size_t i = 0; i < sizeof all / sizeof *all; i++)
         if (all[i]) SDL_DestroyTexture(all[i]);

@@ -46,8 +46,10 @@ static void viz_next_call(IoWork* w) {  // an IO helper thread: no Bend heap her
 
 #ifdef BENDVIZ_EMBED
 static void bv_count_launches(void);
-#endif
 static double bv_wait_total(void);
+#else
+static double bv_wait_total(void) { return 0; }
+#endif
 static double bv_wait_began, bv_wait_frame;  // waiting for the GPU: by the frame's start, and in the last frame
 
 static Term viz_next_pack(Env e, IoWork* w) {
@@ -315,9 +317,11 @@ static bool bv_interop_ready(void) {
 // and ms as for bendviz_borrow. Returns 0 when there is no such frame, with w and h the size of a
 // waiting one (so the player can make a texture that size and call again), and -1 when interop
 // fails: the player should then stop asking for device frames.
+static void*              bv_registered;  // the texture CUDA has registered, and its handle
+static CUgraphicsResource bv_res;
+void bendviz_release_d3d11(void);
+
 int bendviz_to_d3d11(void* texture, int tw, int th, int* w, int* h, bool* gpu, double* ms) {
-  static void* registered;
-  static CUgraphicsResource res;
   pthread_mutex_lock(&bv_lock);
   bool waiting = bv_fresh && bv_front_on_device;
   *w = bv_done_w, *h = bv_done_h;
@@ -331,24 +335,23 @@ int bendviz_to_d3d11(void* texture, int tw, int th, int* w, int* h, bool* gpu, d
   }
   int result = -1;
   if (bv_interop_ready()) {
-    if (registered != texture) {
-      if (registered) bv_unregister(res);
-      registered = NULL;
-      if (bv_register(&res, texture, 0) == CUDA_SUCCESS) {
-        registered = texture;
-        bv_map_flags(res, 2);  // write-discard: the old contents are not needed
+    if (bv_registered != texture) {
+      bendviz_release_d3d11();
+      if (bv_register(&bv_res, texture, 0) == CUDA_SUCCESS) {
+        bv_registered = texture;
+        bv_map_flags(bv_res, 2);  // write-discard: the old contents are not needed
       }
     }
     CUarray arr;
-    if (registered && bv_map(1, &res, NULL) == CUDA_SUCCESS) {
-      if (bv_array(&arr, res, 0, 0) == CUDA_SUCCESS) {
+    if (bv_registered && bv_map(1, &bv_res, NULL) == CUDA_SUCCESS) {
+      if (bv_array(&arr, bv_res, 0, 0) == CUDA_SUCCESS) {
         BvCopy2D c = { 0 };
         c.srcMemoryType = 2, c.srcDevice = bv_dev_front, c.srcPitch = (size_t)tw * 4;  // device
         c.dstMemoryType = 3, c.dstArray = arr;                                          // array
         c.WidthInBytes = (size_t)tw * 4, c.Height = (size_t)th;
         result = bv_copy2d(&c) == CUDA_SUCCESS ? 1 : -1;
       }
-      if (bv_unmap(1, &res, NULL) != CUDA_SUCCESS) result = -1;
+      if (bv_unmap(1, &bv_res, NULL) != CUDA_SUCCESS) result = -1;
     }
   }
   pthread_mutex_lock(&bv_lock);
@@ -359,6 +362,13 @@ int bendviz_to_d3d11(void* texture, int tw, int th, int* w, int* h, bool* gpu, d
   bv_lent = false;
   pthread_mutex_unlock(&bv_lock);
   return result;
+}
+
+// Lets go of the texture bendviz_to_d3d11 last wrote, before the player destroys it (or Direct3D):
+// left registered, the driver would reach into Direct3D after it is gone.
+void bendviz_release_d3d11(void) {
+  if (bv_registered) bv_unregister(bv_res);
+  bv_registered = NULL;
 }
 
 #endif
