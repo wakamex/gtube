@@ -15,8 +15,8 @@
 #define BOBS 180
 #define AUTO_SECONDS 40
 
-enum { FX_SPECTRUM, FX_PLASMA, FX_TUNNEL, FX_FEEDBACK, FX_FIRE, FX_BOBS, FX_BEND, FX_BEND_TREE, FX_COUNT };
-static const char *const fx_names[FX_COUNT] = { "Spectrum", "Plasma (C)", "Tunnel", "Feedback", "Fire", "Stars & bobs", "Bend plasma", "Bend tree" };
+enum { FX_SPECTRUM, FX_TUNNEL, FX_FEEDBACK, FX_FIRE, FX_BOBS, FX_BEND, FX_BEND_TREE, FX_COUNT };
+static const char *const fx_names[FX_COUNT] = { "Spectrum", "Tunnel", "Feedback", "Fire", "Stars & bobs", "Bend plasma", "Bend tree" };
 
 typedef struct { float x, y, z; } vec3;
 
@@ -28,7 +28,7 @@ typedef struct {
     int nv, ni, cv, ci;
 } mesh;
 
-// A picture worked out on the CPU and drawn smoothly scaled (for the effects that are grids).
+// A picture worked out on the CPU and drawn smoothly scaled (the fire, a grid).
 typedef struct {
     SDL_Texture *tex;
     uint32_t *px;
@@ -53,7 +53,7 @@ struct viz {
     SDL_Texture *pattern, *ball, *glow;  // the tunnel's wall, a lit sphere, a soft light
     SDL_Texture *feed[2];                // the feedback's last frame and the one being drawn
     int feed_w, feed_h;
-    canvas fire, plasma;
+    canvas fire;
     SDL_Texture *bend_tex;  // the Bend effect's newest frame, when it came through the host or a mapped texture
     SDL_Texture *bend_draw; // the texture holding the newest frame: bend_tex or a shared one
     int bend_w, bend_h;
@@ -76,9 +76,7 @@ struct viz {
     unsigned long long bend_drawn0, bend_dropped0, bend_faults0;  // Bend's totals at the second's start
     double bend_took0, bend_began0, bend_fault_ms0;
     uint8_t *heat;
-    float *radius;          // the plasma's distance from the centre, per pixel
     float fuel[BANDS];      // the fire's fuel per band, following the spectrum slowly
-    float sine[4096];       // a sine table over one turn
     float travel, turn;
     vec3 stars[STARS];
     float hue;              // drifts, and jumps on beats
@@ -167,10 +165,6 @@ static void show(viz *v, canvas *c, SDL_FRect a) {
     SDL_RenderTexture(v->ren, c->tex, NULL, &a);
 }
 
-static float fast_sin(const viz *v, float x) { return v->sine[(int)(x * (4096 / 6.2832f)) & 4095]; }
-
-static uint32_t pack(SDL_FColor c) { return (uint32_t)(c.r * 255) << 16 | (uint32_t)(c.g * 255) << 8 | (uint32_t)(c.b * 255); }
-
 // The waveform's last `n` samples across a rectangle, glowing: a wide faint stroke under a thin one.
 static void scope(viz *v, float x, float y, float w, float amp, int n, float width, float hue) {
     for (int pass = 0; pass < 2; pass++) {
@@ -247,53 +241,6 @@ static void fx_spectrum(viz *v, SDL_FRect a) {
     }
     draw(v, NULL, SDL_BLENDMODE_BLEND);
     scope(v, a.x, a.y + a.h * 0.19f, a.w, a.h * 0.3f, 576, 1.2f * u, v->hue);
-}
-
-// A classic sine plasma at half the screen's height, smoothly scaled. Of its four waves, three are
-// split into per-row and per-column tables (sin(a + b) = sin a cos b + cos a sin b), so each pixel
-// costs a few multiplications and one table lookup.
-static void fx_plasma(viz *v, SDL_FRect a) {
-    int h = (int)(a.h / 2);
-    h = h < 100 ? 100 : h > 540 ? 540 : h;
-    int w = (int)(h * a.w / a.h);
-    canvas *c = &v->plasma;
-    if (fit(v, c, w, h)) {
-        free(v->radius);
-        v->radius = malloc(sizeof *v->radius * (size_t)(w * h));
-        for (int y = 0; y < h; y++)
-            for (int x = 0; x < w; x++) {
-                float dx = (x - w / 2.0f) * 200 / h, dy = (y - h / 2.0f) * 200 / h;
-                v->radius[y * w + x] = sqrtf(dx * dx + dy * dy);
-            }
-    }
-    float t = (float)v->t, zoom = 0.045f * (1 + v->bass * 0.5f), unit = 200.0f / h * zoom;
-    uint32_t pal[256];
-    for (int i = 0; i < 256; i++) {
-        float f = i / 256.0f;
-        pal[i] = pack(hsv(v->hue + f * 0.6f + t * 0.03f, 0.75f, fminf(1, 0.35f + 0.5f * (0.5f + 0.5f * sinf(f * 12.566f + t)) + v->beat * 0.25f), 1));
-    }
-    float *col = malloc(sizeof *col * (size_t)w * 3), *row = malloc(sizeof *row * (size_t)h * 3);
-    for (int x = 0; x < w; x++) {
-        float dx = (x - w / 2.0f) * unit;
-        col[3 * x] = sinf(dx + t), col[3 * x + 1] = sinf(dx * 0.7f + t * 0.7f), col[3 * x + 2] = cosf(dx * 0.7f + t * 0.7f);
-    }
-    for (int y = 0; y < h; y++) {
-        float dy = (y - h / 2.0f) * unit;
-        row[3 * y] = sinf(dy * 1.3f + t * 1.1f), row[3 * y + 1] = cosf(dy * 0.7f), row[3 * y + 2] = sinf(dy * 0.7f);
-    }
-    float rz = zoom * 1.5f, phase = t * 2 + v->mid * 3, shift = t * 40;
-    for (int y = 0; y < h; y++) {
-        const float *r = row + 3 * y, *rad = v->radius + y * w;
-        uint32_t *out = c->px + y * w;
-        for (int x = 0; x < w; x++) {
-            const float *k = col + 3 * x;
-            float s = k[0] + r[0] + k[1] * r[1] + k[2] * r[2] + fast_sin(v, rad[x] * rz - phase);
-            out[x] = pal[(int)((s + 4) * 32 + shift) & 255];
-        }
-    }
-    free(col), free(row);
-    show(v, c, a);
-    scope(v, a.x, a.y + a.h / 2, a.w, a.h * 0.6f, 1024, a.h / 200 * 1.2f, v->hue + 0.5f);
 }
 
 // A tunnel of textured rings that bends as it goes, the texture flowing toward you with the bass.
@@ -461,8 +408,8 @@ static void bend_texture(viz *v, int w, int h) {
     v->bend_w = w, v->bend_h = h;
 }
 
-// The plasma again, or a fractal tree, written in Bend (bend/viz.bend), drawing every pixel of the
-// area, by the same function on the GPU or on the CPU's threads, as g chooses. It runs beside the player and draws
+// A plasma or a fractal tree written in Bend (bend/viz.bend), drawing every pixel of the area, by the
+// same function on the GPU or on the CPU's threads, as g chooses. It runs beside the player and draws
 // at its own pace: each frame asks for the next and shows the newest one finished.
 static void fx_bend(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
     if (!v->bend_started) v->bend_started = bendviz_start("768MB"), v->bend_on_gpu = true;
@@ -627,7 +574,6 @@ void viz_draw(viz *v, SDL_FRect a, double t, const char *title, const char *arti
     if (!(v->fx >= FX_BEND && v->bend_shown && v->bend_draw)) SDL_RenderFillRect(v->ren, &a);
     switch (v->fx) {
     case FX_SPECTRUM: fx_spectrum(v, a); break;
-    case FX_PLASMA: fx_plasma(v, a); break;
     case FX_TUNNEL: fx_tunnel(v, a); break;
     case FX_FEEDBACK: fx_feedback(v, a); break;
     case FX_FIRE: fx_fire(v, a); break;
@@ -696,7 +642,6 @@ viz *viz_new(SDL_Renderer *ren, int rate) {
     v->pattern = make(v, 256, pattern);
     v->ball = make(v, 64, ball);
     v->glow = make(v, 64, glow);
-    for (int i = 0; i < 4096; i++) v->sine[i] = sinf(i * 6.2831853f / 4096);
     return v;
 }
 
@@ -704,10 +649,10 @@ void viz_free(viz *v) {
     if (!v) return;
     bend_share_free(v->bend_share), v->bend_share = NULL, v->bend_draw = NULL;
     bend_release(v);
-    SDL_Texture *all[] = { v->pattern, v->ball, v->glow, v->feed[0], v->feed[1], v->fire.tex, v->plasma.tex, v->bend_tex };
+    SDL_Texture *all[] = { v->pattern, v->ball, v->glow, v->feed[0], v->feed[1], v->fire.tex, v->bend_tex };
     for (size_t i = 0; i < sizeof all / sizeof *all; i++)
         if (all[i]) SDL_DestroyTexture(all[i]);
-    free(v->heat), free(v->radius), free(v->fire.px), free(v->plasma.px), free(v->m.v), free(v->m.i);
+    free(v->heat), free(v->fire.px), free(v->m.v), free(v->m.i);
     free(v);
 }
 

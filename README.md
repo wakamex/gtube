@@ -47,10 +47,9 @@ Every list loads all its pages. The window's size and position and the queue are
 
 ## Visualizer
 
-View 4 draws what you're hearing (a 64-band spectrum, the waveform, bass, mids, treble and beats) through eight effects, at the screen's full resolution:
+View 4 draws what you're hearing (a 64-band spectrum, the waveform, bass, mids, treble and beats) through seven effects, at the screen's full resolution:
 
 - Spectrum: Winamp-style LED bars with a scope
-- Plasma
 - Tunnel: a bending tunnel of textured rings
 - Feedback: Milkdrop-style, each frame the last one seen through a warp mesh
 - Fire, fed by the spectrum
