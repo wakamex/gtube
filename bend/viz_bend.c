@@ -5582,8 +5582,11 @@ static void gpu_load(u64 bytes) {
   free(bin);
 }
 
-// Commands: each after a barrier on everything before it, on the queue too.
+// Commands: the first of a buffer after a barrier on everything before it on
+// the queue (an app's draws too), the rest after one on the compute and
+// transfer work before them.
 static void gpu_cmd(void) {
+  bool first = !gpu_rec;
   if (!gpu_rec) {
     VkCommandBufferBeginInfo bi = { 42, NULL, 1, NULL };
     vkBeginCommandBuffer(gpu_cb, &bi);
@@ -5594,7 +5597,8 @@ static void gpu_cmd(void) {
     }
   }
   VkMemoryBarrier mb = { 46, NULL, 0x10000, 0x18000 };
-  vkCmdPipelineBarrier(gpu_cb, 0x10000, 0x10000, 0, 1, &mb, 0, NULL, 0, NULL);
+  VkFlags stages = first ? 0x10000 : 0x1800;  // (all; compute and transfer)
+  vkCmdPipelineBarrier(gpu_cb, stages, stages, 0, 1, &mb, 0, NULL, 0, NULL);
   if (gpu_stamp_pool != 0 && gpu_nstamp < GPU_STAMPS) {
     vkCmdWriteTimestamp(gpu_cb, 0x2000, gpu_stamp_pool, gpu_nstamp);
     gpu_stamp_kind[gpu_nstamp++] = gpu_kind_next;
