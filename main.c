@@ -69,6 +69,7 @@ typedef struct {
     double pace_cap;
     bool uncapped;  // --uncapped: no vsync and no frame cap
     float audio_buf[2048 * 2];
+    long long demo_made;  // the demo's test signal: samples made up to here (the last 2,048 in audio_buf)
     double last_frame;
     account account;
     signin *signin;
@@ -687,8 +688,13 @@ static void viz_frame(app *a, SDL_FRect area, const track *t) {
     double now = SDL_GetTicks() / 1000.0, dt = a->last_frame ? now - a->last_frame : 0;
     a->last_frame = now;
     int n = 0;
-    if (a->demo) viz_test_signal(now - 2048.0 / RATE, a->audio_buf, n = 2048, RATE);
-    else if (a->audio) n = gs_mix_recent(a->audio_buf, 2048);
+    if (a->demo) {  // only the new samples, as a stream would bring (a whole window took 0.37 ms a frame)
+        long long end = (long long)(now * RATE), from = end - a->demo_made < 2048 ? a->demo_made : end - 2048;
+        int fresh = (int)(end - from), keep = 2048 - fresh;
+        memmove(a->audio_buf, a->audio_buf + 2 * fresh, sizeof(float) * 2 * (size_t)keep);
+        viz_test_signal((double)from / RATE, a->audio_buf + 2 * keep, fresh, RATE);
+        a->demo_made = end, n = 2048;
+    } else if (a->audio) n = gs_mix_recent(a->audio_buf, 2048);
     viz_feed(a->viz, a->audio_buf, n, dt);
     viz_draw(a->viz, area, now, t ? t->title : "", t ? t->artist : "", a->glyphs, a->fonts);
 }
