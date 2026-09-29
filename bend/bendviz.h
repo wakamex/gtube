@@ -30,10 +30,11 @@ void bendviz_vk_lock(void);  // held around the player's drawing when the queue 
 void bendviz_vk_unlock(void);
 void bendviz_vk_mark(void);  // after each present: the draws so far are marked (see bridge.c)
 void bendviz_vk_settle(void);  // with vsync, after that: waits for the frame before this one
-#define BENDVIZ_TEXTURES 4  // images Bend copies frames into, so one is free while one is on screen and one waits
-bool bendviz_vk_images(int w, int h, unsigned long long image[BENDVIZ_TEXTURES]);  // VkImages, B8G8R8A8, GENERAL layout
+#define BENDVIZ_TEXTURES 6  // image slots: two over Bend's frame buffers, or up to four it copies frames into
+bool bendviz_vk_frames(int w, int h, bool over);  // frames of w x h go into images (B8G8R8A8, linear, GENERAL layout)
 void bendviz_vk_unshare(void);  // after the player's textures of them are gone
-int bendviz_vk_take(int *w, int *h, bool *gpu, double *ms);  // the image of a new frame, or -1
+// The slot of a new frame and its VkImage (the same for the slot until bendviz_vk_frames), or -1.
+int bendviz_vk_take(int *w, int *h, bool *gpu, double *ms, unsigned long long *image);
 bool bendviz_gpu(void);  // the GPU is in use
 // For measuring: the heap's span, and kernel launches, time spent in the launch calls and waiting for them so far.
 void bendviz_heap(void **base, size_t *bytes);

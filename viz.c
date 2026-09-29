@@ -501,12 +501,14 @@ static void fx_bend(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
     }
     if (v->bend_interop == 1) {
         // Textures the size of the frames Bend draws (at most BENDVIZ_PIXELS)
+        // and, without vsync, drawn from the buffers Bend drew them in (see bendviz_vk_frames)
         int sw = w, sh = (long)w * h > BENDVIZ_PIXELS ? (int)(BENDVIZ_PIXELS / w) : h, cw = 0, ch = 0;
-        if (v->bend_share) bend_share_size(v->bend_share, &cw, &ch);
-        if (!v->bend_share || cw != sw || ch != sh) {
+        bool over = false;
+        if (v->bend_share) bend_share_size(v->bend_share, &cw, &ch, &over);
+        if (!v->bend_share || cw != sw || ch != sh || over != !v->vsync) {
             if (v->bend_draw != v->bend_tex) v->bend_draw = NULL;  // (a shared texture, going)
             bend_share_free(v->bend_share);
-            v->bend_share = bend_share_new(v->ren, sw, sh);
+            v->bend_share = bend_share_new(v->ren, sw, sh, !v->vsync);
         }
         if (!v->bend_share) {
             SDL_Log("bend: no textures on Bend's Vulkan device; frames come through the host");

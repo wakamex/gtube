@@ -1,7 +1,6 @@
-// The player on Bend's Vulkan device: SDL's Vulkan renderer made on the device and queue Bend runs
-// on, and four textures of images Bend makes and copies each frame into (see bend/bridge.c). The one
-// queue runs Bend's kernels, its copies and the player's drawing in the order they are submitted, so
-// no fences are needed, and the GPU never turns to another context.
+// The player on Bend's Vulkan device: SDL's Vulkan renderer made on the device Bend runs on, and a
+// texture of each image Bend shows its frames in, most often over the buffer the frame was drawn in
+// (see bend/bridge.c), made the first time the image comes.
 #include "bend_vulkan.h"
 
 #include <SDL3/SDL_vulkan.h>
@@ -9,8 +8,10 @@
 #include "bend/bendviz.h"
 
 struct bend_share {
+    SDL_Renderer *ren;
     int w, h;
-    SDL_Texture *sdl[BENDVIZ_TEXTURES];
+    bool over;
+    SDL_Texture *sdl[BENDVIZ_TEXTURES];  // of each slot's image
     int shown;
 };
 
@@ -60,28 +61,14 @@ void bend_vk_presented(bool vsync) {
     if (vsync) bendviz_vk_settle();
 }
 
-bend_share *bend_share_new(SDL_Renderer *ren, int w, int h) {
-    unsigned long long image[BENDVIZ_TEXTURES];
+bend_share *bend_share_new(SDL_Renderer *ren, int w, int h, bool over) {
     bend_share *s = on_bend ? SDL_calloc(1, sizeof *s) : NULL;
-    if (!s || !bendviz_vk_images(w, h, image)) goto fail;
-    s->w = w, s->h = h, s->shown = -1;
-    for (int i = 0; i < BENDVIZ_TEXTURES; i++) {
-        SDL_PropertiesID props = SDL_CreateProperties();
-        SDL_SetNumberProperty(props, SDL_PROP_TEXTURE_CREATE_VULKAN_TEXTURE_NUMBER, (Sint64)image[i]);
-        SDL_SetNumberProperty(props, SDL_PROP_TEXTURE_CREATE_VULKAN_LAYOUT_NUMBER, 1);  // VK_IMAGE_LAYOUT_GENERAL
-        SDL_SetNumberProperty(props, SDL_PROP_TEXTURE_CREATE_FORMAT_NUMBER, SDL_PIXELFORMAT_ARGB8888);
-        SDL_SetNumberProperty(props, SDL_PROP_TEXTURE_CREATE_ACCESS_NUMBER, SDL_TEXTUREACCESS_STATIC);
-        SDL_SetNumberProperty(props, SDL_PROP_TEXTURE_CREATE_WIDTH_NUMBER, w);
-        SDL_SetNumberProperty(props, SDL_PROP_TEXTURE_CREATE_HEIGHT_NUMBER, h);
-        s->sdl[i] = SDL_CreateTextureWithProperties(ren, props);
-        SDL_DestroyProperties(props);
-        if (!s->sdl[i]) goto fail;
-        SDL_SetTextureBlendMode(s->sdl[i], SDL_BLENDMODE_NONE);
+    if (!s || !bendviz_vk_frames(w, h, over)) {
+        SDL_free(s);
+        return NULL;
     }
+    s->ren = ren, s->w = w, s->h = h, s->over = over, s->shown = -1;
     return s;
-fail:
-    bend_share_free(s);
-    return NULL;
 }
 
 void bend_share_free(bend_share *s) {
@@ -92,13 +79,26 @@ void bend_share_free(bend_share *s) {
     SDL_free(s);
 }
 
-void bend_share_size(const bend_share *s, int *w, int *h) { *w = s->w, *h = s->h; }
+void bend_share_size(const bend_share *s, int *w, int *h, bool *over) { *w = s->w, *h = s->h, *over = s->over; }
 
 // The texture drawn last is Bend's to write again once the draws of it are done (see bendviz_vk_mark).
 SDL_Texture *bend_share_frame(bend_share *s, bool *fresh, bool *gpu, double *ms) {
     int w, h;
-    int slot = bendviz_vk_take(&w, &h, gpu, ms);
+    unsigned long long image;
+    int slot = bendviz_vk_take(&w, &h, gpu, ms, &image);
     *fresh = slot >= 0;
-    if (slot >= 0) s->shown = slot;
+    if (slot >= 0 && !s->sdl[slot]) {  // (a slot's image stays until the next set)
+        SDL_PropertiesID props = SDL_CreateProperties();
+        SDL_SetNumberProperty(props, SDL_PROP_TEXTURE_CREATE_VULKAN_TEXTURE_NUMBER, (Sint64)image);
+        SDL_SetNumberProperty(props, SDL_PROP_TEXTURE_CREATE_VULKAN_LAYOUT_NUMBER, 1);  // VK_IMAGE_LAYOUT_GENERAL
+        SDL_SetNumberProperty(props, SDL_PROP_TEXTURE_CREATE_FORMAT_NUMBER, SDL_PIXELFORMAT_ARGB8888);
+        SDL_SetNumberProperty(props, SDL_PROP_TEXTURE_CREATE_ACCESS_NUMBER, SDL_TEXTUREACCESS_STATIC);
+        SDL_SetNumberProperty(props, SDL_PROP_TEXTURE_CREATE_WIDTH_NUMBER, s->w);
+        SDL_SetNumberProperty(props, SDL_PROP_TEXTURE_CREATE_HEIGHT_NUMBER, s->h);
+        s->sdl[slot] = SDL_CreateTextureWithProperties(s->ren, props);
+        SDL_DestroyProperties(props);
+        if (s->sdl[slot]) SDL_SetTextureBlendMode(s->sdl[slot], SDL_BLENDMODE_NONE);
+    }
+    if (slot >= 0 && s->sdl[slot]) s->shown = slot;
     return s->shown >= 0 ? s->sdl[s->shown] : NULL;
 }

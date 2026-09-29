@@ -5200,8 +5200,10 @@ typedef struct {
 typedef struct {
   VkBuffer       buf;
   VkDeviceMemory mem;
-  u64            at;   // its device address
-  char*          map;  // its host view (host-visible buffers)
+  u64            at;    // its device address
+  char*          map;   // its host view (host-visible buffers)
+  u32            type;  // its memory's type, and size (an app's images can share it)
+  u64            size;
 } GpuBuf;
 
 #define GPU_STAGE   256        // pages a kernel moves
@@ -5359,7 +5361,8 @@ static bool gpu_probe(void) {
   f12.on[8] = 1, f12.on[37] = 1, f12.on[38] = 1, f2.on[40] = 1;
   // Two queues of the family if it has them: an app drawing on the device
   // takes the first (as SDL does), and Bend's submits need not wait for its.
-  u32                     nq      = fams[gpu_family].count > 1 ? 2 : 1;
+  u32                     nq      = fams[gpu_family].count > 1
+    && getenv("BEND_VK_ONE_QUEUE") == NULL ? 2 : 1;
   float                   prio[2] = { 1, 1 };
   VkDeviceQueueCreateInfo qi      = { 2, NULL, 0, gpu_family, nq, prio };
   VkDeviceCreateInfo      dc   = { 3, &f2, 0, 1, &qi, 0, NULL, gpu_ndexts,
@@ -5465,8 +5468,9 @@ static bool gpu_buf_new(GpuBuf* b, u64 bytes, VkFlags want, VkFlags nice) {
     || vkBindBufferMemory(gpu_dev, b->buf, b->mem, 0) != 0) {
     return false;
   }
-  di.buf = b->buf;
-  b->at  = vkGetBufferDeviceAddress(gpu_dev, &di);
+  di.buf  = b->buf;
+  b->at   = vkGetBufferDeviceAddress(gpu_dev, &di);
+  b->type = t, b->size = mr.size;
   return (want & 2) == 0
     || vkMapMemory(gpu_dev, b->mem, 0, bytes, 0, (void**)&b->map) == 0;
 }
@@ -6812,11 +6816,22 @@ static u64             bv_began, bv_drawn;
 
 // ---- The effects ----
 
+#if BEND_VULKAN
+static bool bv_vk_holding(void);
+static void bv_vk_start(void);
+static pthread_cond_t bv_vk_taken;
+#endif
+
 static void viz_next_call(IoWork* w) {  // an IO helper thread: no Bend heap here
   pthread_mutex_lock(&bv_lock);
   while (!bv_want) {
     pthread_cond_wait(&bv_asked, &bv_lock);
   }
+#if BEND_VULKAN
+  while (bv_vk_holding()) {  // (the next frame would draw into the buffer on screen)
+    pthread_cond_wait(&bv_vk_taken, &bv_lock);
+  }
+#endif
   bv_want = false;
   bv_took_at = io_tick();
   bv_trace("helper-took", 0, 0);
@@ -6844,6 +6859,7 @@ static Term viz_next_pack(Env e, IoWork* w) {
   bv_count_launches();
 #endif
 #if BEND_VULKAN
+  bv_vk_start();
   // With BEND_VK_STAMPS: the GPU's time for each kind of command, every 500 frames, on stderr.
   static u32 frames;
   if (gpu_stamp_pool != 0 && ++frames % 500 == 0) {
@@ -6914,15 +6930,21 @@ static bool bv_room(size_t n) {
 // ---- Frames into Vulkan images the player draws ----
 
 // The player (gtube, on SDL's Vulkan renderer) draws on Bend's device (bendviz_vk_open), on the
-// first queue of the family, and shows frames in images Bend makes for it (bendviz_vk_images), each
-// an SDL texture. The images are linear, each with a buffer over its memory, and stay in the GENERAL
-// layout: a copy into an optimally tiled image (vkCmdCopyBufferToImage) took 0.7 ms at 4K on RTX
-// 30s, where Bend's own kernel writing the rows (bend_blit) takes a sixth of that. After each frame
-// Bend copies it, on its own queue, into an image neither on screen nor waiting to be taken, once
-// the player's draws of it are done: after each present the player
-// signals a timeline semaphore (bendviz_vk_mark), and the copy waits for the value marked after the
-// image was last drawn, on the GPU. Bend publishes the frame once its copy is done. With only one
-// queue both share it, and the player holds bendviz_vk_lock whenever it may submit.
+// family's first queue, and shows Bend's frames in images, each an SDL texture. The images are
+// linear and stay in the GENERAL layout. Where it can, an image is made over the buffer in Bend's
+// heap the frame was drawn in (the program draws into two in turn), so the player draws the frame
+// where Bend drew it and nothing is copied. Else (a row pitch the driver pads, say) the image has
+// memory of its own and a kernel of Bend's (bend_blit) copies the frame in, on Bend's queue, once
+// the player's draws of that image are done: after each present the player signals a timeline
+// semaphore (bendviz_vk_mark), and the copy waits, on the GPU, for the value marked after the image
+// was last drawn. (vkCmdCopyBufferToImage into an optimally tiled image took 0.7 ms at 4K on RTX
+// 30s; bend_blit takes a sixth of that.) A frame is published once it is done on the GPU.
+//
+// Bend never draws into the buffer on screen: while a frame over one of its buffers waits to be
+// taken, Bend starts no other (the next would draw into the buffer shown), and the frame after a
+// take waits, on the GPU, for the mark after the last draw of the buffer shown before. With only
+// one queue both share it, it runs everything in order, and the player holds bendviz_vk_lock
+// whenever it may submit.
 typedef struct {
   int sType; const void* pNext; VkFlags flags; int type; int format; uint32_t w, h, d;
   uint32_t mips, layers; VkFlags samples; int tiling; VkFlags usage; int sharing;
@@ -6936,6 +6958,9 @@ typedef struct {
 typedef struct { VkFlags aspect; uint32_t mip, layer; } BvSubresource;  // VkImageSubresource
 typedef struct { VkDeviceSize off, size, row, array, depth; } BvLayout;   // VkSubresourceLayout
 typedef struct { VkFlags linear, optimal, buffer; } BvFormat;             // VkFormatProperties
+typedef struct {
+  int sType; const void* pNext; VkFlags flags; uint32_t n; const VkSemaphore* sems; const uint64_t* values;
+} BvSemWait;  // VkSemaphoreWaitInfo
 
 static VkResult (VKAPI* bv_vk_create_image)(VkDevice, const BvImageInfo*, const void*, uint64_t*);
 static void (VKAPI* bv_vk_image_needs)(VkDevice, uint64_t, VkMemoryRequirements*);
@@ -6944,34 +6969,40 @@ static void (VKAPI* bv_vk_destroy_image)(VkDevice, uint64_t, const void*);
 static void (VKAPI* bv_vk_free)(VkDevice, VkDeviceMemory, const void*);
 static VkResult (VKAPI* bv_vk_queue_idle)(VkQueue);
 static VkResult (VKAPI* bv_vk_submit)(VkQueue, uint32_t, const VkSubmitInfo*, VkFence);
-typedef struct {
-  int sType; const void* pNext; VkFlags flags; uint32_t n; const VkSemaphore* sems; const uint64_t* values;
-} BvSemWait;  // VkSemaphoreWaitInfo
 static VkResult (VKAPI* bv_vk_sem_wait)(VkDevice, const BvSemWait*, uint64_t);
 static void (VKAPI* bv_vk_sub_layout)(VkDevice, uint64_t, const BvSubresource*, BvLayout*);
 static void (VKAPI* bv_vk_format)(VkPhysicalDevice, int, BvFormat*);
 static void (VKAPI* bv_vk_destroy_buf)(VkDevice, VkBuffer, const void*);
 
+#define BV_OWN 4  // images with memory of their own, at most (the rest of BENDVIZ_TEXTURES are over Bend's buffers)
+typedef struct {
+  uint64_t       image;
+  u64            over;       // over Bend's heap: 1 + the frame's byte in it; else 0, and the image's
+  VkDeviceMemory mem;        // memory, a buffer over it and its address
+  VkBuffer       buf;
+  u64            at;
+  bool           laid;       // in the GENERAL layout (else still preinitialized)
+  u64            read_done;  // the mark after the player last drew it
+} BvSlot;
+
 static struct {
-  uint64_t       image[BENDVIZ_TEXTURES];
-  VkDeviceMemory mem[BENDVIZ_TEXTURES];
-  VkBuffer       buf[BENDVIZ_TEXTURES];   // over each image's memory, and its address
-  u64            at[BENDVIZ_TEXTURES];
-  u32            pitch;                   // bytes a row
-  bool           laid[BENDVIZ_TEXTURES];  // in the GENERAL layout (else still preinitialized)
-  int            w, h;
-  u32            gen;             // of the set (0: none), and of the pending copy's set
+  BvSlot         slot[BENDVIZ_TEXTURES];
+  int            w, h;            // the frames' size; the rows of own images are pitch bytes apart
+  u32            pitch;
+  bool           no_over;         // no images over Bend's buffers (the player asked, or they failed)
+  u32            gen;             // of the set of images (0: none), and of the pending frame's set
   u32            pending_gen;
   // Under bv_lock: the image on screen, the one waiting to be taken, and the one written this frame
-  // (published at the swap), -1 for none; and whether Bend's thread is copying.
+  // (published at the swap), -1 for none; and whether Bend's thread is making or writing one.
   int            shown, published, pending;
   bool           busy;
   bool           held;            // the player holds bendviz_vk_lock (its thread only)
-  VkSemaphore    sem;             // the player's marks, the last, and the one after each image was drawn
+  VkSemaphore    sem;             // the player's marks, and the last
   u64            mark;
-  u64            read_done[BENDVIZ_TEXTURES];
+  u64            start_after;     // the next frame's work waits for this mark
   VkQueue        queue;           // the player's (the family's first)
 } bv_vk = { .shown = -1, .published = -1, .pending = -1 };
+static pthread_cond_t bv_vk_taken = PTHREAD_COND_INITIALIZER;  // a frame was taken (or given up)
 
 static bool bv_vk_load(void) {
   static int loaded;
@@ -6983,13 +7014,13 @@ static bool bv_vk_load(void) {
     BV_VK(bv_vk_destroy_image, "vkDestroyImage");
     BV_VK(bv_vk_free, "vkFreeMemory");
     BV_VK(bv_vk_queue_idle, "vkQueueWaitIdle");
+    BV_VK(bv_vk_submit, "vkQueueSubmit");
+    BV_VK(bv_vk_sem_wait, "vkWaitSemaphores");
     BV_VK(bv_vk_sub_layout, "vkGetImageSubresourceLayout");
     BV_VK(bv_vk_format, "vkGetPhysicalDeviceFormatProperties");
     BV_VK(bv_vk_destroy_buf, "vkDestroyBuffer");
-    BV_VK(bv_vk_submit, "vkQueueSubmit");
-    BV_VK(bv_vk_sem_wait, "vkWaitSemaphores");
     loaded = bv_vk_create_image && bv_vk_image_needs && bv_vk_bind_image && bv_vk_destroy_image && bv_vk_free
-      && bv_vk_queue_idle && bv_vk_sub_layout && bv_vk_format && bv_vk_destroy_buf && bv_vk_submit && bv_vk_sem_wait ? 1 : -1;
+      && bv_vk_queue_idle && bv_vk_submit && bv_vk_sem_wait && bv_vk_sub_layout && bv_vk_format && bv_vk_destroy_buf ? 1 : -1;
   }
   return loaded == 1;
 }
@@ -7000,39 +7031,123 @@ static void bv_vk_layout(uint64_t image, int from, int to, VkFlags src, VkFlags 
   vkCmdPipelineBarrier(gpu_cb, 0x10000, 0x10000, 0, 0, NULL, 0, NULL, 1, &b);
 }
 
+static void bv_vk_drop(BvSlot* s) {
+  if (s->image != 0) bv_vk_destroy_image(gpu_dev, s->image, NULL);
+  if (s->buf != 0) bv_vk_destroy_buf(gpu_dev, s->buf, NULL);
+  if (s->mem != 0) bv_vk_free(gpu_dev, s->mem, NULL);
+  *s = (BvSlot){ 0 };
+}
+
+// A linear image of w x h: over Bend's heap at byte over - 1, or with memory of its own. False if the
+// device can't (the image must be sampled; over the heap its rows must be packed, as the frame's
+// are, and its place aligned).
+static bool bv_vk_make(BvSlot* s, int w, int h, u64 over) {
+  BvImageInfo ii = { 14, NULL, 0, 1, 44, (uint32_t)w, (uint32_t)h, 1, 1, 1, 1, 1, 0x4, 0, 0, NULL, 8 };
+  BvSubresource sr = { 1, 0, 0 };
+  BvLayout lay;
+  BvFormat fp;
+  VkMemoryRequirements mi, mb;
+  bv_vk_format(gpu_phys, 44, &fp);
+  if ((fp.linear & 1) == 0 || bv_vk_create_image(gpu_dev, &ii, NULL, &s->image) != 0) {
+    s->image = 0;
+    return false;
+  }
+  bv_vk_image_needs(gpu_dev, s->image, &mi);
+  bv_vk_sub_layout(gpu_dev, s->image, &sr, &lay);
+  bool ok = lay.off == 0;
+  if (over != 0) {
+    u64 at = over - 1;
+    ok = ok && lay.row == (u64)w * 4 && (mi.types >> gpu_heap.type & 1) != 0 && at % mi.align == 0
+      && at + mi.size <= gpu_heap.size && bv_vk_bind_image(gpu_dev, s->image, gpu_heap.mem, at) == 0;
+    s->over = over;
+  } else {
+    VkBufferCreateInfo bi = { 12, NULL, 0, mi.size, 0x20020, 0, 0, NULL };  // (storage, addressed)
+    ok = ok && vkCreateBuffer(gpu_dev, &bi, NULL, &s->buf) == 0;
+    if (ok) {
+      vkGetBufferMemoryRequirements(gpu_dev, s->buf, &mb);
+      VkMemoryAllocateFlagsInfo fl = { 1000060000, NULL, 2, 0 };
+      VkMemoryAllocateInfo ai = { 5, &fl, mi.size > mb.size ? mi.size : mb.size, gpu_mem_pick(mi.types & mb.types, 1, 0) };
+      VkBufferDeviceAddressInfo di = { 1000244001, NULL, s->buf };
+      ok = ai.type != ~0u && vkAllocateMemory(gpu_dev, &ai, NULL, &s->mem) == 0
+        && bv_vk_bind_image(gpu_dev, s->image, s->mem, 0) == 0 && vkBindBufferMemory(gpu_dev, s->buf, s->mem, 0) == 0;
+      if (ok) s->at = vkGetBufferDeviceAddress(gpu_dev, &di), bv_vk.pitch = (u32)lay.row;
+    }
+  }
+  if (!ok) bv_vk_drop(s);
+  return ok;
+}
+
 // On Bend's thread, the frame at byte `at` of the heap just drawn (fw x fh): into an image, if the
-// player has a set of this size. Whether it went; the swap then publishes it.
+// player takes frames of this size. Whether it went; the swap then publishes it.
 static bool bv_vk_frame(unsigned long long at, int fw, int fh) {
   pthread_mutex_lock(&bv_lock);
   u32 gen = bv_vk.gen;
-  int slot = -1;  // of those neither on screen nor waiting, the one the player drew longest ago
-  if (gen != 0 && bv_vk.w == fw && bv_vk.h == fh) {
-    for (int i = 0; i < BENDVIZ_TEXTURES; i += 1) {
-      if (i != bv_vk.shown && i != bv_vk.published && (slot < 0 || bv_vk.read_done[i] < bv_vk.read_done[slot])) slot = i;
+  bool fits = gen != 0 && bv_vk.w == fw && bv_vk.h == fh;
+  int over = -1, own = -1, blank = -1, nown = 0;  // (the slot over this buffer; a free own one; an unused one)
+  for (int i = 0; fits && i < BENDVIZ_TEXTURES; i += 1) {
+    BvSlot* s = &bv_vk.slot[i];
+    bool free = i != bv_vk.shown && i != bv_vk.published;
+    if (s->image == 0) {
+      if (blank < 0) blank = i;
+    } else if (s->over != 0) {
+      if (s->over == at + 1 && free) over = i;
+    } else {
+      nown += 1;
+      if (free && (own < 0 || s->read_done < bv_vk.slot[own].read_done)) own = i;
     }
   }
-  bv_vk.busy = slot >= 0;
-  uint64_t image = slot >= 0 ? bv_vk.image[slot] : 0;
-  bool laid = slot >= 0 && bv_vk.laid[slot];
-  u64 read = slot >= 0 ? bv_vk.read_done[slot] : 0;
-  u64 dst = slot >= 0 ? bv_vk.at[slot] : 0;
+  bool try_over = fits && over < 0 && !bv_vk.no_over && blank >= 0;
+  bool make_own = fits && over < 0 && own < 0 && nown < BV_OWN && blank >= 0;
+  bv_vk.busy = fits;
   pthread_mutex_unlock(&bv_lock);
-  if (slot < 0) {
+  if (!fits) {
     return false;
   }
-  gpu_lock_on();
-  if (!laid) {  // preinitialized to GENERAL, once, keeping the memory as it is
-    gpu_cmd();
-    bv_vk_layout(image, 8, 1, 0, 0x20);
+  if (try_over) {  // (a slot from the pool of unused ones: Bend's thread alone makes them)
+    if (bv_vk_make(&bv_vk.slot[blank], fw, fh, at + 1)) {
+      over = blank;
+    } else {
+      bv_vk.no_over = true;
+      make_own = own < 0 && nown < BV_OWN;
+    }
   }
-  gpu_blit(at, dst, (u32)fw, (u32)fh, bv_vk.pitch);
-  gpu_wait_sem = bv_vk.sem, gpu_wait_at = read;  // (0: nothing to wait for)
-  gpu_flush();
-  gpu_lock_off();
+  if (over < 0 && make_own && bv_vk_make(&bv_vk.slot[blank], fw, fh, 0)) {
+    own = blank;
+  }
+  int slot = over >= 0 ? over : own;
+  if (slot >= 0) {
+    BvSlot* s = &bv_vk.slot[slot];
+    gpu_lock_on();
+    if (!s->laid) {  // preinitialized to GENERAL, once, keeping the memory as it is
+      gpu_cmd();
+      bv_vk_layout(s->image, 8, 1, 0, 0x20);
+    }
+    if (s->over == 0) {
+      gpu_blit(at, s->at, (u32)fw, (u32)fh, bv_vk.pitch);
+      gpu_wait_sem = bv_vk.sem, gpu_wait_at = s->read_done;  // (0: nothing to wait for)
+    }
+    gpu_flush();
+    gpu_lock_off();
+    s->laid = true;
+  }
   pthread_mutex_lock(&bv_lock);
-  bv_vk.busy = false, bv_vk.pending = slot, bv_vk.pending_gen = gen, bv_vk.laid[slot] = true;
+  bv_vk.busy = false;
+  if (slot >= 0) bv_vk.pending = slot, bv_vk.pending_gen = gen;
   pthread_mutex_unlock(&bv_lock);
-  return true;
+  return slot >= 0;
+}
+
+// On Bend's thread as a frame starts: its work waits, on the GPU, for the player's last draw of the
+// buffer it draws into.
+static void bv_vk_start(void) {
+  pthread_mutex_lock(&bv_lock);
+  if (bv_vk.start_after != 0) gpu_wait_sem = bv_vk.sem, gpu_wait_at = bv_vk.start_after;
+  pthread_mutex_unlock(&bv_lock);
+}
+
+// Under bv_lock: a frame over one of Bend's buffers waits to be taken (and Bend starts no other).
+static bool bv_vk_holding(void) {
+  return bv_fresh && bv_front_shared && bv_vk.published >= 0 && bv_vk.slot[bv_vk.published].over != 0;
 }
 #endif
 
@@ -7206,6 +7321,9 @@ bool bendviz_wait(double ms) {
 void bendviz_discard(void) {
   pthread_mutex_lock(&bv_lock);
   bv_fresh = false;
+#if BEND_VULKAN
+  pthread_cond_broadcast(&bv_vk_taken);
+#endif
   pthread_mutex_unlock(&bv_lock);
 }
 
@@ -7266,7 +7384,7 @@ void bendviz_vk_mark(void) {
   }
   pthread_mutex_lock(&bv_lock);
   bv_vk.mark = value;
-  if (bv_vk.shown >= 0) bv_vk.read_done[bv_vk.shown] = value;
+  if (bv_vk.shown >= 0) bv_vk.slot[bv_vk.shown].read_done = value;
   pthread_mutex_unlock(&bv_lock);
 }
 
@@ -7302,11 +7420,12 @@ void bendviz_vk_unlock(void) {
 }
 
 // Lets go of the images (the player's textures of them gone), once the queue is done with them. A
-// copy under way finishes first (with the player's lock let go meanwhile: it waits for the queue).
+// frame being written finishes first (with the player's lock let go meanwhile: it waits for the queue).
 void bendviz_vk_unshare(void) {
   bool held = bv_vk.held;
   pthread_mutex_lock(&bv_lock);
   bv_vk.gen = 0, bv_vk.shown = bv_vk.published = -1;
+  pthread_cond_broadcast(&bv_vk_taken);  // (a frame waiting to be taken never will be)
   while (bv_vk.busy) {
     pthread_mutex_unlock(&bv_lock);
     if (held) bendviz_vk_unlock();
@@ -7315,75 +7434,53 @@ void bendviz_vk_unshare(void) {
     pthread_mutex_lock(&bv_lock);
   }
   pthread_mutex_unlock(&bv_lock);
-  if (bv_vk.image[0] != 0) {
+  bool any = false;
+  for (int i = 0; i < BENDVIZ_TEXTURES; i += 1) any = any || bv_vk.slot[i].image != 0;
+  if (any) {
     if (!held) pthread_mutex_lock(&gpu_qlock);
     bv_vk_queue_idle(gpu_queue);
     if (!held) pthread_mutex_unlock(&gpu_qlock);
   }
-  for (int i = 0; i < BENDVIZ_TEXTURES; i += 1) {  // (a set made in part, too)
-    if (bv_vk.image[i] != 0) bv_vk_destroy_image(gpu_dev, bv_vk.image[i], NULL);
-    if (bv_vk.buf[i] != 0) bv_vk_destroy_buf(gpu_dev, bv_vk.buf[i], NULL);
-    if (bv_vk.mem[i] != 0) bv_vk_free(gpu_dev, bv_vk.mem[i], NULL);
-    bv_vk.image[i] = 0, bv_vk.buf[i] = 0, bv_vk.mem[i] = 0, bv_vk.at[i] = 0;
-    bv_vk.laid[i] = false, bv_vk.read_done[i] = 0;
-  }
+  for (int i = 0; i < BENDVIZ_TEXTURES; i += 1) bv_vk_drop(&bv_vk.slot[i]);
 }
 
-// Makes BENDVIZ_TEXTURES images of w x h (B8G8R8A8_UNORM, linear, sampled, in the GENERAL layout
-// from Bend's first frame in each, before the player takes it) for frames of that size, replacing
-// any set made before (the player's textures of those gone first): their VkImage handles, or false
-// (the device can't sample such images).
-bool bendviz_vk_images(int w, int h, unsigned long long image[BENDVIZ_TEXTURES]) {
+// Frames of w x h go into images from here on (made as they are needed; see bendviz_vk_take),
+// replacing any set made before (the player's textures of those gone first); false if the device
+// can't sample linear images. With over, where it can, the player draws a frame from the buffer Bend
+// drew it in, and Bend draws the next only once that one is taken and the draws of the buffer before
+// are done: without vsync the fastest, as nothing is copied, but with vsync those draws run a frame
+// late, so the player then asks for copies into images of their own.
+bool bendviz_vk_frames(int w, int h, bool over) {
   bendviz_vk_unshare();
   BvFormat fp;
   if (!bv_vk_load()) {
     return false;
   }
   bv_vk_format(gpu_phys, 44, &fp);
-  bool ok = (fp.linear & 1) != 0;  // (sampled)
-  for (int i = 0; ok && i < BENDVIZ_TEXTURES; i += 1) {
-    BvImageInfo ii = { 14, NULL, 0, 1, 44, (uint32_t)w, (uint32_t)h, 1, 1, 1, 1, 1, 0x4, 0, 0, NULL, 8 };
-    BvSubresource sr = { 1, 0, 0 };
-    BvLayout lay;
-    VkMemoryRequirements mi, mb;
-    ok = bv_vk_create_image(gpu_dev, &ii, NULL, &bv_vk.image[i]) == 0 || (bv_vk.image[i] = 0);
-    if (!ok) break;
-    bv_vk_image_needs(gpu_dev, bv_vk.image[i], &mi);
-    bv_vk_sub_layout(gpu_dev, bv_vk.image[i], &sr, &lay);
-    VkBufferCreateInfo bi = { 12, NULL, 0, mi.size, 0x20020, 0, 0, NULL };  // (storage, addressed)
-    ok = lay.off == 0 && vkCreateBuffer(gpu_dev, &bi, NULL, &bv_vk.buf[i]) == 0;
-    if (!ok) break;
-    vkGetBufferMemoryRequirements(gpu_dev, bv_vk.buf[i], &mb);
-    VkMemoryAllocateFlagsInfo fl = { 1000060000, NULL, 2, 0 };
-    VkMemoryAllocateInfo ai = { 5, &fl, mi.size > mb.size ? mi.size : mb.size, gpu_mem_pick(mi.types & mb.types, 1, 0) };
-    VkBufferDeviceAddressInfo di = { 1000244001, NULL, bv_vk.buf[i] };
-    ok = ai.type != ~0u && vkAllocateMemory(gpu_dev, &ai, NULL, &bv_vk.mem[i]) == 0
-      && bv_vk_bind_image(gpu_dev, bv_vk.image[i], bv_vk.mem[i], 0) == 0
-      && vkBindBufferMemory(gpu_dev, bv_vk.buf[i], bv_vk.mem[i], 0) == 0;
-    if (ok) bv_vk.at[i] = vkGetBufferDeviceAddress(gpu_dev, &di), bv_vk.pitch = (u32)lay.row;
+  if ((fp.linear & 1) == 0) {
+    return false;
   }
   pthread_mutex_lock(&bv_lock);
-  if (ok) {
-    static u32 gens;
-    gens = gens + 1 ? gens + 1 : 1;
-    bv_vk.gen = gens, bv_vk.w = w, bv_vk.h = h;
-    for (int i = 0; i < BENDVIZ_TEXTURES; i += 1) image[i] = bv_vk.image[i];
-  }
+  static u32 gens;
+  gens = gens + 1 ? gens + 1 : 1;
+  bv_vk.gen = gens, bv_vk.w = w, bv_vk.h = h, bv_vk.no_over = !over;
   pthread_mutex_unlock(&bv_lock);
-  if (!ok) {
-    bendviz_vk_unshare();
-  }
-  return ok;
+  return true;
 }
 
-// Each frame: the image (0 to BENDVIZ_TEXTURES - 1) of a new frame to draw, or -1 when none is
-// waiting. The image drawn before stays Bend's to write once the player's draws of it are submitted.
-int bendviz_vk_take(int* w, int* h, bool* gpu, double* ms) {
+// Each frame: the slot (0 to BENDVIZ_TEXTURES - 1) of a new frame to draw, with its VkImage (the same
+// for a slot until the next bendviz_vk_frames: a texture made of it lasts until then), or -1 when
+// none is waiting. The image drawn before is Bend's to write again once the draws of it are done.
+int bendviz_vk_take(int* w, int* h, bool* gpu, double* ms, unsigned long long* image) {
   pthread_mutex_lock(&bv_lock);
   int slot = -1;
   if (bv_fresh && bv_front_shared && bv_vk.published >= 0) {
     slot = bv_vk.shown = bv_vk.published, bv_vk.published = -1, bv_fresh = false;
-    *w = bv_done_w, *h = bv_done_h, *gpu = bv_done_gpu, *ms = bv_ms;
+    *w = bv_done_w, *h = bv_done_h, *gpu = bv_done_gpu, *ms = bv_ms, *image = bv_vk.slot[slot].image;
+    // (the last mark covers the draws of the image shown before, which, over Bend's buffer, the next
+    // frame may draw into)
+    bv_vk.start_after = gpu_qshared || bv_vk.slot[slot].over == 0 ? 0 : bv_vk.mark;
+    pthread_cond_broadcast(&bv_vk_taken);
   }
   bv_trace("vk-take", slot, 0);
   pthread_mutex_unlock(&bv_lock);

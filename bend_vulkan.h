@@ -17,10 +17,11 @@ void bend_vk_hold(void);
 void bend_vk_let_go(void);
 void bend_vk_presented(bool vsync);  // after each present
 
-// BENDVIZ_TEXTURES textures of w x h Bend copies frames into; NULL if the renderer isn't on Bend's device.
-bend_share *bend_share_new(SDL_Renderer *ren, int w, int h);
+// Frames of w x h in textures of Bend's images; NULL if the renderer isn't on Bend's device.
+// Over: drawn from the buffers Bend drew them in, where it can (without vsync; see bendviz_vk_frames).
+bend_share *bend_share_new(SDL_Renderer *ren, int w, int h, bool over);
 void bend_share_free(bend_share *s);  // before the renderer goes
-void bend_share_size(const bend_share *s, int *w, int *h);
+void bend_share_size(const bend_share *s, int *w, int *h, bool *over);
 // Each frame: the texture to draw, the newest Bend frame (fresh if it is new), or NULL before the
 // first; gpu and ms describe a fresh one.
 SDL_Texture *bend_share_frame(bend_share *s, bool *fresh, bool *gpu, double *ms);
