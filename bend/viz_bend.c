@@ -5207,7 +5207,7 @@ typedef struct {
 } GpuBuf;
 
 #define GPU_STAGE   256        // pages a kernel moves
-#define GPU_RELEARN 64         // launches between relearning the hot pages
+#define GPU_RELEARN 1024       // launches between relearning the hot pages
 #define GPU_RUN     16         // a run this long is a plain copy
 #define GPU_BULK    (4u << 20) // bytes a plain copy moves at a time
 
