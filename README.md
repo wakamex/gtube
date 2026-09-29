@@ -1,23 +1,87 @@
 # gtube
 
-A native YouTube Music mini player on [gesso](https://github.com/wakamex/gesso), with a music visualizer. It builds with Zig and expects the gesso repository next to this one (`../gesso`).
+A native YouTube Music player with a music visualizer, written in C on [gesso](https://github.com/wakamex/gesso).
+
+A music player shouldn't need a copy of a web browser. Desktop players are usually web apps shipped inside Electron or a WebView, which bring a whole Chromium along. gtube is one executable of about 4 MB for Windows or Linux, drawing with SDL and playing Opus audio directly, and it runs in about 120 to 160 MB of RAM.
+
+Search, liked music, your playlists, radio and likes come from YouTube Music's own web API; yt-dlp streams the audio.
+
+## Build and run
+
+gtube builds with [Zig](https://ziglang.org) 0.16 and expects a gesso checkout next to it:
+
+```sh
+git clone https://github.com/wakamex/gesso
+git clone https://github.com/wakamex/gtube
+cd gtube
+zig build run --release=fast
+```
+
+Give it a link to start playing at once:
 
 ```sh
 zig build run --release=fast -- "https://music.youtube.com/playlist?list=..."
 ```
 
-```sh
-zig build run --release=fast -- "https://music.youtube.com/playlist?list=..."
-```
+On first run it downloads its own copies of yt-dlp and Deno (the JavaScript runtime yt-dlp needs for YouTube) into its data folder, and keeps them current. Lists come over the system's curl.
 
-Four views, on the number keys or the tabs: 1 the queue, 2 liked music, 3 your playlists, 4 the visualizer. `/` or Ctrl+F opens search (songs, albums and playlists) with its box ready to type, showing the last results; Esc, Enter or Down leaves the box, and then 1 to 3 switch views again. Every list loads all its pages, so a long playlist is complete. Enter or a click on a song plays its whole list from there (the queue becomes that list), and on an album or playlist opens it full-window (Esc or Backspace goes back). r starts a radio from the selected song (or the one playing), which keeps loading more as it plays. l likes or unlikes the selected song; liked songs show a heart. Left and Right switch views too. Space pauses (or starts the current track), n and p (or the media keys while the window has focus) go to the next and previous track, Page Up/Down and Home/End move through long lists, Ctrl+V pastes a link (dropping one on the window works too), -/+ change the volume, s signs in, F1 shows the performance overlay. Closing the window quits. The window's size, position and maximised state, and the queue with its current track, are remembered between runs (`window.txt` and `queue.txt` in the data folder); a restored queue waits for Space or Enter, from the start of the track. A restored radio keeps going with YouTube's token for its next page; if YouTube no longer accepts the token, the footer says "Radio stopped" and the queue ends where it is.
+## Using it
 
-The visualizer draws what is heard (gesso's mixer keeps its recent output, skipping audio still queued for the device) as a 64-band spectrum with falling peaks, the waveform, bass, mids, treble and beats, through six effects drawn at the screen's own resolution by the GPU through SDL's renderer: a Winamp-style spectrum of LED bars with its scope, a plasma, a bending tunnel of textured rings, Milkdrop-style feedback (each frame is the last one seen through a warp mesh, under a ring scope), fire fed by the spectrum, and a warp starfield around a sphere of lit bobs pushed out by its bands. A seventh, Bend plasma, is written in [Bend](https://github.com/bendlang/bend) (`bend/viz.bend`), with an eighth, Bend tree, beside it, and runs beside the player on a thread of its own; it draws every pixel of the visualizer (up to 4096 x 4096), and `g` moves the same function between the GPU and the CPU's threads; a label and the F1 overlay show which drew the frame, how long it took and its size. It needs Bend's Vulkan backend; the generated C and its GPU program (SPIR-V, beside the executable as `gtube.exe.gpu`) are committed and regenerated with `bend/build.sh`, and without a Vulkan GPU it draws on the CPU. Plasma and fire are worked out on the CPU at half and a third of the height and scaled smoothly; the rest is geometry. A sine scroller carries the track's name. Up and Down change the effect, Enter turns auto on or off (a new effect every 40 s and with each track), t the scroller, f full screen (as do Alt+Enter and F11, in any view; Esc leaves it). At 1280x720 each effect takes 0.5 to 1.8 ms a frame (ReleaseFast, Linux, Mesa's software OpenGL), and the view runs at 60 fps where the others run at 30; in demo mode it shows a built-in test signal. The whole visualizer adds 34 KB to the ReleaseSmall Windows build (2,805,248 to 2,840,064 bytes) and 43 KB to ReleaseFast (3,540,992 to 3,584,512). The F1 overlay shows the program's size.
+| Key | Action |
+|---|---|
+| 1 to 4, or Left and Right | Queue, liked music, your playlists, visualizer |
+| / or Ctrl+F | Search songs, albums and playlists |
+| Enter or click | Play a song and the rest of its list, or open an album or playlist |
+| Esc or Backspace | Leave search, or go back from an album or playlist |
+| Space | Pause or resume |
+| n, p (or the media keys) | Next and previous track |
+| r | Start a radio from the selected or playing song |
+| l | Like or unlike the selected song |
+| Ctrl+V, or drop a link | Play a link: a track, an album or a playlist |
+| - and + | Volume |
+| s | Sign in |
+| F1 | Performance overlay |
+| f, Alt+Enter or F11 | Full screen |
 
-Lists come from YouTube Music's own web API over the system's curl (a search or a page of a playlist answers in about half a second; yt-dlp took 17 s for the same search). yt-dlp is used only to stream the audio.
+Every list loads all its pages. The window's size and position and the queue are kept between runs; a restored queue waits for Space or Enter, and a restored radio keeps loading more as it plays.
 
-Sign-in (Windows): s opens Google's sign-in page in a small WebView2 window, found through the installed runtime's registry entry without Microsoft's loader DLL. Once the page reaches YouTube signed in, its cookies are saved encrypted for the Windows user (DPAPI) and the window closes. The session is kept alive over plain HTTPS, without a browser: at launch and every 10 minutes, `RotateCookies` renews it and the passive YouTube sign-in redirect carries it to youtube.com. When signed in, yt-dlp and the API get the session; if Google ends it, the footer asks you to sign in again. Elsewhere, `--import-cookies FILE` takes a cookies.txt exported from a browser.
+## Visualizer
 
-Headless: `--wav F.wav --seconds S URL` renders the first track, `--tools [--probe URL]` only gets or updates yt-dlp, `--api search|albums|playlists|browse|radio ARG` prints one API answer, `--refresh` renews the saved session once, `--sign-in` and `--sign-out`, `--view 1-4`, `--effect N`, `--search QUERY` and `--radio VIDEO_ID` choose how it starts, `--demo` fills the queue with sample titles in many scripts, `--uncapped` turns off vsync and the frame cap (to see how fast the visualizer can go), `--shot F.png --at S` renders one frame, `--data DIR` puts the tools and session somewhere else (by default `%APPDATA%\wakamex\gesso-gtube` on Windows).
+View 4 draws what you're hearing (a 64-band spectrum, the waveform, bass, mids, treble and beats) through eight effects, at the screen's full resolution:
 
-Checked: the decoded audio matches ffmpeg's libopus decode of the same file (correlation 1.000000, within one 16-bit step) on Linux and on Windows, and titles render in Latin, Cyrillic, Japanese, Chinese, Korean, Devanagari and Arabic with the system fonts (Arabic without joining or right-to-left order: no text shaping yet). First audio arrives about 4 s after a link, most of it YouTube's extraction inside yt-dlp; a link to one video starts streaming while it is listed. Not built: lyrics, cover art, media keys, seeking, editing playlists.
+- Spectrum: Winamp-style LED bars with a scope
+- Plasma
+- Tunnel: a bending tunnel of textured rings
+- Feedback: Milkdrop-style, each frame the last one seen through a warp mesh
+- Fire, fed by the spectrum
+- Stars and bobs: a warp starfield around a sphere of bobs pushed out by the bands
+- Bend plasma and Bend tree, written in [Bend](https://github.com/bendlang/bend)
+
+Up and Down change the effect, Enter turns auto mode on or off (a new effect every 40 s and with each track), and t toggles the scroller that carries the track's name.
+
+The two Bend effects (`bend/viz.bend`) run on a thread of their own and draw every pixel, up to 4096 x 4096. `g` moves the same Bend function between the GPU and the CPU's threads while it runs. On the GPU they draw straight into the player's textures through Vulkan, so at 4K on an RTX 3080 the plasma runs at over 3,000 frames a second with `--uncapped`. The generated C (`bend/viz_bend.c`) and its GPU program (`bend/viz.gpu`, installed beside the executable) are committed; regenerating them with `bend/build.sh` needs a Bend compiler with the Vulkan backend. Without a Vulkan GPU the effects draw on the CPU.
+
+## Sign-in
+
+On Windows, s opens Google's sign-in page in a small WebView2 window. Once it reaches YouTube signed in, the cookies are saved encrypted for your Windows user (DPAPI), and the session is renewed over plain HTTPS at launch and every 10 minutes. On other systems, `--import-cookies FILE` takes a cookies.txt exported from a browser.
+
+## Options
+
+| Option | Effect |
+|---|---|
+| `--search QUERY`, `--radio VIDEO_ID` | Start with a search or a radio |
+| `--view 1-4`, `--effect N` | Start on a view or visualizer effect |
+| `--full` | Start full screen |
+| `--uncapped` | No vsync or frame cap, to see how fast the visualizer can go |
+| `--demo` | Fill the queue with sample titles and play a built-in test signal |
+| `--sign-in`, `--sign-out`, `--refresh` | Manage the saved session |
+| `--import-cookies FILE` | Sign in from a browser's cookies.txt |
+| `--data DIR` | Keep the tools and session elsewhere (default: `%APPDATA%\wakamex\gesso-gtube` on Windows, `~/.local/share/wakamex/gesso-gtube` on Linux) |
+| `--wav F.wav --seconds S URL` | Render the first track to a file |
+| `--shot F.png --at S` | Render one frame to a file |
+| `--api search\|albums\|playlists\|browse\|radio ARG` | Print one API answer |
+| `--tools [--probe URL]` | Only get or update yt-dlp |
+
+## Limits
+
+Titles render in Latin, Cyrillic, Japanese, Chinese, Korean, Devanagari and Arabic with the system fonts, but Arabic has no joining or right-to-left order yet. First audio arrives about 4 s after a link, most of it yt-dlp's extraction. Not built yet: lyrics, cover art, seeking and editing playlists.
