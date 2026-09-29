@@ -54,6 +54,11 @@ void bend_vk_let_go(void) {
     if (on_bend) bendviz_vk_unlock();
 }
 
+// Bend's work waiting to be submitted goes ahead of the present, on the same queue.
+void bend_vk_presenting(void) {
+    if (on_bend) bendviz_vk_pump();
+}
+
 // With vsync the player keeps at most one frame on the GPU (see bendviz_vk_settle).
 void bend_vk_presented(bool vsync) {
     if (!on_bend) return;

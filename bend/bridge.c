@@ -243,7 +243,9 @@ static struct {
   u64            mark;
   u64            start_after;     // the next frame's work waits for this mark
   VkQueue        queue;           // the player's (the family's first)
+  bool           share_q;         // Bend submits to the player's queue too (see bendviz_vk_pump)
 } bv_vk = { .shown = -1, .published = -1, .pending = -1 };
+static pthread_mutex_t bv_q1_lock = PTHREAD_MUTEX_INITIALIZER;  // submits to Bend's own queue
 static pthread_cond_t bv_vk_taken = PTHREAD_COND_INITIALIZER;  // a frame was taken (or given up)
 
 static bool bv_vk_load(void) {
@@ -595,6 +597,8 @@ void bendviz_device_frames(bool on) {
 
 #if BEND_VULKAN
 
+static VkResult bv_vk_submit_any(const VkSubmitInfo* si);
+
 // Opens Bend's Vulkan device for the player to draw on too, with the extensions its drawing needs
 // (an instance's to reach the window, a device's to present): the instance, physical device, device
 // and queue family (a VkInstance, VkPhysicalDevice, VkDevice and index), or false without one (Bend
@@ -607,6 +611,7 @@ bool bendviz_vk_open(const char* const* iexts, int niexts, const char* const* de
   if (!gpu_probe() || !bv_vk_load() || vkCreateSemaphore(gpu_dev, &si, NULL, &bv_vk.sem) != 0) {
     return false;
   }
+  gpu_submit = bv_vk_submit_any;
   vkGetDeviceQueue(gpu_dev, gpu_family, 0, &bv_vk.queue);
   *inst = gpu_inst, *phys = gpu_phys, *dev = gpu_dev, *family = gpu_family;
   return true;
@@ -615,7 +620,7 @@ bool bendviz_vk_open(const char* const* iexts, int niexts, const char* const* de
 // After each present, on the player's thread: marks the draws submitted so far, which cover the
 // image on screen (a signal on the player's queue, after everything submitted before it).
 void bendviz_vk_mark(void) {
-  if (gpu_qshared) {
+  if (gpu_qshared || bv_vk.share_q) {
     return;  // (one queue runs everything in order)
   }
   u64 value = bv_vk.mark + 1;
@@ -636,16 +641,63 @@ void bendviz_vk_mark(void) {
 void bendviz_vk_settle(void) {
   u64 prev = bv_vk.mark - 1;
   BvSemWait w = { 1000207004, NULL, 0, 1, &bv_vk.sem, &prev };
-  if (!gpu_qshared && bv_vk.mark > 1) bv_vk_sem_wait(gpu_dev, &w, 100000000ull);  // (0.1 s at most)
+  if (!gpu_qshared && !bv_vk.share_q && bv_vk.mark > 1) bv_vk_sem_wait(gpu_dev, &w, 100000000ull);  // (0.1 s at most)
+}
+
+// Without vsync (frames drawn from Bend's buffers), Bend submits to the player's queue: their work
+// then runs one after the other with nothing between them, where on a queue each the GPU changes
+// context between them (about 120 us, twice a frame, on an RTX 3080 under Windows). Bend submits
+// itself while the player lets go of the queue; while the player holds it, Bend posts its submit and
+// the player makes it at its next bendviz_vk_pump (before its present) or when it lets go. With
+// vsync the player holds the queue through each present's wait for the vertical blank, so Bend uses
+// its own queue (a family with only one shares it always).
+static pthread_mutex_t     bv_rq_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t      bv_rq_done = PTHREAD_COND_INITIALIZER;  // (or the queue let go)
+static const VkSubmitInfo* bv_rq;  // a submit posted, not yet made
+static VkResult            bv_rq_result;
+
+static VkResult bv_vk_submit_shared(const VkSubmitInfo* si) {
+  pthread_mutex_lock(&bv_rq_lock);
+  bv_rq = si;
+  while (bv_rq != NULL) {
+    if (pthread_mutex_trylock(&gpu_qlock) == 0) {
+      bv_rq = NULL;
+      bv_rq_result = bv_vk_submit(bv_vk.queue, 1, si, gpu_fence);
+      pthread_mutex_unlock(&gpu_qlock);
+      break;
+    }
+    pthread_cond_wait(&bv_rq_done, &bv_rq_lock);
+  }
+  VkResult r = bv_rq_result;
+  pthread_mutex_unlock(&bv_rq_lock);
+  return r;
+}
+
+static VkResult bv_vk_submit_any(const VkSubmitInfo* si) {
+  if (bv_vk.share_q || gpu_qshared) {
+    return bv_vk_submit_shared(si);
+  }
+  pthread_mutex_lock(&bv_q1_lock);
+  VkResult r = bv_vk_submit(gpu_queue, 1, si, gpu_fence);
+  pthread_mutex_unlock(&bv_q1_lock);
+  return r;
+}
+
+// On the player's thread, holding the queue: makes a submit Bend posted.
+void bendviz_vk_pump(void) {
+  pthread_mutex_lock(&bv_rq_lock);
+  if (bv_rq != NULL) {
+    bv_rq_result = bv_vk_submit(bv_vk.queue, 1, bv_rq, gpu_fence);
+    bv_rq = NULL;
+    pthread_cond_broadcast(&bv_rq_done);
+  }
+  pthread_mutex_unlock(&bv_rq_lock);
 }
 
 // Held by the player around its drawing (from its first draw to its present): Bend's submits wait.
 // The player lets a waiting submit go first, or at a thousand frames a second it would take the
 // lock back each time before Bend's thread woke.
 void bendviz_vk_lock(void) {
-  if (!gpu_qshared) {
-    return;
-  }
   while (atomic_load(&gpu_qwant) != 0) {
     sched_yield();
   }
@@ -654,11 +706,12 @@ void bendviz_vk_lock(void) {
 }
 
 void bendviz_vk_unlock(void) {
-  if (!gpu_qshared) {
-    return;
-  }
+  bendviz_vk_pump();
   bv_vk.held = false;
   pthread_mutex_unlock(&gpu_qlock);
+  pthread_mutex_lock(&bv_rq_lock);  // (a submit posted meanwhile goes itself)
+  pthread_cond_broadcast(&bv_rq_done);
+  pthread_mutex_unlock(&bv_rq_lock);
 }
 
 // Lets go of the images (the player's textures of them gone), once the queue is done with them. A
@@ -678,10 +731,13 @@ void bendviz_vk_unshare(void) {
   pthread_mutex_unlock(&bv_lock);
   bool any = false;
   for (int i = 0; i < BENDVIZ_TEXTURES; i += 1) any = any || bv_vk.slot[i].image != 0;
-  if (any) {
+  if (any) {  // (both queues: Bend's work may be on either)
     if (!held) pthread_mutex_lock(&gpu_qlock);
-    bv_vk_queue_idle(gpu_queue);
+    bv_vk_queue_idle(bv_vk.queue);
     if (!held) pthread_mutex_unlock(&gpu_qlock);
+    pthread_mutex_lock(&bv_q1_lock);
+    bv_vk_queue_idle(gpu_queue);
+    pthread_mutex_unlock(&bv_q1_lock);
   }
   for (int i = 0; i < BENDVIZ_TEXTURES; i += 1) bv_vk_drop(&bv_vk.slot[i]);
 }
@@ -705,7 +761,7 @@ bool bendviz_vk_frames(int w, int h, bool over) {
   pthread_mutex_lock(&bv_lock);
   static u32 gens;
   gens = gens + 1 ? gens + 1 : 1;
-  bv_vk.gen = gens, bv_vk.w = w, bv_vk.h = h, bv_vk.no_over = !over;
+  bv_vk.gen = gens, bv_vk.w = w, bv_vk.h = h, bv_vk.no_over = !over, bv_vk.share_q = over;
   pthread_mutex_unlock(&bv_lock);
   return true;
 }
@@ -721,7 +777,7 @@ int bendviz_vk_take(int* w, int* h, bool* gpu, double* ms, unsigned long long* i
     *w = bv_done_w, *h = bv_done_h, *gpu = bv_done_gpu, *ms = bv_ms, *image = bv_vk.slot[slot].image;
     // (the last mark covers the draws of the image shown before, which, over Bend's buffer, the next
     // frame may draw into)
-    bv_vk.start_after = gpu_qshared || bv_vk.slot[slot].over == 0 ? 0 : bv_vk.mark;
+    bv_vk.start_after = gpu_qshared || bv_vk.share_q || bv_vk.slot[slot].over == 0 ? 0 : bv_vk.mark;
     pthread_cond_broadcast(&bv_vk_taken);
   }
   bv_trace("vk-take", slot, 0);

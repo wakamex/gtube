@@ -925,6 +925,7 @@ drawn:
         SDL_DestroySurface(c), SDL_DestroySurface(s);
         return ok ? SDL_APP_SUCCESS : SDL_APP_FAILURE;
     }
+    bend_vk_presenting();
     SDL_RenderPresent(a->ren);
     bend_vk_presented(!a->uncapped);
     bend_vk_let_go();  // (not held while pacing)

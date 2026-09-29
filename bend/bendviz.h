@@ -28,6 +28,7 @@ bool bendviz_vk_open(const char *const *iexts, int niexts, const char *const *de
                      unsigned *family);
 void bendviz_vk_lock(void);  // held around the player's drawing when the queue is shared
 void bendviz_vk_unlock(void);
+void bendviz_vk_pump(void);  // holding the lock, before each present: makes Bend's waiting submit
 void bendviz_vk_mark(void);  // after each present: the draws so far are marked (see bridge.c)
 void bendviz_vk_settle(void);  // with vsync, after that: waits for the frame before this one
 #define BENDVIZ_TEXTURES 6  // image slots: two over Bend's frame buffers, or up to four it copies frames into
