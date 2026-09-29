@@ -881,74 +881,84 @@ static const char* CLI_HELP =
 #define CID_VIZ_PARAM 16
 #define CID_VIZ_SHOW 17
 #define FID_ARRAY_SPREAD_RUN_0 0
-#define FID_VIZ_FILL 1
-#define FID_VIZ_FILL_K51 2
-#define FID_VIZ_FILL_K52 3
-#define FID_VIZ_FILL_K53 4
-#define FID_VIZ_FILL_K54 5
-#define FID_VIZ_FILL_J51 6
-#define FID_VIZ_FRAME_GPU 7
-#define FID_VIZ_FRAME_GPU_K57 8
-#define FID_VIZ_FRAME_GPU_J57 9
-#define FID_VIZ_FRAME 10
-#define FID_VIZ_FRAMES_GPU 11
-#define FID_VIZ_FRAMES_GPU_K61 12
-#define FID_VIZ_FRAMES_GPU_K62 13
-#define FID_VIZ_FRAMES_GPU_J61 14
-#define FID_VIZ_DRAW 15
-#define FID_VIZ_DRAW_K66 16
-#define FID_VIZ_DRAW_K67 17
-#define FID_VIZ_STEP 18
-#define FID_VIZ_STEP_K76 19
-#define FID_VIZ_SHOW2_C77 20
-#define FID_VIZ_SHOW2_C78 21
-#define FID_VIZ_SHOW2_C79 22
-#define FID_VIZ_SHOW2_C80 23
-#define FID_VIZ_SHOW2_C81 24
-#define FID_IO_BIND 25
-#define FID_IO_BIND_C83 26
-#define FID_IO_BIND_K84 27
-#define FID_VIZ_BLANK 28
-#define FID_VIZ_LOOP 29
-#define FID_VIZ_LOOP_C87 30
-#define FID_VIZ_LOOP_C88 31
-#define FID_VIZ_LOOP_C89 32
-#define FID_VIZ_LOOP_C90 33
-#define FID_VIZ_LOOP_C91 34
-#define FID_VIZ_LOOP_C92 35
-#define FID_VIZ_LOOP_C93 36
-#define FID_VIZ_LOOP_C94 37
-#define FID_VIZ_LOOP_C95 38
-#define FID_VIZ_LOOP_C96 39
-#define FID_VIZ_LOOP_C97 40
-#define FID_VIZ_LOOP_C98 41
-#define FID_VIZ_LOOP_C99 42
-#define FID_VIZ_LOOP_C100 43
-#define FID_VIZ_LOOP_K101 44
-#define FID_VIZ_LOOP_C102 45
-#define FID_VIZ_LOOP_C103 46
-#define FID_MAIN 47
-#define FID_MAIN_K105 48
-#define FID_MAIN_K106 49
-#define FID_MAIN_K107 50
-#define FID_MAIN_K108 51
-#define FID_MAIN_K109 52
-#define FID_MAIN_K110 53
-#define FID_VIZ_NEXT 54
-#define FID_VIZ_PARAM 55
-#define FID_VIZ_SHOW 56
-#define FID_IO_EMIT 57
-#define FID_CLO_APPLY 58
-#define FID_EXIT 59
-#define FID_ENTER 60
-CONSTV u8 FID_T[][3] = { { 11, 0, 6 }, { 11, 0, 0 }, { 16, 1, 0 }, { 15, 1, 0 }, { 14, 1, 0 }, { 4, 1, 2 }, { 4, 0, 2 }, { 8, 0, 0 }, { 1, 1, 2 }, { 1, 0, 2 }, { 8, 0, 0 }, { 16, 0, 1 }, { 9, 1, 0 }, { 2, 1, 2 }, { 2, 0, 2 }, { 17, 0, 0 }, { 9, 1, 0 }, { 2, 1, 2 }, { 9, 0, 0 }, { 2, 2, 2 }, { 3, 0, 0 }, { 2, 0, 0 }, { 3, 0, 0 }, { 2, 0, 0 }, { 3, 0, 0 }, { 3, 0, 0 }, { 3, 0, 0 }, { 2, 1, 0 }, { 1, 0, 3 }, { 6, 0, 0 }, { 7, 0, 0 }, { 7, 0, 0 }, { 8, 0, 0 }, { 8, 0, 0 }, { 9, 0, 0 }, { 9, 0, 0 }, { 10, 0, 0 }, { 10, 0, 0 }, { 11, 0, 0 }, { 11, 0, 0 }, { 12, 0, 0 }, { 12, 0, 0 }, { 13, 0, 0 }, { 13, 0, 0 }, { 5, 1, 0 }, { 6, 0, 0 }, { 5, 0, 0 }, { 0, 0, 0 }, { 1, 1, 0 }, { 2, 1, 0 }, { 3, 1, 0 }, { 4, 1, 0 }, { 5, 1, 0 }, { 6, 1, 0 }, { 1, 0, 2 }, { 2, 0, 2 }, { 2, 0, 2 }, { 1, 0, 2 }, { 2, 0, 0 } };
+#define FID_ARRAY_SPREAD_RUN_1 1
+#define FID_VIZ_FILL 2
+#define FID_VIZ_FILL_K71 3
+#define FID_VIZ_FILL_K72 4
+#define FID_VIZ_FILL_K73 5
+#define FID_VIZ_FILL_K74 6
+#define FID_VIZ_FILL_J71 7
+#define FID_ARRAY_SPREAD_1 8
+#define FID_ARRAY_SPREAD_1_K77 9
+#define FID_ARRAY_SPREAD_1_J77 10
+#define FID_VIZ_BRANCH 11
+#define FID_VIZ_BRANCH_K81 12
+#define FID_VIZ_BRANCH_K82 13
+#define FID_VIZ_BRANCH_J81 14
+#define FID_VIZ_TREE 15
+#define FID_VIZ_TREE_K89 16
+#define FID_VIZ_PICK 17
+#define FID_VIZ_PICK_K91 18
+#define FID_VIZ_PICK_J91 19
+#define FID_VIZ_PICK_CPU 20
+#define FID_VIZ_FRAMES_GPU 21
+#define FID_VIZ_FRAMES_GPU_K95 22
+#define FID_VIZ_FRAMES_GPU_K96 23
+#define FID_VIZ_FRAMES_GPU_J95 24
+#define FID_VIZ_DRAW 25
+#define FID_VIZ_DRAW_K100 26
+#define FID_VIZ_DRAW_K101 27
+#define FID_VIZ_STEP 28
+#define FID_VIZ_STEP_K110 29
+#define FID_VIZ_SHOW2_C111 30
+#define FID_VIZ_SHOW2_C112 31
+#define FID_VIZ_SHOW2_C113 32
+#define FID_VIZ_SHOW2_C114 33
+#define FID_VIZ_SHOW2_C115 34
+#define FID_IO_BIND 35
+#define FID_IO_BIND_C117 36
+#define FID_IO_BIND_K118 37
+#define FID_VIZ_BLANK 38
+#define FID_VIZ_LOOP 39
+#define FID_VIZ_LOOP_C121 40
+#define FID_VIZ_LOOP_C122 41
+#define FID_VIZ_LOOP_C123 42
+#define FID_VIZ_LOOP_C124 43
+#define FID_VIZ_LOOP_C125 44
+#define FID_VIZ_LOOP_C126 45
+#define FID_VIZ_LOOP_C127 46
+#define FID_VIZ_LOOP_C128 47
+#define FID_VIZ_LOOP_C129 48
+#define FID_VIZ_LOOP_C130 49
+#define FID_VIZ_LOOP_C131 50
+#define FID_VIZ_LOOP_C132 51
+#define FID_VIZ_LOOP_C133 52
+#define FID_VIZ_LOOP_C134 53
+#define FID_VIZ_LOOP_K135 54
+#define FID_VIZ_LOOP_C136 55
+#define FID_VIZ_LOOP_C137 56
+#define FID_MAIN 57
+#define FID_MAIN_K139 58
+#define FID_MAIN_K140 59
+#define FID_MAIN_K141 60
+#define FID_MAIN_K142 61
+#define FID_MAIN_K143 62
+#define FID_MAIN_K144 63
+#define FID_VIZ_NEXT 64
+#define FID_VIZ_PARAM 65
+#define FID_VIZ_SHOW 66
+#define FID_IO_EMIT 67
+#define FID_CLO_APPLY 68
+#define FID_EXIT 69
+#define FID_ENTER 70
+CONSTV u8 FID_T[][3] = { { 11, 0, 6 }, { 11, 0, 6 }, { 11, 0, 0 }, { 16, 1, 0 }, { 15, 1, 0 }, { 14, 1, 0 }, { 4, 1, 2 }, { 4, 0, 2 }, { 9, 0, 0 }, { 1, 1, 2 }, { 1, 0, 2 }, { 13, 0, 0 }, { 16, 1, 0 }, { 2, 1, 2 }, { 2, 0, 2 }, { 8, 0, 0 }, { 8, 1, 0 }, { 9, 0, 0 }, { 1, 1, 2 }, { 1, 0, 2 }, { 9, 0, 0 }, { 17, 0, 1 }, { 10, 1, 0 }, { 2, 1, 2 }, { 2, 0, 2 }, { 18, 0, 0 }, { 10, 1, 0 }, { 2, 1, 2 }, { 9, 0, 0 }, { 2, 2, 2 }, { 3, 0, 0 }, { 2, 0, 0 }, { 3, 0, 0 }, { 2, 0, 0 }, { 3, 0, 0 }, { 3, 0, 0 }, { 3, 0, 0 }, { 2, 1, 0 }, { 1, 0, 3 }, { 6, 0, 0 }, { 7, 0, 0 }, { 7, 0, 0 }, { 8, 0, 0 }, { 8, 0, 0 }, { 9, 0, 0 }, { 9, 0, 0 }, { 10, 0, 0 }, { 10, 0, 0 }, { 11, 0, 0 }, { 11, 0, 0 }, { 12, 0, 0 }, { 12, 0, 0 }, { 13, 0, 0 }, { 13, 0, 0 }, { 5, 1, 0 }, { 6, 0, 0 }, { 5, 0, 0 }, { 0, 0, 0 }, { 1, 1, 0 }, { 2, 1, 0 }, { 3, 1, 0 }, { 4, 1, 0 }, { 5, 1, 0 }, { 6, 1, 0 }, { 1, 0, 2 }, { 2, 0, 2 }, { 2, 0, 2 }, { 1, 0, 2 }, { 2, 0, 0 } };
 CONSTV u8 CID_T[][2] = { { 2, 0 }, { 0, 0 }, { 2, 0 }, { 2, 1 }, { 1, 0 }, { 2, 0 }, { 1, 0 }, { 1, 0 }, { 0, 0 }, { 1, 0 }, { 0, 1 }, { 0, 1 }, { 0, 0 }, { 1, 0 }, { 7, 0 }, { 1, 0 }, { 2, 0 }, { 2, 0 } };
 #define STAT_LEN 0
 
 #define WL_RESW 2
 #define BANGS   2
 
-#define WL_BANK Term r0, r1, r2, r3, r4, r5, rp, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16;
+#define WL_BANK Term r0, r1, r2, r3, r4, r5, rp, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17;
 
 #define WL_LOAD(A, N) \
   do { \
@@ -969,6 +979,7 @@ CONSTV u8 CID_T[][2] = { { 2, 0 }, { 0, 0 }, { 2, 0 }, { 2, 1 }, { 1, 0 }, { 2, 
     if ((N) <= 14) break; r14 = e.mem[(A) + 14]; \
     if ((N) <= 15) break; r15 = e.mem[(A) + 15]; \
     if ((N) <= 16) break; r16 = e.mem[(A) + 16]; \
+    if ((N) <= 17) break; r17 = e.mem[(A) + 17]; \
   } while (0);
 
 #define WL_LAST(X) \
@@ -1007,17 +1018,19 @@ CONSTV u8 CID_T[][2] = { { 2, 0 }, { 0, 0 }, { 2, 0 }, { 2, 1 }, { 1, 0 }, { 2, 
       break; \
     case 16: r16 = (X); \
       break; \
+    case 17: r17 = (X); \
+      break; \
   }
 
 #define WL_SAVE(V) (V)[0] = r0; (V)[1] = r1;
 
 #define WL_TAKE(V) r0 = (V)[0]; r1 = (V)[1];
 
-#define WL_SIG u64* wl_mem, u64* wl_alc, DEV Term* sp, u32 seq, u32 rn, Term r0, Term r1, Term r2, Term r3, Term r4, Term r5, Term rp, Term r6, Term r7, Term r8, Term r9, Term r10, Term r11, Term r12, Term r13, Term r14, Term r15, Term r16
+#define WL_SIG u64* wl_mem, u64* wl_alc, DEV Term* sp, u32 seq, u32 rn, Term r0, Term r1, Term r2, Term r3, Term r4, Term r5, Term rp, Term r6, Term r7, Term r8, Term r9, Term r10, Term r11, Term r12, Term r13, Term r14, Term r15, Term r16, Term r17
 
-#define WL_ALL e.mem, e.alc, sp, seq, rn, r0, r1, r2, r3, r4, r5, rp, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16
+#define WL_ALL e.mem, e.alc, sp, seq, rn, r0, r1, r2, r3, r4, r5, rp, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17
 
-#define WL_TABLE WL_X(FID_ARRAY_SPREAD_RUN_0) WL_X(FID_VIZ_FILL) WL_X(FID_VIZ_FILL_K51) WL_X(FID_VIZ_FILL_K52) WL_X(FID_VIZ_FILL_K53) WL_X(FID_VIZ_FILL_K54) WL_X(FID_VIZ_FILL_J51) WL_X(FID_VIZ_FRAME_GPU) WL_X(FID_VIZ_FRAME_GPU_K57) WL_X(FID_VIZ_FRAME_GPU_J57) WL_X(FID_VIZ_FRAME) WL_X(FID_VIZ_FRAMES_GPU) WL_X(FID_VIZ_FRAMES_GPU_K61) WL_X(FID_VIZ_FRAMES_GPU_K62) WL_X(FID_VIZ_FRAMES_GPU_J61) WL_X(FID_VIZ_DRAW) WL_X(FID_VIZ_DRAW_K66) WL_X(FID_VIZ_DRAW_K67) WL_X(FID_VIZ_STEP) WL_X(FID_VIZ_STEP_K76) WL_X(FID_VIZ_SHOW2_C77) WL_X(FID_VIZ_SHOW2_C78) WL_X(FID_VIZ_SHOW2_C79) WL_X(FID_VIZ_SHOW2_C80) WL_X(FID_VIZ_SHOW2_C81) WL_X(FID_IO_BIND) WL_X(FID_IO_BIND_C83) WL_X(FID_IO_BIND_K84) WL_X(FID_VIZ_BLANK) WL_X(FID_VIZ_LOOP) WL_X(FID_VIZ_LOOP_C87) WL_X(FID_VIZ_LOOP_C88) WL_X(FID_VIZ_LOOP_C89) WL_X(FID_VIZ_LOOP_C90) WL_X(FID_VIZ_LOOP_C91) WL_X(FID_VIZ_LOOP_C92) WL_X(FID_VIZ_LOOP_C93) WL_X(FID_VIZ_LOOP_C94) WL_X(FID_VIZ_LOOP_C95) WL_X(FID_VIZ_LOOP_C96) WL_X(FID_VIZ_LOOP_C97) WL_X(FID_VIZ_LOOP_C98) WL_X(FID_VIZ_LOOP_C99) WL_X(FID_VIZ_LOOP_C100) WL_X(FID_VIZ_LOOP_K101) WL_X(FID_VIZ_LOOP_C102) WL_X(FID_VIZ_LOOP_C103) WL_X(FID_MAIN) WL_X(FID_MAIN_K105) WL_X(FID_MAIN_K106) WL_X(FID_MAIN_K107) WL_X(FID_MAIN_K108) WL_X(FID_MAIN_K109) WL_X(FID_MAIN_K110) WL_X(FID_VIZ_NEXT) WL_X(FID_VIZ_PARAM) WL_X(FID_VIZ_SHOW) WL_X(FID_IO_EMIT) WL_X(FID_CLO_APPLY) WL_X(FID_EXIT)
+#define WL_TABLE WL_X(FID_ARRAY_SPREAD_RUN_0) WL_X(FID_ARRAY_SPREAD_RUN_1) WL_X(FID_VIZ_FILL) WL_X(FID_VIZ_FILL_K71) WL_X(FID_VIZ_FILL_K72) WL_X(FID_VIZ_FILL_K73) WL_X(FID_VIZ_FILL_K74) WL_X(FID_VIZ_FILL_J71) WL_X(FID_ARRAY_SPREAD_1) WL_X(FID_ARRAY_SPREAD_1_K77) WL_X(FID_ARRAY_SPREAD_1_J77) WL_X(FID_VIZ_BRANCH) WL_X(FID_VIZ_BRANCH_K81) WL_X(FID_VIZ_BRANCH_K82) WL_X(FID_VIZ_BRANCH_J81) WL_X(FID_VIZ_TREE) WL_X(FID_VIZ_TREE_K89) WL_X(FID_VIZ_PICK) WL_X(FID_VIZ_PICK_K91) WL_X(FID_VIZ_PICK_J91) WL_X(FID_VIZ_PICK_CPU) WL_X(FID_VIZ_FRAMES_GPU) WL_X(FID_VIZ_FRAMES_GPU_K95) WL_X(FID_VIZ_FRAMES_GPU_K96) WL_X(FID_VIZ_FRAMES_GPU_J95) WL_X(FID_VIZ_DRAW) WL_X(FID_VIZ_DRAW_K100) WL_X(FID_VIZ_DRAW_K101) WL_X(FID_VIZ_STEP) WL_X(FID_VIZ_STEP_K110) WL_X(FID_VIZ_SHOW2_C111) WL_X(FID_VIZ_SHOW2_C112) WL_X(FID_VIZ_SHOW2_C113) WL_X(FID_VIZ_SHOW2_C114) WL_X(FID_VIZ_SHOW2_C115) WL_X(FID_IO_BIND) WL_X(FID_IO_BIND_C117) WL_X(FID_IO_BIND_K118) WL_X(FID_VIZ_BLANK) WL_X(FID_VIZ_LOOP) WL_X(FID_VIZ_LOOP_C121) WL_X(FID_VIZ_LOOP_C122) WL_X(FID_VIZ_LOOP_C123) WL_X(FID_VIZ_LOOP_C124) WL_X(FID_VIZ_LOOP_C125) WL_X(FID_VIZ_LOOP_C126) WL_X(FID_VIZ_LOOP_C127) WL_X(FID_VIZ_LOOP_C128) WL_X(FID_VIZ_LOOP_C129) WL_X(FID_VIZ_LOOP_C130) WL_X(FID_VIZ_LOOP_C131) WL_X(FID_VIZ_LOOP_C132) WL_X(FID_VIZ_LOOP_C133) WL_X(FID_VIZ_LOOP_C134) WL_X(FID_VIZ_LOOP_K135) WL_X(FID_VIZ_LOOP_C136) WL_X(FID_VIZ_LOOP_C137) WL_X(FID_MAIN) WL_X(FID_MAIN_K139) WL_X(FID_MAIN_K140) WL_X(FID_MAIN_K141) WL_X(FID_MAIN_K142) WL_X(FID_MAIN_K143) WL_X(FID_MAIN_K144) WL_X(FID_VIZ_NEXT) WL_X(FID_VIZ_PARAM) WL_X(FID_VIZ_SHOW) WL_X(FID_IO_EMIT) WL_X(FID_CLO_APPLY) WL_X(FID_EXIT)
 #define MAIN_FID FID_MAIN
 #define MAIN_PURE 0
 #define BLK_SHR 1
@@ -2037,46 +2050,7 @@ static u32 root_take(DEV u64* H, THR_ARR(Term, v, WL_RESW)) {
 
 CONSTV u64 STAT_IMG[] = { 0 };
 
-INLINE Term spin_0(Env e, WL_OUT(o), u32 r0, Term r1, Term r2) {
-  u32 wpoll = 0;
-  Term _v_1 = 0;
-  u32 _c_0 = r0;
-  Term _a_1 = r1;
-  Term _b_1 = r2;
-  WL_SPIN
-    if (_c_0 == 0) {
-      term_sink(e, _a_1);
-      _v_1 = _b_1;
-    } else {
-      term_sink(e, _b_1);
-      _v_1 = _a_1;
-    }
-  break;
-  }
-  o[0] = _v_1;
-  return 1;
-}
-
 INLINE Term spin_1(Env e, WL_OUT(o), u32 r0, u32 r1) {
-  u32 wpoll = 0;
-  u32 _v_2 = 0;
-  u32 _a_0 = r0;
-  u32 _b_0 = r1;
-  WL_SPIN
-    Term _v_3 = 0;
-    Term _o_0[WL_OSZ(1)];
-    if (spin_0(e, _o_0, ((u64)(f32_unbox(_a_0) < f32_unbox(_b_0))), _a_0, _b_0) == 0) {
-      return 0;
-    }
-    _v_3 = _o_0[0];
-    _v_2 = _v_3;
-  break;
-  }
-  o[0] = _v_2;
-  return 1;
-}
-
-INLINE Term spin_3(Env e, WL_OUT(o), u32 r0, u32 r1) {
   u32 wpoll = 0;
   u32 _v_5 = 0;
   u32 _x_2 = r0;
@@ -2089,7 +2063,46 @@ INLINE Term spin_3(Env e, WL_OUT(o), u32 r0, u32 r1) {
   return 1;
 }
 
-INLINE Term spin_4(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3) {
+INLINE Term spin_4(Env e, WL_OUT(o), u32 r0, Term r1, Term r2) {
+  u32 wpoll = 0;
+  Term _v_12 = 0;
+  u32 _c_0 = r0;
+  Term _a_2 = r1;
+  Term _b_1 = r2;
+  WL_SPIN
+    if (_c_0 == 0) {
+      term_sink(e, _a_2);
+      _v_12 = _b_1;
+    } else {
+      term_sink(e, _b_1);
+      _v_12 = _a_2;
+    }
+  break;
+  }
+  o[0] = _v_12;
+  return 1;
+}
+
+INLINE Term spin_3(Env e, WL_OUT(o), u32 r0, u32 r1) {
+  u32 wpoll = 0;
+  u32 _v_10 = 0;
+  u32 _a_1 = r0;
+  u32 _b_0 = r1;
+  WL_SPIN
+    Term _v_11 = 0;
+    Term _o_1[WL_OSZ(1)];
+    if (spin_4(e, _o_1, ((u64)(f32_unbox(_a_1) < f32_unbox(_b_0))), _a_1, _b_0) == 0) {
+      return 0;
+    }
+    _v_11 = _o_1[0];
+    _v_10 = _v_11;
+  break;
+  }
+  o[0] = _v_10;
+  return 1;
+}
+
+INLINE Term spin_2(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3) {
   u32 wpoll = 0;
   u32 _v_7 = 0;
   u32 _f_0 = r0;
@@ -2099,25 +2112,25 @@ INLINE Term spin_4(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3) {
   WL_SPIN
     u32 _v_8 = 0;
     u32 _v_9 = 0;
-    Term _o_1[WL_OSZ(1)];
-    if (spin_1(e, _o_1, 1065353216ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1058642330ull) + f32_unbox(f32_rewrap(f32_unbox(1048576000ull) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_f_0) * f32_unbox(1095306838ull))) + f32_unbox(_t_0)))))))))) + f32_unbox(f32_rewrap(f32_unbox(_beat_0) * f32_unbox(1048576000ull))))) == 0) {
+    Term _o_2[WL_OSZ(1)];
+    if (spin_3(e, _o_2, 1065353216ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1058642330ull) + f32_unbox(f32_rewrap(f32_unbox(1048576000ull) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_f_0) * f32_unbox(1095306838ull))) + f32_unbox(_t_0)))))))))) + f32_unbox(f32_rewrap(f32_unbox(_beat_0) * f32_unbox(1048576000ull))))) == 0) {
       return 0;
     }
-    _v_9 = _o_1[0];
+    _v_9 = _o_2[0];
     _v_8 = _v_9;
     u32 _r_0 = f32_to_u32(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1132396544ull) * f32_unbox(_v_8))) * f32_unbox(f32_rewrap(f32_unbox(1056964608ull) + f32_unbox(f32_rewrap(f32_unbox(1056964608ull) * f32_unbox(f32_rewrap((f32)cos(f32_unbox(f32_rewrap(f32_unbox(1086918649ull) * f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_f_0) * f32_unbox(1058642330ull))) + f32_unbox(_hue_0))))))))))))));
     u32 _g_0 = f32_to_u32(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1132396544ull) * f32_unbox(_v_8))) * f32_unbox(f32_rewrap(f32_unbox(1056964608ull) + f32_unbox(f32_rewrap(f32_unbox(1056964608ull) * f32_unbox(f32_rewrap((f32)cos(f32_unbox(f32_rewrap(f32_unbox(1086918649ull) * f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_f_0) * f32_unbox(1058642330ull))) + f32_unbox(_hue_0))) + f32_unbox(1051260355ull))))))))))))));
-    u32 _b_0 = f32_to_u32(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1132396544ull) * f32_unbox(_v_8))) * f32_unbox(f32_rewrap(f32_unbox(1056964608ull) + f32_unbox(f32_rewrap(f32_unbox(1056964608ull) * f32_unbox(f32_rewrap((f32)cos(f32_unbox(f32_rewrap(f32_unbox(1086918649ull) * f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_f_0) * f32_unbox(1058642330ull))) + f32_unbox(_hue_0))) + f32_unbox(1059816735ull))))))))))))));
-    Term _a_1 = 16ull;
-    Term _a_2 = 8ull;
-    _v_7 = U32_BIN(U32_BIN((_a_1 >= 32 ? 0 : U32_BIN(_r_0, <<, _a_1)), |, (_a_2 >= 32 ? 0 : U32_BIN(_g_0, <<, _a_2))), |, _b_0);
+    u32 _b_2 = f32_to_u32(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1132396544ull) * f32_unbox(_v_8))) * f32_unbox(f32_rewrap(f32_unbox(1056964608ull) + f32_unbox(f32_rewrap(f32_unbox(1056964608ull) * f32_unbox(f32_rewrap((f32)cos(f32_unbox(f32_rewrap(f32_unbox(1086918649ull) * f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_f_0) * f32_unbox(1058642330ull))) + f32_unbox(_hue_0))) + f32_unbox(1059816735ull))))))))))))));
+    Term _a_3 = 16ull;
+    Term _a_4 = 8ull;
+    _v_7 = U32_BIN(U32_BIN((_a_3 >= 32 ? 0 : U32_BIN(_r_0, <<, _a_3)), |, (_a_4 >= 32 ? 0 : U32_BIN(_g_0, <<, _a_4))), |, _b_2);
   break;
   }
   o[0] = _v_7;
   return 1;
 }
 
-INLINE Term spin_2(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, u32 r8) {
+INLINE Term spin_0(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, u32 r8) {
   u32 wpoll = 0;
   u32 _v_2 = 0;
   u32 _x_1 = r0;
@@ -2139,18 +2152,18 @@ INLINE Term spin_2(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32
     u32 _v_3 = 0;
     u32 _v_4 = 0;
     Term _o_0[WL_OSZ(1)];
-    if (spin_3(e, _o_0, _dx_0, _dy_0) == 0) {
+    if (spin_1(e, _o_0, _dx_0, _dy_0) == 0) {
       return 0;
     }
     _v_4 = _o_0[0];
     _v_3 = _v_4;
     u32 _w4_0 = f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_v_3) * f32_unbox(1069547520ull))) - f32_unbox(f32_rewrap(f32_unbox(_k_7) * f32_unbox(1073741824ull))))) - f32_unbox(f32_rewrap(f32_unbox(_k_9) * f32_unbox(1077936128ull)))))));
     u32 _v_6 = 0;
-    Term _o_2[WL_OSZ(1)];
-    if (spin_4(e, _o_2, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_w1_0) + f32_unbox(_w2_0))) + f32_unbox(_w3_0))) + f32_unbox(_w4_0))) + f32_unbox(1082130432ull))) * f32_unbox(1040187392ull))) + f32_unbox(f32_rewrap(f32_unbox(_k_7) * f32_unbox(1041865114ull)))), _k_7, _k_10, _k_11) == 0) {
+    Term _o_3[WL_OSZ(1)];
+    if (spin_2(e, _o_3, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_w1_0) + f32_unbox(_w2_0))) + f32_unbox(_w3_0))) + f32_unbox(_w4_0))) + f32_unbox(1082130432ull))) * f32_unbox(1040187392ull))) + f32_unbox(f32_rewrap(f32_unbox(_k_7) * f32_unbox(1041865114ull)))), _k_7, _k_10, _k_11) == 0) {
       return 0;
     }
-    _v_6 = _o_2[0];
+    _v_6 = _o_3[0];
     _v_2 = _v_6;
   break;
   }
@@ -2189,7 +2202,7 @@ INLINE Term spin_6(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32
     u32 _v_2 = 0;
     u32 _v_3 = 0;
     Term _o_0[WL_OSZ(1)];
-    if (spin_2(e, _o_0, _x_1, _y_1, _k_7, _k_8, _k_9, _k_10, _k_11, _k_12, _k_13) == 0) {
+    if (spin_0(e, _o_0, _x_1, _y_1, _k_7, _k_8, _k_9, _k_10, _k_11, _k_12, _k_13) == 0) {
       return 0;
     }
     _v_3 = _o_0[0];
@@ -2306,7 +2319,7 @@ INLINE Term spin_11(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u3
       u32 _v_6 = 0;
       u32 _v_7 = 0;
       Term _o_1[WL_OSZ(1)];
-      if (spin_2(e, _o_1, _x_1, _y_1, _k_7, _k_8, _k_9, _k_10, _k_11, _k_12, _k_13) == 0) {
+      if (spin_0(e, _o_1, _x_1, _y_1, _k_7, _k_8, _k_9, _k_10, _k_11, _k_12, _k_13) == 0) {
         return 0;
       }
       _v_7 = _o_1[0];
@@ -2390,7 +2403,29 @@ INLINE Term spin_12(Env e, WL_OUT(o), Term r0, u32 r1, u32 r2, u32 r3, u32 r4, u
   return 1;
 }
 
-INLINE Term spin_13(Env e, WL_OUT(o), Term r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, u32 r8, u32 r9, u32 r10, u32 r11, u32 r12, Term r13) {
+INLINE Term spin_13(Env e, WL_OUT(o), u32 r0, u32 r1, Term r2) {
+  u32 wpoll = 0;
+  Term _v_2 = 0;
+  u32 _inside_0 = r0;
+  u32 _i_1 = r1;
+  Term _a_1 = r2;
+  WL_SPIN
+    if (_inside_0 == 1) {
+      Term _at_0 = blk_loc(e.mem, _a_1);
+      Term _at_1 = blk_at(_a_1, _i_1, 0);
+      u32 _c_0 = blk_read(e.mem, 0, _at_0, _at_1 + 0);
+      blk_write(e.mem, 0, _at_0, _at_1 + 0, 0ull);
+      _v_2 = _a_1;
+    } else {
+      _v_2 = _a_1;
+    }
+  break;
+  }
+  o[0] = _v_2;
+  return 1;
+}
+
+INLINE Term spin_14(Env e, WL_OUT(o), Term r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, u32 r8, u32 r9, u32 r10, u32 r11, u32 r12, Term r13) {
   u32 wpoll = 0;
   Term _v_1 = 0;
   Term _n_0 = r0;
@@ -2456,7 +2491,7 @@ INLINE Term spin_13(Env e, WL_OUT(o), Term r0, u32 r1, u32 r2, u32 r3, u32 r4, u
       _k_12 = r11;
       _k_13 = r12;
       _a_5 = r13;
-      WL_AGAIN(spin_13);
+      WL_AGAIN(spin_14);
     }
   break;
   }
@@ -2464,7 +2499,7 @@ INLINE Term spin_13(Env e, WL_OUT(o), Term r0, u32 r1, u32 r2, u32 r3, u32 r4, u
   return 1;
 }
 
-INLINE Term spin_14(Env e, WL_OUT(o), Term r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, u32 r8, u32 r9, Term r10) {
+INLINE Term spin_15(Env e, WL_OUT(o), Term r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, u32 r8, u32 r9, Term r10) {
   u32 wpoll = 0;
   Term _v_1 = 0;
   Term _n_0 = r0;
@@ -2513,7 +2548,7 @@ INLINE Term spin_14(Env e, WL_OUT(o), Term r0, u32 r1, u32 r2, u32 r3, u32 r4, u
       _k_12 = r8;
       _k_13 = r9;
       _a_1 = r10;
-      WL_AGAIN(spin_14);
+      WL_AGAIN(spin_15);
     }
   break;
   }
@@ -2521,7 +2556,86 @@ INLINE Term spin_14(Env e, WL_OUT(o), Term r0, u32 r1, u32 r2, u32 r3, u32 r4, u
   return 1;
 }
 
-INLINE Term spin_15(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, Term r8) {
+INLINE Term spin_16(Env e, WL_OUT(o), Term r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, u32 r8, Term r9) {
+  u32 wpoll = 0;
+  Term _v_1 = 0;
+  Term _n_0 = r0;
+  u32 _i_0 = r1;
+  u32 _k_7 = r2;
+  u32 _k_8 = r3;
+  u32 _k_9 = r4;
+  u32 _k_10 = r5;
+  u32 _k_11 = r6;
+  u32 _k_12 = r7;
+  u32 _k_13 = r8;
+  Term _a_3 = r9;
+  WL_SPIN
+    if (_n_0 == 0) {
+      _v_1 = _a_3;
+    } else {
+      Term _r_0 = (_n_0 - 1);
+      Term _v_2 = 0;
+      Term _v_3 = 0;
+      Term _o_0[WL_OSZ(1)];
+      if (spin_13(e, _o_0, U32_BIN(_i_0, <, U32_BIN(_k_12, *, _k_13)), _i_0, _a_3) == 0) {
+        return 0;
+      }
+      _v_3 = _o_0[0];
+      _v_2 = _v_3;
+      r0 = _r_0;
+      r1 = U32_BIN(_i_0, +, 32768ull);
+      r2 = _k_7;
+      r3 = _k_8;
+      r4 = _k_9;
+      r5 = _k_10;
+      r6 = _k_11;
+      r7 = _k_12;
+      r8 = _k_13;
+      r9 = _v_2;
+      _n_0 = r0;
+      _i_0 = r1;
+      _k_7 = r2;
+      _k_8 = r3;
+      _k_9 = r4;
+      _k_10 = r5;
+      _k_11 = r6;
+      _k_12 = r7;
+      _k_13 = r8;
+      _a_3 = r9;
+      WL_AGAIN(spin_16);
+    }
+  break;
+  }
+  o[0] = _v_1;
+  return 1;
+}
+
+INLINE Term spin_17(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, Term r5) {
+  u32 wpoll = 0;
+  Term _v_7 = 0;
+  u32 _inside_0 = r0;
+  u32 _x_1 = r1;
+  u32 _y_1 = r2;
+  u32 _c_1 = r3;
+  u32 _w_0 = r4;
+  Term _a_1 = r5;
+  WL_SPIN
+    if (_inside_0 == 1) {
+      Term _at_0 = blk_loc(e.mem, _a_1);
+      Term _at_1 = blk_at(_a_1, U32_BIN(U32_BIN(_y_1, *, _w_0), +, _x_1), 0);
+      u32 _c_2 = blk_read(e.mem, 0, _at_0, _at_1 + 0);
+      blk_write(e.mem, 0, _at_0, _at_1 + 0, _c_1);
+      _v_7 = _a_1;
+    } else {
+      _v_7 = _a_1;
+    }
+  break;
+  }
+  o[0] = _v_7;
+  return 1;
+}
+
+INLINE Term spin_18(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, Term r8) {
   u32 wpoll = 0;
   Term _v_2 = 0;
   u32 _j_0 = r0;
@@ -2540,7 +2654,7 @@ INLINE Term spin_15(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u3
     Term _a_5 = 32768ull;
     Term _v_3 = 0;
     Term _o_0[WL_OSZ(1)];
-    if (spin_13(e, _o_0, ((u32)(_a_3) == 0 ? 0 : (u64)U32_QUO((u32)(_a_2), (u32)(_a_3))), _j_0, ((u32)(_k_5) == 0 ? _j_0 : U32_BIN(_j_0, -, U32_QUO((u32)(_j_0), (u32)(_k_5)) * _k_5)), ((u32)(_k_5) == 0 ? 0 : (u64)U32_QUO((u32)(_j_0), (u32)(_k_5))), ((u32)(_k_5) == 0 ? _a_4 : U32_BIN(_a_4, -, U32_QUO((u32)(_a_4), (u32)(_k_5)) * _k_5)), ((u32)(_k_5) == 0 ? 0 : (u64)U32_QUO((u32)(_a_5), (u32)(_k_5))), _k_0, _k_1, _k_2, _k_3, _k_4, _k_5, _k_6, _a_1) == 0) {
+    if (spin_14(e, _o_0, ((u32)(_a_3) == 0 ? 0 : (u64)U32_QUO((u32)(_a_2), (u32)(_a_3))), _j_0, ((u32)(_k_5) == 0 ? _j_0 : U32_BIN(_j_0, -, U32_QUO((u32)(_j_0), (u32)(_k_5)) * _k_5)), ((u32)(_k_5) == 0 ? 0 : (u64)U32_QUO((u32)(_j_0), (u32)(_k_5))), ((u32)(_k_5) == 0 ? _a_4 : U32_BIN(_a_4, -, U32_QUO((u32)(_a_4), (u32)(_k_5)) * _k_5)), ((u32)(_k_5) == 0 ? 0 : (u64)U32_QUO((u32)(_a_5), (u32)(_k_5))), _k_0, _k_1, _k_2, _k_3, _k_4, _k_5, _k_6, _a_1) == 0) {
       return 0;
     }
     _v_3 = _o_0[0];
@@ -2551,7 +2665,174 @@ INLINE Term spin_15(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u3
   return 1;
 }
 
-INLINE Term spin_16(Env e, WL_OUT(o), Term r0, Term r1) {
+INLINE Term spin_19(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, Term r8) {
+  u32 wpoll = 0;
+  Term _v_2 = 0;
+  u32 _j_0 = r0;
+  u32 _k_0 = r1;
+  u32 _k_1 = r2;
+  u32 _k_2 = r3;
+  u32 _k_3 = r4;
+  u32 _k_4 = r5;
+  u32 _k_5 = r6;
+  u32 _k_6 = r7;
+  Term _a_1 = r8;
+  WL_SPIN
+    Term _a_2 = U32_BIN(U32_BIN(_k_5, *, _k_6), +, 32767ull);
+    Term _a_3 = 32768ull;
+    Term _v_3 = 0;
+    Term _o_0[WL_OSZ(1)];
+    if (spin_16(e, _o_0, ((u32)(_a_3) == 0 ? 0 : (u64)U32_QUO((u32)(_a_2), (u32)(_a_3))), _j_0, _k_0, _k_1, _k_2, _k_3, _k_4, _k_5, _k_6, _a_1) == 0) {
+      return 0;
+    }
+    _v_3 = _o_0[0];
+    _v_2 = _v_3;
+  break;
+  }
+  o[0] = _v_2;
+  return 1;
+}
+
+INLINE Term spin_20(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, u32 r8, u32 r9, Term r10) {
+  u32 wpoll = 0;
+  Term _v_2 = 0;
+  u32 _x_1 = r0;
+  u32 _y_1 = r1;
+  u32 _c_1 = r2;
+  u32 _k_7 = r3;
+  u32 _k_8 = r4;
+  u32 _k_9 = r5;
+  u32 _k_10 = r6;
+  u32 _k_11 = r7;
+  u32 _k_12 = r8;
+  u32 _k_13 = r9;
+  Term _a_1 = r10;
+  WL_SPIN
+    u32 _xi_0 = f32_to_u32(f32_rewrap(f32_unbox(_x_1) + f32_unbox(1065353216ull)));
+    u32 _yi_0 = f32_to_u32(f32_rewrap(f32_unbox(_y_1) + f32_unbox(1065353216ull)));
+    u32 _v_3 = 0;
+    u32 _v_4 = 0;
+    u32 _v_5 = 0;
+    u32 _v_6 = 0;
+    Term _o_0[WL_OSZ(1)];
+    if (spin_8(e, _o_0, U32_BIN(_xi_0, >=, 1ull), U32_BIN(_yi_0, >=, 1ull)) == 0) {
+      return 0;
+    }
+    _v_6 = _o_0[0];
+    _v_5 = _v_6;
+    u32 _v_7 = 0;
+    Term _o_1[WL_OSZ(1)];
+    if (spin_8(e, _o_1, _v_5, U32_BIN(_xi_0, <=, _k_12)) == 0) {
+      return 0;
+    }
+    _v_7 = _o_1[0];
+    _v_4 = _v_7;
+    u32 _v_8 = 0;
+    Term _o_2[WL_OSZ(1)];
+    if (spin_8(e, _o_2, _v_4, U32_BIN(_yi_0, <=, _k_13)) == 0) {
+      return 0;
+    }
+    _v_8 = _o_2[0];
+    _v_3 = _v_8;
+    Term _v_9 = 0;
+    Term _o_3[WL_OSZ(1)];
+    if (spin_17(e, _o_3, _v_3, U32_BIN(_xi_0, -, 1ull), U32_BIN(_yi_0, -, 1ull), _c_1, _k_12, _a_1) == 0) {
+      return 0;
+    }
+    _v_9 = _o_3[0];
+    _v_2 = _v_9;
+  break;
+  }
+  o[0] = _v_2;
+  return 1;
+}
+
+INLINE Term spin_21(Env e, WL_OUT(o), u32 r0, u32 r1) {
+  u32 wpoll = 0;
+  u32 _v_3 = 0;
+  u32 _a_1 = r0;
+  u32 _b_0 = r1;
+  WL_SPIN
+    Term _v_4 = 0;
+    Term _o_0[WL_OSZ(1)];
+    if (spin_4(e, _o_0, ((u64)(f32_unbox(_a_1) < f32_unbox(_b_0))), _b_0, _a_1) == 0) {
+      return 0;
+    }
+    _v_4 = _o_0[0];
+    _v_3 = _v_4;
+  break;
+  }
+  o[0] = _v_3;
+  return 1;
+}
+
+INLINE Term spin_22(Env e, WL_OUT(o), Term r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, u32 r8, u32 r9, u32 r10, u32 r11, u32 r12, Term r13) {
+  u32 wpoll = 0;
+  Term _v_12 = 0;
+  Term _n_1 = r0;
+  u32 _x_1 = r1;
+  u32 _y_1 = r2;
+  u32 _sx_0 = r3;
+  u32 _sy_0 = r4;
+  u32 _c_0 = r5;
+  u32 _k_7 = r6;
+  u32 _k_8 = r7;
+  u32 _k_9 = r8;
+  u32 _k_10 = r9;
+  u32 _k_11 = r10;
+  u32 _k_12 = r11;
+  u32 _k_13 = r12;
+  Term _a_2 = r13;
+  WL_SPIN
+    if (_n_1 == 0) {
+      _v_12 = _a_2;
+    } else {
+      Term _r_0 = (_n_1 - 1);
+      Term _v_13 = 0;
+      Term _v_14 = 0;
+      Term _o_5[WL_OSZ(1)];
+      if (spin_20(e, _o_5, _x_1, _y_1, _c_0, _k_7, _k_8, _k_9, _k_10, _k_11, _k_12, _k_13, _a_2) == 0) {
+        return 0;
+      }
+      _v_14 = _o_5[0];
+      _v_13 = _v_14;
+      r0 = _r_0;
+      r1 = f32_rewrap(f32_unbox(_x_1) + f32_unbox(_sx_0));
+      r2 = f32_rewrap(f32_unbox(_y_1) + f32_unbox(_sy_0));
+      r3 = _sx_0;
+      r4 = _sy_0;
+      r5 = _c_0;
+      r6 = _k_7;
+      r7 = _k_8;
+      r8 = _k_9;
+      r9 = _k_10;
+      r10 = _k_11;
+      r11 = _k_12;
+      r12 = _k_13;
+      r13 = _v_13;
+      _n_1 = r0;
+      _x_1 = r1;
+      _y_1 = r2;
+      _sx_0 = r3;
+      _sy_0 = r4;
+      _c_0 = r5;
+      _k_7 = r6;
+      _k_8 = r7;
+      _k_9 = r8;
+      _k_10 = r9;
+      _k_11 = r10;
+      _k_12 = r11;
+      _k_13 = r12;
+      _a_2 = r13;
+      WL_AGAIN(spin_22);
+    }
+  break;
+  }
+  o[0] = _v_12;
+  return 1;
+}
+
+INLINE Term spin_23(Env e, WL_OUT(o), Term r0, Term r1) {
   u32 wpoll = 0;
   Term _v_1 = 0;
   Term _p_0 = r0;
@@ -2560,7 +2841,7 @@ INLINE Term spin_16(Env e, WL_OUT(o), Term r0, Term r1) {
     u64 _nd_0 = heap_alloc(e, cls_fit(2));
     e.mem[_nd_0 + 0] = _p_0;
     e.mem[_nd_0 + 1] = _p_1;
-    _v_1 = term_clo(FID_VIZ_SHOW2_C77, _nd_0);
+    _v_1 = term_clo(FID_VIZ_SHOW2_C111, _nd_0);
   break;
   }
   o[0] = _v_1;
@@ -2635,7 +2916,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
       Term _v_0 = 0;
       Term _v_1 = 0;
       Term _o_1[WL_OSZ(1)];
-      if (spin_15(e, _o_1, _i_0, _x_0, _x_1, _x_2, _x_3, _x_4, _x_5, _x_6, _a_0) == 0) {
+      if (spin_18(e, _o_1, _i_0, _x_0, _x_1, _x_2, _x_3, _x_4, _x_5, _x_6, _a_0) == 0) {
         return 0;
       }
       _v_1 = _o_1[0];
@@ -2663,6 +2944,61 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
       _x_5 = r9;
       _x_6 = r10;
       WL_AGAIN(FID_ARRAY_SPREAD_RUN_0);
+    }
+    WL_SPUN
+  }}
+
+  WL_CASE(FID_ARRAY_SPREAD_RUN_1)
+  {
+    Term _c_0 = r0;
+    Term _a_0 = r1;
+    u32 _i_0 = r2;
+    u32 _st_0 = r3;
+    u32 _x_0 = r4;
+    u32 _x_1 = r5;
+    u32 _x_2 = r6;
+    u32 _x_3 = r7;
+    u32 _x_4 = r8;
+    u32 _x_5 = r9;
+    u32 _x_6 = r10;
+    WL_OPEN
+    WL_SPIN
+    if (_c_0 == 0) {
+      r0 = _a_0;
+      WL_RETN(1);
+    } else {
+      Term _r_0 = (_c_0 - 1);
+      Term _v_0 = 0;
+      Term _v_1 = 0;
+      Term _o_1[WL_OSZ(1)];
+      if (spin_19(e, _o_1, _i_0, _x_0, _x_1, _x_2, _x_3, _x_4, _x_5, _x_6, _a_0) == 0) {
+        return 0;
+      }
+      _v_1 = _o_1[0];
+      _v_0 = _v_1;
+      r0 = _r_0;
+      r1 = _v_0;
+      r2 = U32_BIN(_i_0, +, _st_0);
+      r3 = _st_0;
+      r4 = _x_0;
+      r5 = _x_1;
+      r6 = _x_2;
+      r7 = _x_3;
+      r8 = _x_4;
+      r9 = _x_5;
+      r10 = _x_6;
+      _c_0 = r0;
+      _a_0 = r1;
+      _i_0 = r2;
+      _st_0 = r3;
+      _x_0 = r4;
+      _x_1 = r5;
+      _x_2 = r6;
+      _x_3 = r7;
+      _x_4 = r8;
+      _x_5 = r9;
+      _x_6 = r10;
+      WL_AGAIN(FID_ARRAY_SPREAD_RUN_1);
     }
     WL_SPUN
   }}
@@ -2698,7 +3034,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
       if (_d_0 == 0) {
         Term _v_2 = 0;
         Term _o_1[WL_OSZ(1)];
-        if (spin_14(e, _o_1, 16ull, _y_0, _x_0, _k_0, _k_1, _k_2, _k_3, _k_4, _k_5, _k_6, _a_0) == 0) {
+        if (spin_15(e, _o_1, 16ull, _y_0, _x_0, _k_0, _k_1, _k_2, _k_3, _k_4, _k_5, _k_6, _a_0) == 0) {
           return 0;
         }
         _v_2 = _o_1[0];
@@ -2747,8 +3083,8 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
         u32 _x1_0 = U32_BIN(_x_0, +, _h_0);
         u32 _y1_0 = U32_BIN(_y_0, +, _h_0);
         if (!seq) {
-          u64 _t_0 = task_node(e, FID_VIZ_FILL_J51, WL_CONT, WL_IDX, 4);
-          u64 _t_1 = task_node(e, FID_VIZ_FILL, term_tsk(FID_VIZ_FILL_J51, _t_0), 0, 0);
+          u64 _t_0 = task_node(e, FID_VIZ_FILL_J71, WL_CONT, WL_IDX, 4);
+          u64 _t_1 = task_node(e, FID_VIZ_FILL, term_tsk(FID_VIZ_FILL_J71, _t_0), 0, 0);
           e.mem[_t_1 + 0] = _e_0;
           e.mem[_t_1 + 1] = _x_0;
           e.mem[_t_1 + 2] = _y_0;
@@ -2761,7 +3097,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
           e.mem[_t_1 + 9] = _k_6;
           e.mem[_t_1 + 10] = _v_3;
           e.mem[_t_0 + 0] = term_tsk(FID_VIZ_FILL, _t_1);
-          u64 _t_2 = task_node(e, FID_VIZ_FILL, term_tsk(FID_VIZ_FILL_J51, _t_0), 1, 0);
+          u64 _t_2 = task_node(e, FID_VIZ_FILL, term_tsk(FID_VIZ_FILL_J71, _t_0), 1, 0);
           e.mem[_t_2 + 0] = _e_0;
           e.mem[_t_2 + 1] = _x1_0;
           e.mem[_t_2 + 2] = _y_0;
@@ -2774,7 +3110,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
           e.mem[_t_2 + 9] = _k_6;
           e.mem[_t_2 + 10] = _v_7;
           e.mem[_t_0 + 1] = term_tsk(FID_VIZ_FILL, _t_2);
-          u64 _t_3 = task_node(e, FID_VIZ_FILL, term_tsk(FID_VIZ_FILL_J51, _t_0), 2, 0);
+          u64 _t_3 = task_node(e, FID_VIZ_FILL, term_tsk(FID_VIZ_FILL_J71, _t_0), 2, 0);
           e.mem[_t_3 + 0] = _e_0;
           e.mem[_t_3 + 1] = _x_0;
           e.mem[_t_3 + 2] = _y1_0;
@@ -2787,7 +3123,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
           e.mem[_t_3 + 9] = _k_6;
           e.mem[_t_3 + 10] = _v_11;
           e.mem[_t_0 + 2] = term_tsk(FID_VIZ_FILL, _t_3);
-          u64 _t_4 = task_node(e, FID_VIZ_FILL, term_tsk(FID_VIZ_FILL_J51, _t_0), 3, 0);
+          u64 _t_4 = task_node(e, FID_VIZ_FILL, term_tsk(FID_VIZ_FILL_J71, _t_0), 3, 0);
           e.mem[_t_4 + 0] = _e_0;
           e.mem[_t_4 + 1] = _x1_0;
           e.mem[_t_4 + 2] = _y1_0;
@@ -2800,7 +3136,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
           e.mem[_t_4 + 9] = _k_6;
           e.mem[_t_4 + 10] = _v_12;
           e.mem[_t_0 + 3] = term_tsk(FID_VIZ_FILL, _t_4);
-          return term_tsk(FID_VIZ_FILL_J51, _t_0);
+          return term_tsk(FID_VIZ_FILL_J71, _t_0);
         }
         WL_ROOM(16);
         STK(0) = _e_0;
@@ -2818,7 +3154,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
         STK(12) = _v_12;
         STK(13) = _x1_0;
         STK(14) = _y1_0;
-        STK(15) = FID_VIZ_FILL_K51;
+        STK(15) = FID_VIZ_FILL_K71;
         WL_PUSHN(16);
         r0 = _e_0;
         r1 = _x_0;
@@ -2850,7 +3186,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_FILL_K51)
+  WL_CASE(FID_VIZ_FILL_K71)
   {
     Term _e_1 = STK(-15);
     u32 _x_1 = STK(-14);
@@ -2871,7 +3207,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     WL_OPEN
     WL_ROOM(2);
     STK(0) = _q_0;
-    STK(1) = FID_VIZ_FILL_K52;
+    STK(1) = FID_VIZ_FILL_K72;
     WL_PUSHN(2);
     if (!DEVICE && !seq && fid_nofk(FID_VIZ_FILL)) {
       u64 _t_5 = task_node(e, FID_VIZ_FILL, WL_CONT, WL_IDX, 0);
@@ -2904,7 +3240,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_FILL_K52)
+  WL_CASE(FID_VIZ_FILL_K72)
   {
     Term _e_2 = STK(-16);
     u32 _x_2 = STK(-15);
@@ -2924,7 +3260,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     WL_OPEN
     WL_ROOM(2);
     STK(0) = _w_0;
-    STK(1) = FID_VIZ_FILL_K53;
+    STK(1) = FID_VIZ_FILL_K73;
     WL_PUSHN(2);
     if (!DEVICE && !seq && fid_nofk(FID_VIZ_FILL)) {
       u64 _t_6 = task_node(e, FID_VIZ_FILL, WL_CONT, WL_IDX, 0);
@@ -2957,7 +3293,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_FILL_K53)
+  WL_CASE(FID_VIZ_FILL_K73)
   {
     Term _e_3 = STK(-17);
     u32 _k_21 = STK(-14);
@@ -2976,7 +3312,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     WL_OPEN
     WL_ROOM(2);
     STK(0) = _r_0;
-    STK(1) = FID_VIZ_FILL_K54;
+    STK(1) = FID_VIZ_FILL_K74;
     WL_PUSHN(2);
     if (!DEVICE && !seq && fid_nofk(FID_VIZ_FILL)) {
       u64 _t_7 = task_node(e, FID_VIZ_FILL, WL_CONT, WL_IDX, 0);
@@ -3009,7 +3345,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_FILL_K54)
+  WL_CASE(FID_VIZ_FILL_K74)
   {
     WL_POPN(18);
     Term _q_3 = STK(15);
@@ -3017,24 +3353,24 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     Term _r_1 = STK(17);
     Term _z_0 = r0;
     WL_OPEN
-    if (!DEVICE && !seq && fid_nofk(FID_VIZ_FILL_J51)) {
-      u64 _t_8 = task_node(e, FID_VIZ_FILL_J51, WL_CONT, WL_IDX, 0);
+    if (!DEVICE && !seq && fid_nofk(FID_VIZ_FILL_J71)) {
+      u64 _t_8 = task_node(e, FID_VIZ_FILL_J71, WL_CONT, WL_IDX, 0);
       e.mem[_t_8 + 0] = _q_3;
       e.mem[_t_8 + 1] = _w_2;
       e.mem[_t_8 + 2] = _r_1;
       e.mem[_t_8 + 3] = _z_0;
-      return term_tsk(FID_VIZ_FILL_J51, _t_8);
+      return term_tsk(FID_VIZ_FILL_J71, _t_8);
     }
     r0 = _q_3;
     r1 = _w_2;
     r2 = _r_1;
     r3 = _z_0;
-    WL_JMP(FID_VIZ_FILL_J51);
+    WL_JMP(FID_VIZ_FILL_J71);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_FILL_J51)
+  WL_CASE(FID_VIZ_FILL_J71)
   {
     Term _q_4 = r0;
     Term _w_3 = r1;
@@ -3068,7 +3404,345 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
   }}
 #endif
 
-  WL_CASE(FID_VIZ_FRAME_GPU)
+  WL_CASE(FID_ARRAY_SPREAD_1)
+  {
+    Term _a_0 = r0;
+    u32 _n_0 = r1;
+    u32 _x_0 = r2;
+    u32 _x_1 = r3;
+    u32 _x_2 = r4;
+    u32 _x_3 = r5;
+    u32 _x_4 = r6;
+    u32 _x_5 = r7;
+    u32 _x_6 = r8;
+    WL_OPEN
+    if (!seq) {
+      u64 _t_0 = task_node(e, FID_ARRAY_SPREAD_1_J77, WL_CONT, WL_IDX, 1);
+      u64 _t_1 = task_node(e, FID_ARRAY_SPREAD_RUN_1, term_tsk(FID_ARRAY_SPREAD_1_J77, _t_0), 0, 0);
+      e.mem[_t_1 + 0] = _n_0;
+      e.mem[_t_1 + 1] = _a_0;
+      e.mem[_t_1 + 2] = 0ull;
+      e.mem[_t_1 + 3] = 1ull;
+      e.mem[_t_1 + 4] = _x_0;
+      e.mem[_t_1 + 5] = _x_1;
+      e.mem[_t_1 + 6] = _x_2;
+      e.mem[_t_1 + 7] = _x_3;
+      e.mem[_t_1 + 8] = _x_4;
+      e.mem[_t_1 + 9] = _x_5;
+      e.mem[_t_1 + 10] = _x_6;
+      e.mem[_t_0 + 0] = term_tsk(FID_ARRAY_SPREAD_RUN_1, _t_1);
+      return term_tsk(FID_ARRAY_SPREAD_1_J77, _t_0);
+    }
+    WL_ROOM(1);
+    STK(0) = FID_ARRAY_SPREAD_1_K77;
+    WL_PUSHN(1);
+    if (!DEVICE && !seq && fid_nofk(FID_ARRAY_SPREAD_RUN_1)) {
+      u64 _t_2 = task_node(e, FID_ARRAY_SPREAD_RUN_1, WL_CONT, WL_IDX, 0);
+      e.mem[_t_2 + 0] = _n_0;
+      e.mem[_t_2 + 1] = _a_0;
+      e.mem[_t_2 + 2] = 0ull;
+      e.mem[_t_2 + 3] = 1ull;
+      e.mem[_t_2 + 4] = _x_0;
+      e.mem[_t_2 + 5] = _x_1;
+      e.mem[_t_2 + 6] = _x_2;
+      e.mem[_t_2 + 7] = _x_3;
+      e.mem[_t_2 + 8] = _x_4;
+      e.mem[_t_2 + 9] = _x_5;
+      e.mem[_t_2 + 10] = _x_6;
+      return term_tsk(FID_ARRAY_SPREAD_RUN_1, _t_2);
+    }
+    r0 = _n_0;
+    r1 = _a_0;
+    r2 = 0ull;
+    r3 = 1ull;
+    r4 = _x_0;
+    r5 = _x_1;
+    r6 = _x_2;
+    r7 = _x_3;
+    r8 = _x_4;
+    r9 = _x_5;
+    r10 = _x_6;
+    WL_JMP(FID_ARRAY_SPREAD_RUN_1);
+  }}
+
+  WL_CASE(FID_ARRAY_SPREAD_1_K77)
+  {
+    Term _r_0 = r0;
+    WL_OPEN
+    if (!DEVICE && !seq && fid_nofk(FID_ARRAY_SPREAD_1_J77)) {
+      u64 _t_3 = task_node(e, FID_ARRAY_SPREAD_1_J77, WL_CONT, WL_IDX, 0);
+      e.mem[_t_3 + 0] = _r_0;
+      return term_tsk(FID_ARRAY_SPREAD_1_J77, _t_3);
+    }
+    r0 = _r_0;
+    WL_JMP(FID_ARRAY_SPREAD_1_J77);
+  }}
+
+  WL_CASE(FID_ARRAY_SPREAD_1_J77)
+  {
+    Term _r_1 = r0;
+    WL_OPEN
+    r0 = _r_1;
+    WL_RETN(1);
+  }}
+
+  WL_CASE(FID_VIZ_BRANCH)
+  {
+    Term _d_0 = r0;
+    u32 _x_0 = r1;
+    u32 _y_0 = r2;
+    u32 _ang_0 = r3;
+    u32 _len_0 = r4;
+    u32 _k_0 = r5;
+    u32 _k_1 = r6;
+    u32 _k_2 = r7;
+    u32 _k_3 = r8;
+    u32 _k_4 = r9;
+    u32 _k_5 = r10;
+    u32 _k_6 = r11;
+    Term _a_0 = r12;
+    WL_OPEN
+    WL_SPIN
+    u32 _dx_0 = f32_rewrap(f32_unbox(_len_0) * f32_unbox(f32_rewrap((f32)cos(f32_unbox(_ang_0)))));
+    u32 _dy_0 = f32_rewrap(f32_unbox(0ull) - f32_unbox(f32_rewrap(f32_unbox(_len_0) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(_ang_0)))))));
+    u32 _v_0 = 0;
+    u32 _v_1 = 0;
+    u32 _v_2 = 0;
+    Term _o_1[WL_OSZ(1)];
+    if (spin_21(e, _o_1, _dx_0, f32_rewrap(f32_unbox(0ull) - f32_unbox(_dx_0))) == 0) {
+      return 0;
+    }
+    _v_2 = _o_1[0];
+    _v_1 = _v_2;
+    u32 _v_5 = 0;
+    u32 _v_6 = 0;
+    Term _o_2[WL_OSZ(1)];
+    if (spin_21(e, _o_2, _dy_0, f32_rewrap(f32_unbox(0ull) - f32_unbox(_dy_0))) == 0) {
+      return 0;
+    }
+    _v_6 = _o_2[0];
+    _v_5 = _v_6;
+    u32 _v_7 = 0;
+    Term _o_3[WL_OSZ(1)];
+    if (spin_21(e, _o_3, _v_1, _v_5) == 0) {
+      return 0;
+    }
+    _v_7 = _o_3[0];
+    _v_0 = _v_7;
+    u32 _n_0 = f32_to_u32(f32_rewrap(f32_unbox(_v_0) + f32_unbox(1065353216ull)));
+    u32 _v_8 = 0;
+    u32 _v_9 = 0;
+    Term _o_4[WL_OSZ(1)];
+    if (spin_2(e, _o_4, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap((f32)(u32)(((u64)(u32)(_d_0))))) * f32_unbox(1031127695ull))) + f32_unbox(f32_rewrap(f32_unbox(_k_0) * f32_unbox(1028443341ull)))), _k_0, _k_3, _k_4) == 0) {
+      return 0;
+    }
+    _v_9 = _o_4[0];
+    _v_8 = _v_9;
+    Term _v_10 = 0;
+    Term _v_11 = 0;
+    Term _o_6[WL_OSZ(1)];
+    if (spin_22(e, _o_6, _n_0, _x_0, _y_0, f32_rewrap(f32_unbox(_dx_0) / f32_unbox(f32_rewrap((f32)(u32)(_n_0)))), f32_rewrap(f32_unbox(_dy_0) / f32_unbox(f32_rewrap((f32)(u32)(_n_0)))), _v_8, _k_0, _k_1, _k_2, _k_3, _k_4, _k_5, _k_6, _a_0) == 0) {
+      return 0;
+    }
+    _v_11 = _o_6[0];
+    _v_10 = _v_11;
+    if (_d_0 == 0) {
+      u32 _x_2 = f32_rewrap(f32_unbox(_x_0) + f32_unbox(_dx_0));
+      u32 _y_2 = f32_rewrap(f32_unbox(_y_0) + f32_unbox(_dy_0));
+      r0 = _v_10;
+      WL_RETN(1);
+    } else {
+      Term _e_0 = (_d_0 - 1);
+      u32 _x_3 = f32_rewrap(f32_unbox(_x_0) + f32_unbox(_dx_0));
+      u32 _y_3 = f32_rewrap(f32_unbox(_y_0) + f32_unbox(_dy_0));
+      Term _v_15 = 0;
+      Term _v_16 = 0;
+      Term _v_17 = 0;
+      Term _v_18 = 0;
+      Term _o_7[WL_OSZ(2)];
+      if (spin_7(e, _o_7, _v_10) == 0) {
+        return 0;
+      }
+      _v_17 = _o_7[0];
+      _v_18 = _o_7[1];
+      _v_15 = _v_17;
+      _v_16 = _v_18;
+      u32 _lvl_0 = f32_rewrap((f32)(u32)(((u64)(u32)(_e_0))));
+      u32 _spread_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1050253722ull) + f32_unbox(f32_rewrap(f32_unbox(_k_2) * f32_unbox(1053609165ull))))) + f32_unbox(f32_rewrap(f32_unbox(_k_4) * f32_unbox(1041865114ull))))) + f32_unbox(f32_rewrap(f32_unbox(1036831949ull) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_k_0) * f32_unbox(1067869798ull))) + f32_unbox(f32_rewrap(f32_unbox(_lvl_0) * f32_unbox(1060320051ull)))))))))));
+      u32 _sway_0 = f32_rewrap(f32_unbox(1034147594ull) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_k_0) * f32_unbox(1063675494ull))) + f32_unbox(f32_rewrap(f32_unbox(_lvl_0) * f32_unbox(1053609165ull)))))))));
+      u32 _len2_0 = f32_rewrap(f32_unbox(_len_0) * f32_unbox(f32_rewrap(f32_unbox(1060320051ull) + f32_unbox(f32_rewrap(f32_unbox(_k_1) * f32_unbox(1067030938ull))))));
+      if (!seq) {
+        u64 _t_0 = task_node(e, FID_VIZ_BRANCH_J81, WL_CONT, WL_IDX, 2);
+        u64 _t_1 = task_node(e, FID_VIZ_BRANCH, term_tsk(FID_VIZ_BRANCH_J81, _t_0), 0, 0);
+        e.mem[_t_1 + 0] = _e_0;
+        e.mem[_t_1 + 1] = _x_3;
+        e.mem[_t_1 + 2] = _y_3;
+        e.mem[_t_1 + 3] = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_ang_0) + f32_unbox(_spread_0))) + f32_unbox(_sway_0));
+        e.mem[_t_1 + 4] = _len2_0;
+        e.mem[_t_1 + 5] = _k_0;
+        e.mem[_t_1 + 6] = _k_1;
+        e.mem[_t_1 + 7] = _k_2;
+        e.mem[_t_1 + 8] = _k_3;
+        e.mem[_t_1 + 9] = _k_4;
+        e.mem[_t_1 + 10] = _k_5;
+        e.mem[_t_1 + 11] = _k_6;
+        e.mem[_t_1 + 12] = _v_15;
+        e.mem[_t_0 + 0] = term_tsk(FID_VIZ_BRANCH, _t_1);
+        u64 _t_2 = task_node(e, FID_VIZ_BRANCH, term_tsk(FID_VIZ_BRANCH_J81, _t_0), 1, 0);
+        e.mem[_t_2 + 0] = _e_0;
+        e.mem[_t_2 + 1] = _x_3;
+        e.mem[_t_2 + 2] = _y_3;
+        e.mem[_t_2 + 3] = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_ang_0) - f32_unbox(_spread_0))) + f32_unbox(_sway_0));
+        e.mem[_t_2 + 4] = _len2_0;
+        e.mem[_t_2 + 5] = _k_0;
+        e.mem[_t_2 + 6] = _k_1;
+        e.mem[_t_2 + 7] = _k_2;
+        e.mem[_t_2 + 8] = _k_3;
+        e.mem[_t_2 + 9] = _k_4;
+        e.mem[_t_2 + 10] = _k_5;
+        e.mem[_t_2 + 11] = _k_6;
+        e.mem[_t_2 + 12] = _v_16;
+        e.mem[_t_0 + 1] = term_tsk(FID_VIZ_BRANCH, _t_2);
+        return term_tsk(FID_VIZ_BRANCH_J81, _t_0);
+      }
+      WL_ROOM(16);
+      STK(0) = _e_0;
+      STK(1) = _x_3;
+      STK(2) = _y_3;
+      STK(3) = _ang_0;
+      STK(4) = _k_0;
+      STK(5) = _k_1;
+      STK(6) = _k_2;
+      STK(7) = _k_3;
+      STK(8) = _k_4;
+      STK(9) = _k_5;
+      STK(10) = _k_6;
+      STK(11) = _v_16;
+      STK(12) = _spread_0;
+      STK(13) = _sway_0;
+      STK(14) = _len2_0;
+      STK(15) = FID_VIZ_BRANCH_K81;
+      WL_PUSHN(16);
+      r0 = _e_0;
+      r1 = _x_3;
+      r2 = _y_3;
+      r3 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_ang_0) + f32_unbox(_spread_0))) + f32_unbox(_sway_0));
+      r4 = _len2_0;
+      r5 = _k_0;
+      r6 = _k_1;
+      r7 = _k_2;
+      r8 = _k_3;
+      r9 = _k_4;
+      r10 = _k_5;
+      r11 = _k_6;
+      r12 = _v_15;
+      _d_0 = r0;
+      _x_0 = r1;
+      _y_0 = r2;
+      _ang_0 = r3;
+      _len_0 = r4;
+      _k_0 = r5;
+      _k_1 = r6;
+      _k_2 = r7;
+      _k_3 = r8;
+      _k_4 = r9;
+      _k_5 = r10;
+      _k_6 = r11;
+      _a_0 = r12;
+      WL_AGAIN(FID_VIZ_BRANCH);
+    }
+    WL_SPUN
+  }}
+
+  WL_CASE(FID_VIZ_BRANCH_K81)
+  {
+    Term _e_1 = STK(-15);
+    u32 _x_4 = STK(-14);
+    u32 _y_4 = STK(-13);
+    u32 _ang_1 = STK(-12);
+    u32 _k_14 = STK(-11);
+    u32 _k_15 = STK(-10);
+    u32 _k_16 = STK(-9);
+    u32 _k_17 = STK(-8);
+    u32 _k_18 = STK(-7);
+    u32 _k_19 = STK(-6);
+    u32 _k_20 = STK(-5);
+    Term _v_19 = STK(-4);
+    u32 _spread_1 = STK(-3);
+    u32 _sway_1 = STK(-2);
+    u32 _len2_1 = STK(-1);
+    Term _q_0 = r0;
+    WL_OPEN
+    WL_ROOM(2);
+    STK(0) = _q_0;
+    STK(1) = FID_VIZ_BRANCH_K82;
+    WL_PUSHN(2);
+    if (!DEVICE && !seq && fid_nofk(FID_VIZ_BRANCH)) {
+      u64 _t_3 = task_node(e, FID_VIZ_BRANCH, WL_CONT, WL_IDX, 0);
+      e.mem[_t_3 + 0] = _e_1;
+      e.mem[_t_3 + 1] = _x_4;
+      e.mem[_t_3 + 2] = _y_4;
+      e.mem[_t_3 + 3] = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_ang_1) - f32_unbox(_spread_1))) + f32_unbox(_sway_1));
+      e.mem[_t_3 + 4] = _len2_1;
+      e.mem[_t_3 + 5] = _k_14;
+      e.mem[_t_3 + 6] = _k_15;
+      e.mem[_t_3 + 7] = _k_16;
+      e.mem[_t_3 + 8] = _k_17;
+      e.mem[_t_3 + 9] = _k_18;
+      e.mem[_t_3 + 10] = _k_19;
+      e.mem[_t_3 + 11] = _k_20;
+      e.mem[_t_3 + 12] = _v_19;
+      return term_tsk(FID_VIZ_BRANCH, _t_3);
+    }
+    r0 = _e_1;
+    r1 = _x_4;
+    r2 = _y_4;
+    r3 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_ang_1) - f32_unbox(_spread_1))) + f32_unbox(_sway_1));
+    r4 = _len2_1;
+    r5 = _k_14;
+    r6 = _k_15;
+    r7 = _k_16;
+    r8 = _k_17;
+    r9 = _k_18;
+    r10 = _k_19;
+    r11 = _k_20;
+    r12 = _v_19;
+    WL_JMP(FID_VIZ_BRANCH);
+  }}
+
+  WL_CASE(FID_VIZ_BRANCH_K82)
+  {
+    WL_POPN(16);
+    Term _q_1 = STK(15);
+    Term _z_0 = r0;
+    WL_OPEN
+    if (!DEVICE && !seq && fid_nofk(FID_VIZ_BRANCH_J81)) {
+      u64 _t_4 = task_node(e, FID_VIZ_BRANCH_J81, WL_CONT, WL_IDX, 0);
+      e.mem[_t_4 + 0] = _q_1;
+      e.mem[_t_4 + 1] = _z_0;
+      return term_tsk(FID_VIZ_BRANCH_J81, _t_4);
+    }
+    r0 = _q_1;
+    r1 = _z_0;
+    WL_JMP(FID_VIZ_BRANCH_J81);
+  }}
+
+  WL_CASE(FID_VIZ_BRANCH_J81)
+  {
+    Term _q_2 = r0;
+    Term _z_1 = r1;
+    WL_OPEN
+    Term _v_20 = 0;
+    Term _o_8[WL_OSZ(1)];
+    if (spin_5(e, _o_8, _q_2, _z_1) == 0) {
+      return 0;
+    }
+    _v_20 = _o_8[0];
+    r0 = _v_20;
+    WL_RETN(1);
+  }}
+
+  WL_CASE(FID_VIZ_TREE)
   {
     u32 _k_0 = r0;
     u32 _k_1 = r1;
@@ -3079,70 +3753,199 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     u32 _k_6 = r6;
     Term _a_0 = r7;
     WL_OPEN
-    u32 _n_0 = 32768ull;
-    if (!seq) {
-      u64 _t_0 = task_node(e, FID_VIZ_FRAME_GPU_J57, WL_CONT, WL_IDX, 1);
-      u64 _t_1 = task_node(e, FID_ARRAY_SPREAD_RUN_0, term_tsk(FID_VIZ_FRAME_GPU_J57, _t_0), 0, 0);
-      e.mem[_t_1 + 0] = _n_0;
-      e.mem[_t_1 + 1] = _a_0;
-      e.mem[_t_1 + 2] = 0ull;
-      e.mem[_t_1 + 3] = 1ull;
-      e.mem[_t_1 + 4] = _k_0;
-      e.mem[_t_1 + 5] = _k_1;
-      e.mem[_t_1 + 6] = _k_2;
-      e.mem[_t_1 + 7] = _k_3;
-      e.mem[_t_1 + 8] = _k_4;
-      e.mem[_t_1 + 9] = _k_5;
-      e.mem[_t_1 + 10] = _k_6;
-      e.mem[_t_0 + 0] = term_tsk(FID_ARRAY_SPREAD_RUN_0, _t_1);
-      return term_tsk(FID_VIZ_FRAME_GPU_J57, _t_0);
+    if (seq) {
+      WL_ROOM(8);
+      STK(0) = _k_0;
+      STK(1) = _k_1;
+      STK(2) = _k_2;
+      STK(3) = _k_3;
+      STK(4) = _k_4;
+      STK(5) = _k_5;
+      STK(6) = _k_6;
+      STK(7) = FID_VIZ_TREE_K89;
+      WL_PUSHN(8);
+    } else {
+      u64 _t_0 = task_node(e, FID_VIZ_TREE_K89, WL_CONT, WL_IDX, 1);
+      e.mem[_t_0 + 0] = _k_0;
+      e.mem[_t_0 + 1] = _k_1;
+      e.mem[_t_0 + 2] = _k_2;
+      e.mem[_t_0 + 3] = _k_3;
+      e.mem[_t_0 + 4] = _k_4;
+      e.mem[_t_0 + 5] = _k_5;
+      e.mem[_t_0 + 6] = _k_6;
+      WL_CONT = term_tsk(FID_VIZ_TREE_K89, _t_0);
+      WL_IDX = 7;
     }
-    WL_ROOM(1);
-    STK(0) = FID_VIZ_FRAME_GPU_K57;
-    WL_PUSHN(1);
-    if (!DEVICE && !seq && fid_nofk(FID_ARRAY_SPREAD_RUN_0)) {
-      u64 _t_2 = task_node(e, FID_ARRAY_SPREAD_RUN_0, WL_CONT, WL_IDX, 0);
-      e.mem[_t_2 + 0] = _n_0;
-      e.mem[_t_2 + 1] = _a_0;
-      e.mem[_t_2 + 2] = 0ull;
-      e.mem[_t_2 + 3] = 1ull;
-      e.mem[_t_2 + 4] = _k_0;
-      e.mem[_t_2 + 5] = _k_1;
-      e.mem[_t_2 + 6] = _k_2;
-      e.mem[_t_2 + 7] = _k_3;
-      e.mem[_t_2 + 8] = _k_4;
-      e.mem[_t_2 + 9] = _k_5;
-      e.mem[_t_2 + 10] = _k_6;
-      return term_tsk(FID_ARRAY_SPREAD_RUN_0, _t_2);
+    if (!DEVICE && !seq && fid_nofk(FID_ARRAY_SPREAD_1)) {
+      u64 _t_1 = task_node(e, FID_ARRAY_SPREAD_1, WL_CONT, WL_IDX, 0);
+      e.mem[_t_1 + 0] = _a_0;
+      e.mem[_t_1 + 1] = 32768ull;
+      e.mem[_t_1 + 2] = _k_0;
+      e.mem[_t_1 + 3] = _k_1;
+      e.mem[_t_1 + 4] = _k_2;
+      e.mem[_t_1 + 5] = _k_3;
+      e.mem[_t_1 + 6] = _k_4;
+      e.mem[_t_1 + 7] = _k_5;
+      e.mem[_t_1 + 8] = _k_6;
+      return term_tsk(FID_ARRAY_SPREAD_1, _t_1);
     }
-    r0 = _n_0;
-    r1 = _a_0;
-    r2 = 0ull;
-    r3 = 1ull;
-    r4 = _k_0;
-    r5 = _k_1;
-    r6 = _k_2;
-    r7 = _k_3;
-    r8 = _k_4;
-    r9 = _k_5;
-    r10 = _k_6;
-    WL_JMP(FID_ARRAY_SPREAD_RUN_0);
+    r0 = _a_0;
+    r1 = 32768ull;
+    r2 = _k_0;
+    r3 = _k_1;
+    r4 = _k_2;
+    r5 = _k_3;
+    r6 = _k_4;
+    r7 = _k_5;
+    r8 = _k_6;
+    WL_JMP(FID_ARRAY_SPREAD_1);
   }}
 
-  WL_CASE(FID_VIZ_FRAME_GPU_K57)
+  WL_CASE(FID_VIZ_TREE_K89)
+  {
+    WL_POPN(7);
+    u32 _k_7 = STK(0);
+    u32 _k_8 = STK(1);
+    u32 _k_9 = STK(2);
+    u32 _k_10 = STK(3);
+    u32 _k_11 = STK(4);
+    u32 _k_12 = STK(5);
+    u32 _k_13 = STK(6);
+    Term _h_0 = r0;
+    WL_OPEN
+    if (!DEVICE && !seq && fid_nofk(FID_VIZ_BRANCH)) {
+      u64 _t_2 = task_node(e, FID_VIZ_BRANCH, WL_CONT, WL_IDX, 0);
+      e.mem[_t_2 + 0] = 16ull;
+      e.mem[_t_2 + 1] = f32_rewrap(f32_unbox(f32_rewrap((f32)(u32)(_k_12))) * f32_unbox(1056964608ull));
+      e.mem[_t_2 + 2] = f32_rewrap((f32)(u32)(_k_13));
+      e.mem[_t_2 + 3] = 1070141433ull;
+      e.mem[_t_2 + 4] = f32_rewrap(f32_unbox(f32_rewrap((f32)(u32)(_k_13))) * f32_unbox(1047904911ull));
+      e.mem[_t_2 + 5] = _k_7;
+      e.mem[_t_2 + 6] = _k_8;
+      e.mem[_t_2 + 7] = _k_9;
+      e.mem[_t_2 + 8] = _k_10;
+      e.mem[_t_2 + 9] = _k_11;
+      e.mem[_t_2 + 10] = _k_12;
+      e.mem[_t_2 + 11] = _k_13;
+      e.mem[_t_2 + 12] = _h_0;
+      return term_tsk(FID_VIZ_BRANCH, _t_2);
+    }
+    r0 = 16ull;
+    r1 = f32_rewrap(f32_unbox(f32_rewrap((f32)(u32)(_k_12))) * f32_unbox(1056964608ull));
+    r2 = f32_rewrap((f32)(u32)(_k_13));
+    r3 = 1070141433ull;
+    r4 = f32_rewrap(f32_unbox(f32_rewrap((f32)(u32)(_k_13))) * f32_unbox(1047904911ull));
+    r5 = _k_7;
+    r6 = _k_8;
+    r7 = _k_9;
+    r8 = _k_10;
+    r9 = _k_11;
+    r10 = _k_12;
+    r11 = _k_13;
+    r12 = _h_0;
+    WL_JMP(FID_VIZ_BRANCH);
+  }}
+
+  WL_CASE(FID_VIZ_PICK)
+  {
+    u32 _tree_0 = r0;
+    u32 _k_0 = r1;
+    u32 _k_1 = r2;
+    u32 _k_2 = r3;
+    u32 _k_3 = r4;
+    u32 _k_4 = r5;
+    u32 _k_5 = r6;
+    u32 _k_6 = r7;
+    Term _a_0 = r8;
+    WL_OPEN
+    if (_tree_0 == 1) {
+      if (!DEVICE && !seq && fid_nofk(FID_VIZ_TREE)) {
+        u64 _t_0 = task_node(e, FID_VIZ_TREE, WL_CONT, WL_IDX, 0);
+        e.mem[_t_0 + 0] = _k_0;
+        e.mem[_t_0 + 1] = _k_1;
+        e.mem[_t_0 + 2] = _k_2;
+        e.mem[_t_0 + 3] = _k_3;
+        e.mem[_t_0 + 4] = _k_4;
+        e.mem[_t_0 + 5] = _k_5;
+        e.mem[_t_0 + 6] = _k_6;
+        e.mem[_t_0 + 7] = _a_0;
+        return term_tsk(FID_VIZ_TREE, _t_0);
+      }
+      r0 = _k_0;
+      r1 = _k_1;
+      r2 = _k_2;
+      r3 = _k_3;
+      r4 = _k_4;
+      r5 = _k_5;
+      r6 = _k_6;
+      r7 = _a_0;
+      WL_JMP(FID_VIZ_TREE);
+    } else {
+      u32 _n_0 = 32768ull;
+      if (!seq) {
+        u64 _t_1 = task_node(e, FID_VIZ_PICK_J91, WL_CONT, WL_IDX, 1);
+        u64 _t_2 = task_node(e, FID_ARRAY_SPREAD_RUN_0, term_tsk(FID_VIZ_PICK_J91, _t_1), 0, 0);
+        e.mem[_t_2 + 0] = _n_0;
+        e.mem[_t_2 + 1] = _a_0;
+        e.mem[_t_2 + 2] = 0ull;
+        e.mem[_t_2 + 3] = 1ull;
+        e.mem[_t_2 + 4] = _k_0;
+        e.mem[_t_2 + 5] = _k_1;
+        e.mem[_t_2 + 6] = _k_2;
+        e.mem[_t_2 + 7] = _k_3;
+        e.mem[_t_2 + 8] = _k_4;
+        e.mem[_t_2 + 9] = _k_5;
+        e.mem[_t_2 + 10] = _k_6;
+        e.mem[_t_1 + 0] = term_tsk(FID_ARRAY_SPREAD_RUN_0, _t_2);
+        return term_tsk(FID_VIZ_PICK_J91, _t_1);
+      }
+      WL_ROOM(1);
+      STK(0) = FID_VIZ_PICK_K91;
+      WL_PUSHN(1);
+      if (!DEVICE && !seq && fid_nofk(FID_ARRAY_SPREAD_RUN_0)) {
+        u64 _t_3 = task_node(e, FID_ARRAY_SPREAD_RUN_0, WL_CONT, WL_IDX, 0);
+        e.mem[_t_3 + 0] = _n_0;
+        e.mem[_t_3 + 1] = _a_0;
+        e.mem[_t_3 + 2] = 0ull;
+        e.mem[_t_3 + 3] = 1ull;
+        e.mem[_t_3 + 4] = _k_0;
+        e.mem[_t_3 + 5] = _k_1;
+        e.mem[_t_3 + 6] = _k_2;
+        e.mem[_t_3 + 7] = _k_3;
+        e.mem[_t_3 + 8] = _k_4;
+        e.mem[_t_3 + 9] = _k_5;
+        e.mem[_t_3 + 10] = _k_6;
+        return term_tsk(FID_ARRAY_SPREAD_RUN_0, _t_3);
+      }
+      r0 = _n_0;
+      r1 = _a_0;
+      r2 = 0ull;
+      r3 = 1ull;
+      r4 = _k_0;
+      r5 = _k_1;
+      r6 = _k_2;
+      r7 = _k_3;
+      r8 = _k_4;
+      r9 = _k_5;
+      r10 = _k_6;
+      WL_JMP(FID_ARRAY_SPREAD_RUN_0);
+    }
+  }}
+
+  WL_CASE(FID_VIZ_PICK_K91)
   {
     Term _r_0 = r0;
     WL_OPEN
-    if (!DEVICE && !seq && fid_nofk(FID_VIZ_FRAME_GPU_J57)) {
-      u64 _t_3 = task_node(e, FID_VIZ_FRAME_GPU_J57, WL_CONT, WL_IDX, 0);
-      e.mem[_t_3 + 0] = _r_0;
-      return term_tsk(FID_VIZ_FRAME_GPU_J57, _t_3);
+    if (!DEVICE && !seq && fid_nofk(FID_VIZ_PICK_J91)) {
+      u64 _t_4 = task_node(e, FID_VIZ_PICK_J91, WL_CONT, WL_IDX, 0);
+      e.mem[_t_4 + 0] = _r_0;
+      return term_tsk(FID_VIZ_PICK_J91, _t_4);
     }
     r0 = _r_0;
-    WL_JMP(FID_VIZ_FRAME_GPU_J57);
+    WL_JMP(FID_VIZ_PICK_J91);
   }}
 
-  WL_CASE(FID_VIZ_FRAME_GPU_J57)
+  WL_CASE(FID_VIZ_PICK_J91)
   {
     Term _r_1 = r0;
     WL_OPEN
@@ -3151,194 +3954,75 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
   }}
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_FRAME)
+  WL_CASE(FID_VIZ_PICK_CPU)
   {
-    u32 _k_0 = r0;
-    u32 _k_1 = r1;
-    u32 _k_2 = r2;
-    u32 _k_3 = r3;
-    u32 _k_4 = r4;
-    u32 _k_5 = r5;
-    u32 _k_6 = r6;
-    Term _a_0 = r7;
+    u32 _tree_0 = r0;
+    u32 _k_0 = r1;
+    u32 _k_1 = r2;
+    u32 _k_2 = r3;
+    u32 _k_3 = r4;
+    u32 _k_4 = r5;
+    u32 _k_5 = r6;
+    u32 _k_6 = r7;
+    Term _a_0 = r8;
     WL_OPEN
-    if (!DEVICE && !seq && fid_nofk(FID_VIZ_FILL)) {
-      u64 _t_0 = task_node(e, FID_VIZ_FILL, WL_CONT, WL_IDX, 0);
-      e.mem[_t_0 + 0] = 8ull;
-      e.mem[_t_0 + 1] = 0ull;
-      e.mem[_t_0 + 2] = 0ull;
-      e.mem[_t_0 + 3] = _k_0;
-      e.mem[_t_0 + 4] = _k_1;
-      e.mem[_t_0 + 5] = _k_2;
-      e.mem[_t_0 + 6] = _k_3;
-      e.mem[_t_0 + 7] = _k_4;
-      e.mem[_t_0 + 8] = _k_5;
-      e.mem[_t_0 + 9] = _k_6;
-      e.mem[_t_0 + 10] = _a_0;
-      return term_tsk(FID_VIZ_FILL, _t_0);
+    if (_tree_0 == 1) {
+      if (!DEVICE && !seq && fid_nofk(FID_VIZ_TREE)) {
+        u64 _t_0 = task_node(e, FID_VIZ_TREE, WL_CONT, WL_IDX, 0);
+        e.mem[_t_0 + 0] = _k_0;
+        e.mem[_t_0 + 1] = _k_1;
+        e.mem[_t_0 + 2] = _k_2;
+        e.mem[_t_0 + 3] = _k_3;
+        e.mem[_t_0 + 4] = _k_4;
+        e.mem[_t_0 + 5] = _k_5;
+        e.mem[_t_0 + 6] = _k_6;
+        e.mem[_t_0 + 7] = _a_0;
+        return term_tsk(FID_VIZ_TREE, _t_0);
+      }
+      r0 = _k_0;
+      r1 = _k_1;
+      r2 = _k_2;
+      r3 = _k_3;
+      r4 = _k_4;
+      r5 = _k_5;
+      r6 = _k_6;
+      r7 = _a_0;
+      WL_JMP(FID_VIZ_TREE);
+    } else {
+      if (!DEVICE && !seq && fid_nofk(FID_VIZ_FILL)) {
+        u64 _t_1 = task_node(e, FID_VIZ_FILL, WL_CONT, WL_IDX, 0);
+        e.mem[_t_1 + 0] = 8ull;
+        e.mem[_t_1 + 1] = 0ull;
+        e.mem[_t_1 + 2] = 0ull;
+        e.mem[_t_1 + 3] = _k_0;
+        e.mem[_t_1 + 4] = _k_1;
+        e.mem[_t_1 + 5] = _k_2;
+        e.mem[_t_1 + 6] = _k_3;
+        e.mem[_t_1 + 7] = _k_4;
+        e.mem[_t_1 + 8] = _k_5;
+        e.mem[_t_1 + 9] = _k_6;
+        e.mem[_t_1 + 10] = _a_0;
+        return term_tsk(FID_VIZ_FILL, _t_1);
+      }
+      r0 = 8ull;
+      r1 = 0ull;
+      r2 = 0ull;
+      r3 = _k_0;
+      r4 = _k_1;
+      r5 = _k_2;
+      r6 = _k_3;
+      r7 = _k_4;
+      r8 = _k_5;
+      r9 = _k_6;
+      r10 = _a_0;
+      WL_JMP(FID_VIZ_FILL);
     }
-    r0 = 8ull;
-    r1 = 0ull;
-    r2 = 0ull;
-    r3 = _k_0;
-    r4 = _k_1;
-    r5 = _k_2;
-    r6 = _k_3;
-    r7 = _k_4;
-    r8 = _k_5;
-    r9 = _k_6;
-    r10 = _a_0;
-    WL_JMP(FID_VIZ_FILL);
   }}
 #endif
 
   WL_CASE(FID_VIZ_FRAMES_GPU)
   {
-    u32 _k_0 = r0;
-    u32 _k_1 = r1;
-    u32 _k_2 = r2;
-    u32 _k_3 = r3;
-    u32 _k_4 = r4;
-    u32 _k_5 = r5;
-    u32 _k_6 = r6;
-    u32 _k2_0 = r7;
-    u32 _k2_1 = r8;
-    u32 _k2_2 = r9;
-    u32 _k2_3 = r10;
-    u32 _k2_4 = r11;
-    u32 _k2_5 = r12;
-    u32 _k2_6 = r13;
-    Term _a_0 = r14;
-    Term _b_0 = r15;
-    WL_OPEN
-    if (!seq) {
-      u64 _t_0 = task_node(e, FID_VIZ_FRAMES_GPU_J61, WL_CONT, WL_IDX, 2);
-      u64 _t_1 = task_node(e, FID_VIZ_FRAME_GPU, term_tsk(FID_VIZ_FRAMES_GPU_J61, _t_0), 0, 0);
-      e.mem[_t_1 + 0] = _k_0;
-      e.mem[_t_1 + 1] = _k_1;
-      e.mem[_t_1 + 2] = _k_2;
-      e.mem[_t_1 + 3] = _k_3;
-      e.mem[_t_1 + 4] = _k_4;
-      e.mem[_t_1 + 5] = _k_5;
-      e.mem[_t_1 + 6] = _k_6;
-      e.mem[_t_1 + 7] = _a_0;
-      e.mem[_t_0 + 0] = term_tsk(FID_VIZ_FRAME_GPU, _t_1);
-      u64 _t_2 = task_node(e, FID_VIZ_FRAME_GPU, term_tsk(FID_VIZ_FRAMES_GPU_J61, _t_0), 1, 0);
-      e.mem[_t_2 + 0] = _k2_0;
-      e.mem[_t_2 + 1] = _k2_1;
-      e.mem[_t_2 + 2] = _k2_2;
-      e.mem[_t_2 + 3] = _k2_3;
-      e.mem[_t_2 + 4] = _k2_4;
-      e.mem[_t_2 + 5] = _k2_5;
-      e.mem[_t_2 + 6] = _k2_6;
-      e.mem[_t_2 + 7] = _b_0;
-      e.mem[_t_0 + 1] = term_tsk(FID_VIZ_FRAME_GPU, _t_2);
-      return term_tsk(FID_VIZ_FRAMES_GPU_J61, _t_0);
-    }
-    WL_ROOM(9);
-    STK(0) = _k2_0;
-    STK(1) = _k2_1;
-    STK(2) = _k2_2;
-    STK(3) = _k2_3;
-    STK(4) = _k2_4;
-    STK(5) = _k2_5;
-    STK(6) = _k2_6;
-    STK(7) = _b_0;
-    STK(8) = FID_VIZ_FRAMES_GPU_K61;
-    WL_PUSHN(9);
-    if (!DEVICE && !seq && fid_nofk(FID_VIZ_FRAME_GPU)) {
-      u64 _t_3 = task_node(e, FID_VIZ_FRAME_GPU, WL_CONT, WL_IDX, 0);
-      e.mem[_t_3 + 0] = _k_0;
-      e.mem[_t_3 + 1] = _k_1;
-      e.mem[_t_3 + 2] = _k_2;
-      e.mem[_t_3 + 3] = _k_3;
-      e.mem[_t_3 + 4] = _k_4;
-      e.mem[_t_3 + 5] = _k_5;
-      e.mem[_t_3 + 6] = _k_6;
-      e.mem[_t_3 + 7] = _a_0;
-      return term_tsk(FID_VIZ_FRAME_GPU, _t_3);
-    }
-    r0 = _k_0;
-    r1 = _k_1;
-    r2 = _k_2;
-    r3 = _k_3;
-    r4 = _k_4;
-    r5 = _k_5;
-    r6 = _k_6;
-    r7 = _a_0;
-    WL_JMP(FID_VIZ_FRAME_GPU);
-  }}
-
-  WL_CASE(FID_VIZ_FRAMES_GPU_K61)
-  {
-    u32 _k2_7 = STK(-8);
-    u32 _k2_8 = STK(-7);
-    u32 _k2_9 = STK(-6);
-    u32 _k2_10 = STK(-5);
-    u32 _k2_11 = STK(-4);
-    u32 _k2_12 = STK(-3);
-    u32 _k2_13 = STK(-2);
-    Term _b_1 = STK(-1);
-    Term _x_0 = r0;
-    WL_OPEN
-    WL_ROOM(2);
-    STK(0) = _x_0;
-    STK(1) = FID_VIZ_FRAMES_GPU_K62;
-    WL_PUSHN(2);
-    if (!DEVICE && !seq && fid_nofk(FID_VIZ_FRAME_GPU)) {
-      u64 _t_4 = task_node(e, FID_VIZ_FRAME_GPU, WL_CONT, WL_IDX, 0);
-      e.mem[_t_4 + 0] = _k2_7;
-      e.mem[_t_4 + 1] = _k2_8;
-      e.mem[_t_4 + 2] = _k2_9;
-      e.mem[_t_4 + 3] = _k2_10;
-      e.mem[_t_4 + 4] = _k2_11;
-      e.mem[_t_4 + 5] = _k2_12;
-      e.mem[_t_4 + 6] = _k2_13;
-      e.mem[_t_4 + 7] = _b_1;
-      return term_tsk(FID_VIZ_FRAME_GPU, _t_4);
-    }
-    r0 = _k2_7;
-    r1 = _k2_8;
-    r2 = _k2_9;
-    r3 = _k2_10;
-    r4 = _k2_11;
-    r5 = _k2_12;
-    r6 = _k2_13;
-    r7 = _b_1;
-    WL_JMP(FID_VIZ_FRAME_GPU);
-  }}
-
-  WL_CASE(FID_VIZ_FRAMES_GPU_K62)
-  {
-    WL_POPN(9);
-    Term _x_1 = STK(8);
-    Term _y_0 = r0;
-    WL_OPEN
-    if (!DEVICE && !seq && fid_nofk(FID_VIZ_FRAMES_GPU_J61)) {
-      u64 _t_5 = task_node(e, FID_VIZ_FRAMES_GPU_J61, WL_CONT, WL_IDX, 0);
-      e.mem[_t_5 + 0] = _x_1;
-      e.mem[_t_5 + 1] = _y_0;
-      return term_tsk(FID_VIZ_FRAMES_GPU_J61, _t_5);
-    }
-    r0 = _x_1;
-    r1 = _y_0;
-    WL_JMP(FID_VIZ_FRAMES_GPU_J61);
-  }}
-
-  WL_CASE(FID_VIZ_FRAMES_GPU_J61)
-  {
-    Term _x_2 = r0;
-    Term _y_1 = r1;
-    WL_OPEN
-    r0 = _x_2;
-    r1 = _y_1;
-    WL_RETN(2);
-  }}
-
-#if !DEVICE
-  WL_CASE(FID_VIZ_DRAW)
-  {
-    u32 _gpu_0 = r0;
+    u32 _fx_0 = r0;
     u32 _k_0 = r1;
     u32 _k_1 = r2;
     u32 _k_2 = r3;
@@ -3356,146 +4040,309 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     Term _a_0 = r15;
     Term _b_0 = r16;
     WL_OPEN
+    if (!seq) {
+      u64 _t_0 = task_node(e, FID_VIZ_FRAMES_GPU_J95, WL_CONT, WL_IDX, 2);
+      u64 _t_1 = task_node(e, FID_VIZ_PICK, term_tsk(FID_VIZ_FRAMES_GPU_J95, _t_0), 0, 0);
+      e.mem[_t_1 + 0] = U32_BIN(_fx_0, ==, 1ull);
+      e.mem[_t_1 + 1] = _k_0;
+      e.mem[_t_1 + 2] = _k_1;
+      e.mem[_t_1 + 3] = _k_2;
+      e.mem[_t_1 + 4] = _k_3;
+      e.mem[_t_1 + 5] = _k_4;
+      e.mem[_t_1 + 6] = _k_5;
+      e.mem[_t_1 + 7] = _k_6;
+      e.mem[_t_1 + 8] = _a_0;
+      e.mem[_t_0 + 0] = term_tsk(FID_VIZ_PICK, _t_1);
+      u64 _t_2 = task_node(e, FID_VIZ_PICK, term_tsk(FID_VIZ_FRAMES_GPU_J95, _t_0), 1, 0);
+      e.mem[_t_2 + 0] = U32_BIN(_fx_0, ==, 1ull);
+      e.mem[_t_2 + 1] = _k2_0;
+      e.mem[_t_2 + 2] = _k2_1;
+      e.mem[_t_2 + 3] = _k2_2;
+      e.mem[_t_2 + 4] = _k2_3;
+      e.mem[_t_2 + 5] = _k2_4;
+      e.mem[_t_2 + 6] = _k2_5;
+      e.mem[_t_2 + 7] = _k2_6;
+      e.mem[_t_2 + 8] = _b_0;
+      e.mem[_t_0 + 1] = term_tsk(FID_VIZ_PICK, _t_2);
+      return term_tsk(FID_VIZ_FRAMES_GPU_J95, _t_0);
+    }
+    WL_ROOM(10);
+    STK(0) = _fx_0;
+    STK(1) = _k2_0;
+    STK(2) = _k2_1;
+    STK(3) = _k2_2;
+    STK(4) = _k2_3;
+    STK(5) = _k2_4;
+    STK(6) = _k2_5;
+    STK(7) = _k2_6;
+    STK(8) = _b_0;
+    STK(9) = FID_VIZ_FRAMES_GPU_K95;
+    WL_PUSHN(10);
+    if (!DEVICE && !seq && fid_nofk(FID_VIZ_PICK)) {
+      u64 _t_3 = task_node(e, FID_VIZ_PICK, WL_CONT, WL_IDX, 0);
+      e.mem[_t_3 + 0] = U32_BIN(_fx_0, ==, 1ull);
+      e.mem[_t_3 + 1] = _k_0;
+      e.mem[_t_3 + 2] = _k_1;
+      e.mem[_t_3 + 3] = _k_2;
+      e.mem[_t_3 + 4] = _k_3;
+      e.mem[_t_3 + 5] = _k_4;
+      e.mem[_t_3 + 6] = _k_5;
+      e.mem[_t_3 + 7] = _k_6;
+      e.mem[_t_3 + 8] = _a_0;
+      return term_tsk(FID_VIZ_PICK, _t_3);
+    }
+    r0 = U32_BIN(_fx_0, ==, 1ull);
+    r1 = _k_0;
+    r2 = _k_1;
+    r3 = _k_2;
+    r4 = _k_3;
+    r5 = _k_4;
+    r6 = _k_5;
+    r7 = _k_6;
+    r8 = _a_0;
+    WL_JMP(FID_VIZ_PICK);
+  }}
+
+  WL_CASE(FID_VIZ_FRAMES_GPU_K95)
+  {
+    u32 _fx_1 = STK(-9);
+    u32 _k2_7 = STK(-8);
+    u32 _k2_8 = STK(-7);
+    u32 _k2_9 = STK(-6);
+    u32 _k2_10 = STK(-5);
+    u32 _k2_11 = STK(-4);
+    u32 _k2_12 = STK(-3);
+    u32 _k2_13 = STK(-2);
+    Term _b_1 = STK(-1);
+    Term _x_0 = r0;
+    WL_OPEN
+    WL_ROOM(2);
+    STK(0) = _x_0;
+    STK(1) = FID_VIZ_FRAMES_GPU_K96;
+    WL_PUSHN(2);
+    if (!DEVICE && !seq && fid_nofk(FID_VIZ_PICK)) {
+      u64 _t_4 = task_node(e, FID_VIZ_PICK, WL_CONT, WL_IDX, 0);
+      e.mem[_t_4 + 0] = U32_BIN(_fx_1, ==, 1ull);
+      e.mem[_t_4 + 1] = _k2_7;
+      e.mem[_t_4 + 2] = _k2_8;
+      e.mem[_t_4 + 3] = _k2_9;
+      e.mem[_t_4 + 4] = _k2_10;
+      e.mem[_t_4 + 5] = _k2_11;
+      e.mem[_t_4 + 6] = _k2_12;
+      e.mem[_t_4 + 7] = _k2_13;
+      e.mem[_t_4 + 8] = _b_1;
+      return term_tsk(FID_VIZ_PICK, _t_4);
+    }
+    r0 = U32_BIN(_fx_1, ==, 1ull);
+    r1 = _k2_7;
+    r2 = _k2_8;
+    r3 = _k2_9;
+    r4 = _k2_10;
+    r5 = _k2_11;
+    r6 = _k2_12;
+    r7 = _k2_13;
+    r8 = _b_1;
+    WL_JMP(FID_VIZ_PICK);
+  }}
+
+  WL_CASE(FID_VIZ_FRAMES_GPU_K96)
+  {
+    WL_POPN(10);
+    Term _x_1 = STK(9);
+    Term _y_0 = r0;
+    WL_OPEN
+    if (!DEVICE && !seq && fid_nofk(FID_VIZ_FRAMES_GPU_J95)) {
+      u64 _t_5 = task_node(e, FID_VIZ_FRAMES_GPU_J95, WL_CONT, WL_IDX, 0);
+      e.mem[_t_5 + 0] = _x_1;
+      e.mem[_t_5 + 1] = _y_0;
+      return term_tsk(FID_VIZ_FRAMES_GPU_J95, _t_5);
+    }
+    r0 = _x_1;
+    r1 = _y_0;
+    WL_JMP(FID_VIZ_FRAMES_GPU_J95);
+  }}
+
+  WL_CASE(FID_VIZ_FRAMES_GPU_J95)
+  {
+    Term _x_2 = r0;
+    Term _y_1 = r1;
+    WL_OPEN
+    r0 = _x_2;
+    r1 = _y_1;
+    WL_RETN(2);
+  }}
+
+#if !DEVICE
+  WL_CASE(FID_VIZ_DRAW)
+  {
+    u32 _gpu_0 = r0;
+    u32 _fx_0 = r1;
+    u32 _k_0 = r2;
+    u32 _k_1 = r3;
+    u32 _k_2 = r4;
+    u32 _k_3 = r5;
+    u32 _k_4 = r6;
+    u32 _k_5 = r7;
+    u32 _k_6 = r8;
+    u32 _k2_0 = r9;
+    u32 _k2_1 = r10;
+    u32 _k2_2 = r11;
+    u32 _k2_3 = r12;
+    u32 _k2_4 = r13;
+    u32 _k2_5 = r14;
+    u32 _k2_6 = r15;
+    Term _a_0 = r16;
+    Term _b_0 = r17;
+    WL_OPEN
     if (_gpu_0 == 1) {
       if (!seq) {
         u64 _t_0 = task_node(e, FID_VIZ_FRAMES_GPU, WL_CONT, WL_IDX, 0);
-        e.mem[_t_0 + 0] = _k_0;
-        e.mem[_t_0 + 1] = _k_1;
-        e.mem[_t_0 + 2] = _k_2;
-        e.mem[_t_0 + 3] = _k_3;
-        e.mem[_t_0 + 4] = _k_4;
-        e.mem[_t_0 + 5] = _k_5;
-        e.mem[_t_0 + 6] = _k_6;
-        e.mem[_t_0 + 7] = _k2_0;
-        e.mem[_t_0 + 8] = _k2_1;
-        e.mem[_t_0 + 9] = _k2_2;
-        e.mem[_t_0 + 10] = _k2_3;
-        e.mem[_t_0 + 11] = _k2_4;
-        e.mem[_t_0 + 12] = _k2_5;
-        e.mem[_t_0 + 13] = _k2_6;
-        e.mem[_t_0 + 14] = _a_0;
-        e.mem[_t_0 + 15] = _b_0;
+        e.mem[_t_0 + 0] = _fx_0;
+        e.mem[_t_0 + 1] = _k_0;
+        e.mem[_t_0 + 2] = _k_1;
+        e.mem[_t_0 + 3] = _k_2;
+        e.mem[_t_0 + 4] = _k_3;
+        e.mem[_t_0 + 5] = _k_4;
+        e.mem[_t_0 + 6] = _k_5;
+        e.mem[_t_0 + 7] = _k_6;
+        e.mem[_t_0 + 8] = _k2_0;
+        e.mem[_t_0 + 9] = _k2_1;
+        e.mem[_t_0 + 10] = _k2_2;
+        e.mem[_t_0 + 11] = _k2_3;
+        e.mem[_t_0 + 12] = _k2_4;
+        e.mem[_t_0 + 13] = _k2_5;
+        e.mem[_t_0 + 14] = _k2_6;
+        e.mem[_t_0 + 15] = _a_0;
+        e.mem[_t_0 + 16] = _b_0;
         return term_tsk(FID_VIZ_FRAMES_GPU, _t_0);
       }
-      r0 = _k_0;
-      r1 = _k_1;
-      r2 = _k_2;
-      r3 = _k_3;
-      r4 = _k_4;
-      r5 = _k_5;
-      r6 = _k_6;
-      r7 = _k2_0;
-      r8 = _k2_1;
-      r9 = _k2_2;
-      r10 = _k2_3;
-      r11 = _k2_4;
-      r12 = _k2_5;
-      r13 = _k2_6;
-      r14 = _a_0;
-      r15 = _b_0;
+      r0 = _fx_0;
+      r1 = _k_0;
+      r2 = _k_1;
+      r3 = _k_2;
+      r4 = _k_3;
+      r5 = _k_4;
+      r6 = _k_5;
+      r7 = _k_6;
+      r8 = _k2_0;
+      r9 = _k2_1;
+      r10 = _k2_2;
+      r11 = _k2_3;
+      r12 = _k2_4;
+      r13 = _k2_5;
+      r14 = _k2_6;
+      r15 = _a_0;
+      r16 = _b_0;
       WL_JMP(FID_VIZ_FRAMES_GPU);
     } else {
       if (seq) {
-        WL_ROOM(9);
-        STK(0) = _k2_0;
-        STK(1) = _k2_1;
-        STK(2) = _k2_2;
-        STK(3) = _k2_3;
-        STK(4) = _k2_4;
-        STK(5) = _k2_5;
-        STK(6) = _k2_6;
-        STK(7) = _b_0;
-        STK(8) = FID_VIZ_DRAW_K66;
-        WL_PUSHN(9);
+        WL_ROOM(10);
+        STK(0) = _fx_0;
+        STK(1) = _k2_0;
+        STK(2) = _k2_1;
+        STK(3) = _k2_2;
+        STK(4) = _k2_3;
+        STK(5) = _k2_4;
+        STK(6) = _k2_5;
+        STK(7) = _k2_6;
+        STK(8) = _b_0;
+        STK(9) = FID_VIZ_DRAW_K100;
+        WL_PUSHN(10);
       } else {
-        u64 _t_1 = task_node(e, FID_VIZ_DRAW_K66, WL_CONT, WL_IDX, 1);
-        e.mem[_t_1 + 0] = _k2_0;
-        e.mem[_t_1 + 1] = _k2_1;
-        e.mem[_t_1 + 2] = _k2_2;
-        e.mem[_t_1 + 3] = _k2_3;
-        e.mem[_t_1 + 4] = _k2_4;
-        e.mem[_t_1 + 5] = _k2_5;
-        e.mem[_t_1 + 6] = _k2_6;
-        e.mem[_t_1 + 7] = _b_0;
-        WL_CONT = term_tsk(FID_VIZ_DRAW_K66, _t_1);
-        WL_IDX = 8;
+        u64 _t_1 = task_node(e, FID_VIZ_DRAW_K100, WL_CONT, WL_IDX, 1);
+        e.mem[_t_1 + 0] = _fx_0;
+        e.mem[_t_1 + 1] = _k2_0;
+        e.mem[_t_1 + 2] = _k2_1;
+        e.mem[_t_1 + 3] = _k2_2;
+        e.mem[_t_1 + 4] = _k2_3;
+        e.mem[_t_1 + 5] = _k2_4;
+        e.mem[_t_1 + 6] = _k2_5;
+        e.mem[_t_1 + 7] = _k2_6;
+        e.mem[_t_1 + 8] = _b_0;
+        WL_CONT = term_tsk(FID_VIZ_DRAW_K100, _t_1);
+        WL_IDX = 9;
       }
-      if (!DEVICE && !seq && fid_nofk(FID_VIZ_FRAME)) {
-        u64 _t_2 = task_node(e, FID_VIZ_FRAME, WL_CONT, WL_IDX, 0);
-        e.mem[_t_2 + 0] = _k_0;
-        e.mem[_t_2 + 1] = _k_1;
-        e.mem[_t_2 + 2] = _k_2;
-        e.mem[_t_2 + 3] = _k_3;
-        e.mem[_t_2 + 4] = _k_4;
-        e.mem[_t_2 + 5] = _k_5;
-        e.mem[_t_2 + 6] = _k_6;
-        e.mem[_t_2 + 7] = _a_0;
-        return term_tsk(FID_VIZ_FRAME, _t_2);
+      if (!DEVICE && !seq && fid_nofk(FID_VIZ_PICK_CPU)) {
+        u64 _t_2 = task_node(e, FID_VIZ_PICK_CPU, WL_CONT, WL_IDX, 0);
+        e.mem[_t_2 + 0] = U32_BIN(_fx_0, ==, 1ull);
+        e.mem[_t_2 + 1] = _k_0;
+        e.mem[_t_2 + 2] = _k_1;
+        e.mem[_t_2 + 3] = _k_2;
+        e.mem[_t_2 + 4] = _k_3;
+        e.mem[_t_2 + 5] = _k_4;
+        e.mem[_t_2 + 6] = _k_5;
+        e.mem[_t_2 + 7] = _k_6;
+        e.mem[_t_2 + 8] = _a_0;
+        return term_tsk(FID_VIZ_PICK_CPU, _t_2);
       }
-      r0 = _k_0;
-      r1 = _k_1;
-      r2 = _k_2;
-      r3 = _k_3;
-      r4 = _k_4;
-      r5 = _k_5;
-      r6 = _k_6;
-      r7 = _a_0;
-      WL_JMP(FID_VIZ_FRAME);
+      r0 = U32_BIN(_fx_0, ==, 1ull);
+      r1 = _k_0;
+      r2 = _k_1;
+      r3 = _k_2;
+      r4 = _k_3;
+      r5 = _k_4;
+      r6 = _k_5;
+      r7 = _k_6;
+      r8 = _a_0;
+      WL_JMP(FID_VIZ_PICK_CPU);
     }
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_DRAW_K66)
+  WL_CASE(FID_VIZ_DRAW_K100)
   {
-    WL_POPN(8);
-    u32 _k2_7 = STK(0);
-    u32 _k2_8 = STK(1);
-    u32 _k2_9 = STK(2);
-    u32 _k2_10 = STK(3);
-    u32 _k2_11 = STK(4);
-    u32 _k2_12 = STK(5);
-    u32 _k2_13 = STK(6);
-    Term _b_1 = STK(7);
+    WL_POPN(9);
+    u32 _fx_1 = STK(0);
+    u32 _k2_7 = STK(1);
+    u32 _k2_8 = STK(2);
+    u32 _k2_9 = STK(3);
+    u32 _k2_10 = STK(4);
+    u32 _k2_11 = STK(5);
+    u32 _k2_12 = STK(6);
+    u32 _k2_13 = STK(7);
+    Term _b_1 = STK(8);
     Term _h_0 = r0;
     WL_OPEN
     if (seq) {
       WL_ROOM(2);
       STK(0) = _h_0;
-      STK(1) = FID_VIZ_DRAW_K67;
+      STK(1) = FID_VIZ_DRAW_K101;
       WL_PUSHN(2);
     } else {
-      u64 _t_3 = task_node(e, FID_VIZ_DRAW_K67, WL_CONT, WL_IDX, 1);
+      u64 _t_3 = task_node(e, FID_VIZ_DRAW_K101, WL_CONT, WL_IDX, 1);
       e.mem[_t_3 + 0] = _h_0;
-      WL_CONT = term_tsk(FID_VIZ_DRAW_K67, _t_3);
+      WL_CONT = term_tsk(FID_VIZ_DRAW_K101, _t_3);
       WL_IDX = 1;
     }
-    if (!DEVICE && !seq && fid_nofk(FID_VIZ_FRAME)) {
-      u64 _t_4 = task_node(e, FID_VIZ_FRAME, WL_CONT, WL_IDX, 0);
-      e.mem[_t_4 + 0] = _k2_7;
-      e.mem[_t_4 + 1] = _k2_8;
-      e.mem[_t_4 + 2] = _k2_9;
-      e.mem[_t_4 + 3] = _k2_10;
-      e.mem[_t_4 + 4] = _k2_11;
-      e.mem[_t_4 + 5] = _k2_12;
-      e.mem[_t_4 + 6] = _k2_13;
-      e.mem[_t_4 + 7] = _b_1;
-      return term_tsk(FID_VIZ_FRAME, _t_4);
+    if (!DEVICE && !seq && fid_nofk(FID_VIZ_PICK_CPU)) {
+      u64 _t_4 = task_node(e, FID_VIZ_PICK_CPU, WL_CONT, WL_IDX, 0);
+      e.mem[_t_4 + 0] = U32_BIN(_fx_1, ==, 1ull);
+      e.mem[_t_4 + 1] = _k2_7;
+      e.mem[_t_4 + 2] = _k2_8;
+      e.mem[_t_4 + 3] = _k2_9;
+      e.mem[_t_4 + 4] = _k2_10;
+      e.mem[_t_4 + 5] = _k2_11;
+      e.mem[_t_4 + 6] = _k2_12;
+      e.mem[_t_4 + 7] = _k2_13;
+      e.mem[_t_4 + 8] = _b_1;
+      return term_tsk(FID_VIZ_PICK_CPU, _t_4);
     }
-    r0 = _k2_7;
-    r1 = _k2_8;
-    r2 = _k2_9;
-    r3 = _k2_10;
-    r4 = _k2_11;
-    r5 = _k2_12;
-    r6 = _k2_13;
-    r7 = _b_1;
-    WL_JMP(FID_VIZ_FRAME);
+    r0 = U32_BIN(_fx_1, ==, 1ull);
+    r1 = _k2_7;
+    r2 = _k2_8;
+    r3 = _k2_9;
+    r4 = _k2_10;
+    r5 = _k2_11;
+    r6 = _k2_12;
+    r7 = _k2_13;
+    r8 = _b_1;
+    WL_JMP(FID_VIZ_PICK_CPU);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_DRAW_K67)
+  WL_CASE(FID_VIZ_DRAW_K101)
   {
     WL_POPN(1);
     Term _h_2 = STK(0);
@@ -3525,67 +4372,71 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     Term _a_1 = 13ull;
     u32 _h_0 = U32_BIN((_a_1 >= 32 ? 0 : U32_BIN(_ask_0, >>, _a_1)), &, 8191ull);
     u32 _k2_0 = f32_rewrap(f32_unbox(_t_0) + f32_unbox(_dt_0));
-    Term _a_2 = 31ull;
+    Term _a_2 = 26ull;
+    u32 _fx_0 = U32_BIN((_a_2 >= 32 ? 0 : U32_BIN(_ask_0, >>, _a_2)), &, 15ull);
+    Term _a_3 = 31ull;
     if (seq) {
       WL_ROOM(1);
-      STK(0) = FID_VIZ_STEP_K76;
+      STK(0) = FID_VIZ_STEP_K110;
       WL_PUSHN(1);
     } else {
-      u64 _t_1 = task_node(e, FID_VIZ_STEP_K76, WL_CONT, WL_IDX, 1);
-      WL_CONT = term_tsk(FID_VIZ_STEP_K76, _t_1);
+      u64 _t_1 = task_node(e, FID_VIZ_STEP_K110, WL_CONT, WL_IDX, 1);
+      WL_CONT = term_tsk(FID_VIZ_STEP_K110, _t_1);
       WL_IDX = 0;
     }
     if (!DEVICE && !seq && fid_nofk(FID_VIZ_DRAW)) {
       u64 _t_2 = task_node(e, FID_VIZ_DRAW, WL_CONT, WL_IDX, 0);
-      e.mem[_t_2 + 0] = U32_BIN((_a_2 >= 32 ? 0 : U32_BIN(_ask_0, >>, _a_2)), ==, 1ull);
-      e.mem[_t_2 + 1] = _t_0;
-      e.mem[_t_2 + 2] = _z_0;
-      e.mem[_t_2 + 3] = _mid_0;
-      e.mem[_t_2 + 4] = _hue_0;
-      e.mem[_t_2 + 5] = _beat_0;
-      e.mem[_t_2 + 6] = _w_0;
-      e.mem[_t_2 + 7] = _h_0;
-      e.mem[_t_2 + 8] = _k2_0;
-      e.mem[_t_2 + 9] = _z_0;
-      e.mem[_t_2 + 10] = _mid_0;
-      e.mem[_t_2 + 11] = _hue_0;
-      e.mem[_t_2 + 12] = _beat_0;
-      e.mem[_t_2 + 13] = _w_0;
-      e.mem[_t_2 + 14] = _h_0;
-      e.mem[_t_2 + 15] = _a_0;
-      e.mem[_t_2 + 16] = _b_0;
+      e.mem[_t_2 + 0] = U32_BIN((_a_3 >= 32 ? 0 : U32_BIN(_ask_0, >>, _a_3)), ==, 1ull);
+      e.mem[_t_2 + 1] = _fx_0;
+      e.mem[_t_2 + 2] = _t_0;
+      e.mem[_t_2 + 3] = _z_0;
+      e.mem[_t_2 + 4] = _mid_0;
+      e.mem[_t_2 + 5] = _hue_0;
+      e.mem[_t_2 + 6] = _beat_0;
+      e.mem[_t_2 + 7] = _w_0;
+      e.mem[_t_2 + 8] = _h_0;
+      e.mem[_t_2 + 9] = _k2_0;
+      e.mem[_t_2 + 10] = _z_0;
+      e.mem[_t_2 + 11] = _mid_0;
+      e.mem[_t_2 + 12] = _hue_0;
+      e.mem[_t_2 + 13] = _beat_0;
+      e.mem[_t_2 + 14] = _w_0;
+      e.mem[_t_2 + 15] = _h_0;
+      e.mem[_t_2 + 16] = _a_0;
+      e.mem[_t_2 + 17] = _b_0;
       return term_tsk(FID_VIZ_DRAW, _t_2);
     }
-    r0 = U32_BIN((_a_2 >= 32 ? 0 : U32_BIN(_ask_0, >>, _a_2)), ==, 1ull);
-    r1 = _t_0;
-    r2 = _z_0;
-    r3 = _mid_0;
-    r4 = _hue_0;
-    r5 = _beat_0;
-    r6 = _w_0;
-    r7 = _h_0;
-    r8 = _k2_0;
-    r9 = _z_0;
-    r10 = _mid_0;
-    r11 = _hue_0;
-    r12 = _beat_0;
-    r13 = _w_0;
-    r14 = _h_0;
-    r15 = _a_0;
-    r16 = _b_0;
+    r0 = U32_BIN((_a_3 >= 32 ? 0 : U32_BIN(_ask_0, >>, _a_3)), ==, 1ull);
+    r1 = _fx_0;
+    r2 = _t_0;
+    r3 = _z_0;
+    r4 = _mid_0;
+    r5 = _hue_0;
+    r6 = _beat_0;
+    r7 = _w_0;
+    r8 = _h_0;
+    r9 = _k2_0;
+    r10 = _z_0;
+    r11 = _mid_0;
+    r12 = _hue_0;
+    r13 = _beat_0;
+    r14 = _w_0;
+    r15 = _h_0;
+    r16 = _a_0;
+    r17 = _b_0;
     WL_JMP(FID_VIZ_DRAW);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_STEP_K76)
+  WL_CASE(FID_VIZ_STEP_K110)
   {
     Term _h_1 = r0;
     Term _h_2 = r1;
     WL_OPEN
     Term _v_0 = 0;
     Term _o_0[WL_OSZ(1)];
-    if (spin_16(e, _o_0, _h_1, _h_2) == 0) {
+    if (spin_23(e, _o_0, _h_1, _h_2) == 0) {
       return 0;
     }
     _v_0 = _o_0[0];
@@ -3595,7 +4446,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_SHOW2_C77)
+  WL_CASE(FID_VIZ_SHOW2_C111)
   {
     Term _p_2 = r0;
     Term _p_3 = r1;
@@ -3608,19 +4459,19 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     if (!DEVICE && !seq && fid_nofk(FID_IO_BIND)) {
       u64 _t_5 = task_node(e, FID_IO_BIND, WL_CONT, WL_IDX, 0);
       e.mem[_t_5 + 0] = term_clo(FID_VIZ_SHOW, _nd_1);
-      e.mem[_t_5 + 1] = term_clo(FID_VIZ_SHOW2_C78, _nd_2);
+      e.mem[_t_5 + 1] = term_clo(FID_VIZ_SHOW2_C112, _nd_2);
       e.mem[_t_5 + 2] = _x_0;
       return term_tsk(FID_IO_BIND, _t_5);
     }
     r0 = term_clo(FID_VIZ_SHOW, _nd_1);
-    r1 = term_clo(FID_VIZ_SHOW2_C78, _nd_2);
+    r1 = term_clo(FID_VIZ_SHOW2_C112, _nd_2);
     r2 = _x_0;
     WL_JMP(FID_IO_BIND);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_SHOW2_C78)
+  WL_CASE(FID_VIZ_SHOW2_C112)
   {
     Term _p_4 = r0;
     Term _x_1 = r1;
@@ -3628,13 +4479,13 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     u64 _nd_3 = heap_alloc(e, cls_fit(2));
     e.mem[_nd_3 + 0] = _p_4;
     e.mem[_nd_3 + 1] = _x_1;
-    r0 = term_clo(FID_VIZ_SHOW2_C79, _nd_3);
+    r0 = term_clo(FID_VIZ_SHOW2_C113, _nd_3);
     WL_RETN(1);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_SHOW2_C79)
+  WL_CASE(FID_VIZ_SHOW2_C113)
   {
     Term _p_5 = r0;
     Term _x_3 = r1;
@@ -3647,19 +4498,19 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     if (!DEVICE && !seq && fid_nofk(FID_IO_BIND)) {
       u64 _t_4 = task_node(e, FID_IO_BIND, WL_CONT, WL_IDX, 0);
       e.mem[_t_4 + 0] = term_clo(FID_VIZ_SHOW, _nd_4);
-      e.mem[_t_4 + 1] = term_clo(FID_VIZ_SHOW2_C80, _nd_5);
+      e.mem[_t_4 + 1] = term_clo(FID_VIZ_SHOW2_C114, _nd_5);
       e.mem[_t_4 + 2] = _x_2;
       return term_tsk(FID_IO_BIND, _t_4);
     }
     r0 = term_clo(FID_VIZ_SHOW, _nd_4);
-    r1 = term_clo(FID_VIZ_SHOW2_C80, _nd_5);
+    r1 = term_clo(FID_VIZ_SHOW2_C114, _nd_5);
     r2 = _x_2;
     WL_JMP(FID_IO_BIND);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_SHOW2_C80)
+  WL_CASE(FID_VIZ_SHOW2_C114)
   {
     Term _x_5 = r0;
     Term _x_4 = r1;
@@ -3667,13 +4518,13 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     u64 _nd_6 = heap_alloc(e, cls_fit(2));
     e.mem[_nd_6 + 0] = _x_5;
     e.mem[_nd_6 + 1] = _x_4;
-    r0 = term_clo(FID_VIZ_SHOW2_C81, _nd_6);
+    r0 = term_clo(FID_VIZ_SHOW2_C115, _nd_6);
     WL_RETN(1);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_SHOW2_C81)
+  WL_CASE(FID_VIZ_SHOW2_C115)
   {
     Term _x_7 = r0;
     Term _x_8 = r1;
@@ -3708,17 +4559,17 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     if (!DEVICE && !seq && fid_nofk(FID_CLO_APPLY)) {
       u64 _t_3 = task_node(e, FID_CLO_APPLY, WL_CONT, WL_IDX, 0);
       e.mem[_t_3 + 0] = _m_0;
-      e.mem[_t_3 + 1] = term_clo(FID_IO_BIND_C83, _nd_0);
+      e.mem[_t_3 + 1] = term_clo(FID_IO_BIND_C117, _nd_0);
       return term_tsk(FID_CLO_APPLY, _t_3);
     }
     r0 = _m_0;
-    r1 = term_clo(FID_IO_BIND_C83, _nd_0);
+    r1 = term_clo(FID_IO_BIND_C117, _nd_0);
     WL_JMP(FID_CLO_APPLY);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_IO_BIND_C83)
+  WL_CASE(FID_IO_BIND_C117)
   {
     Term _f_1 = r0;
     Term _k_1 = r1;
@@ -3727,12 +4578,12 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     if (seq) {
       WL_ROOM(2);
       STK(0) = _k_1;
-      STK(1) = FID_IO_BIND_K84;
+      STK(1) = FID_IO_BIND_K118;
       WL_PUSHN(2);
     } else {
-      u64 _t_0 = task_node(e, FID_IO_BIND_K84, WL_CONT, WL_IDX, 1);
+      u64 _t_0 = task_node(e, FID_IO_BIND_K118, WL_CONT, WL_IDX, 1);
       e.mem[_t_0 + 0] = _k_1;
-      WL_CONT = term_tsk(FID_IO_BIND_K84, _t_0);
+      WL_CONT = term_tsk(FID_IO_BIND_K118, _t_0);
       WL_IDX = 1;
     }
     if (!DEVICE && !seq && fid_nofk(FID_CLO_APPLY)) {
@@ -3748,7 +4599,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_IO_BIND_K84)
+  WL_CASE(FID_IO_BIND_K118)
   {
     WL_POPN(1);
     Term _k_2 = STK(0);
@@ -3793,13 +4644,13 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     e.mem[_nd_0 + 3] = _d_0;
     e.mem[_nd_0 + 4] = _e_0;
     e.mem[_nd_0 + 5] = _f_0;
-    r0 = term_clo(FID_VIZ_LOOP_C87, _nd_0);
+    r0 = term_clo(FID_VIZ_LOOP_C121, _nd_0);
     WL_RETN(1);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_LOOP_C87)
+  WL_CASE(FID_VIZ_LOOP_C121)
   {
     Term _a_1 = r0;
     Term _b_1 = r1;
@@ -3819,19 +4670,19 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     if (!DEVICE && !seq && fid_nofk(FID_IO_BIND)) {
       u64 _t_10 = task_node(e, FID_IO_BIND, WL_CONT, WL_IDX, 0);
       e.mem[_t_10 + 0] = term_clo(FID_VIZ_NEXT, 0);
-      e.mem[_t_10 + 1] = term_clo(FID_VIZ_LOOP_C88, _nd_1);
+      e.mem[_t_10 + 1] = term_clo(FID_VIZ_LOOP_C122, _nd_1);
       e.mem[_t_10 + 2] = _x_0;
       return term_tsk(FID_IO_BIND, _t_10);
     }
     r0 = term_clo(FID_VIZ_NEXT, 0);
-    r1 = term_clo(FID_VIZ_LOOP_C88, _nd_1);
+    r1 = term_clo(FID_VIZ_LOOP_C122, _nd_1);
     r2 = _x_0;
     WL_JMP(FID_IO_BIND);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_LOOP_C88)
+  WL_CASE(FID_VIZ_LOOP_C122)
   {
     Term _a_2 = r0;
     Term _b_2 = r1;
@@ -3849,13 +4700,13 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     e.mem[_nd_2 + 4] = _e_2;
     e.mem[_nd_2 + 5] = _f_2;
     e.mem[_nd_2 + 6] = _x_1;
-    r0 = term_clo(FID_VIZ_LOOP_C89, _nd_2);
+    r0 = term_clo(FID_VIZ_LOOP_C123, _nd_2);
     WL_RETN(1);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_LOOP_C89)
+  WL_CASE(FID_VIZ_LOOP_C123)
   {
     Term _a_3 = r0;
     Term _b_3 = r1;
@@ -3879,19 +4730,19 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     if (!DEVICE && !seq && fid_nofk(FID_IO_BIND)) {
       u64 _t_9 = task_node(e, FID_IO_BIND, WL_CONT, WL_IDX, 0);
       e.mem[_t_9 + 0] = term_clo(FID_VIZ_PARAM, _nd_3);
-      e.mem[_t_9 + 1] = term_clo(FID_VIZ_LOOP_C90, _nd_4);
+      e.mem[_t_9 + 1] = term_clo(FID_VIZ_LOOP_C124, _nd_4);
       e.mem[_t_9 + 2] = _x_2;
       return term_tsk(FID_IO_BIND, _t_9);
     }
     r0 = term_clo(FID_VIZ_PARAM, _nd_3);
-    r1 = term_clo(FID_VIZ_LOOP_C90, _nd_4);
+    r1 = term_clo(FID_VIZ_LOOP_C124, _nd_4);
     r2 = _x_2;
     WL_JMP(FID_IO_BIND);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_LOOP_C90)
+  WL_CASE(FID_VIZ_LOOP_C124)
   {
     Term _a_4 = r0;
     Term _b_4 = r1;
@@ -3911,13 +4762,13 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     e.mem[_nd_5 + 5] = _f_4;
     e.mem[_nd_5 + 6] = _x_5;
     e.mem[_nd_5 + 7] = _x_4;
-    r0 = term_clo(FID_VIZ_LOOP_C91, _nd_5);
+    r0 = term_clo(FID_VIZ_LOOP_C125, _nd_5);
     WL_RETN(1);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_LOOP_C91)
+  WL_CASE(FID_VIZ_LOOP_C125)
   {
     Term _a_5 = r0;
     Term _b_5 = r1;
@@ -3943,19 +4794,19 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     if (!DEVICE && !seq && fid_nofk(FID_IO_BIND)) {
       u64 _t_8 = task_node(e, FID_IO_BIND, WL_CONT, WL_IDX, 0);
       e.mem[_t_8 + 0] = term_clo(FID_VIZ_PARAM, _nd_6);
-      e.mem[_t_8 + 1] = term_clo(FID_VIZ_LOOP_C92, _nd_7);
+      e.mem[_t_8 + 1] = term_clo(FID_VIZ_LOOP_C126, _nd_7);
       e.mem[_t_8 + 2] = _x_6;
       return term_tsk(FID_IO_BIND, _t_8);
     }
     r0 = term_clo(FID_VIZ_PARAM, _nd_6);
-    r1 = term_clo(FID_VIZ_LOOP_C92, _nd_7);
+    r1 = term_clo(FID_VIZ_LOOP_C126, _nd_7);
     r2 = _x_6;
     WL_JMP(FID_IO_BIND);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_LOOP_C92)
+  WL_CASE(FID_VIZ_LOOP_C126)
   {
     Term _a_6 = r0;
     Term _b_6 = r1;
@@ -3977,13 +4828,13 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     e.mem[_nd_8 + 6] = _x_10;
     e.mem[_nd_8 + 7] = _x_11;
     e.mem[_nd_8 + 8] = _x_9;
-    r0 = term_clo(FID_VIZ_LOOP_C93, _nd_8);
+    r0 = term_clo(FID_VIZ_LOOP_C127, _nd_8);
     WL_RETN(1);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_LOOP_C93)
+  WL_CASE(FID_VIZ_LOOP_C127)
   {
     Term _a_7 = r0;
     Term _b_7 = r1;
@@ -4011,19 +4862,19 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     if (!DEVICE && !seq && fid_nofk(FID_IO_BIND)) {
       u64 _t_7 = task_node(e, FID_IO_BIND, WL_CONT, WL_IDX, 0);
       e.mem[_t_7 + 0] = term_clo(FID_VIZ_PARAM, _nd_9);
-      e.mem[_t_7 + 1] = term_clo(FID_VIZ_LOOP_C94, _nd_10);
+      e.mem[_t_7 + 1] = term_clo(FID_VIZ_LOOP_C128, _nd_10);
       e.mem[_t_7 + 2] = _x_12;
       return term_tsk(FID_IO_BIND, _t_7);
     }
     r0 = term_clo(FID_VIZ_PARAM, _nd_9);
-    r1 = term_clo(FID_VIZ_LOOP_C94, _nd_10);
+    r1 = term_clo(FID_VIZ_LOOP_C128, _nd_10);
     r2 = _x_12;
     WL_JMP(FID_IO_BIND);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_LOOP_C94)
+  WL_CASE(FID_VIZ_LOOP_C128)
   {
     Term _a_8 = r0;
     Term _b_8 = r1;
@@ -4047,13 +4898,13 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     e.mem[_nd_11 + 7] = _x_18;
     e.mem[_nd_11 + 8] = _x_19;
     e.mem[_nd_11 + 9] = _x_16;
-    r0 = term_clo(FID_VIZ_LOOP_C95, _nd_11);
+    r0 = term_clo(FID_VIZ_LOOP_C129, _nd_11);
     WL_RETN(1);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_LOOP_C95)
+  WL_CASE(FID_VIZ_LOOP_C129)
   {
     Term _a_9 = r0;
     Term _b_9 = r1;
@@ -4083,19 +4934,19 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     if (!DEVICE && !seq && fid_nofk(FID_IO_BIND)) {
       u64 _t_6 = task_node(e, FID_IO_BIND, WL_CONT, WL_IDX, 0);
       e.mem[_t_6 + 0] = term_clo(FID_VIZ_PARAM, _nd_12);
-      e.mem[_t_6 + 1] = term_clo(FID_VIZ_LOOP_C96, _nd_13);
+      e.mem[_t_6 + 1] = term_clo(FID_VIZ_LOOP_C130, _nd_13);
       e.mem[_t_6 + 2] = _x_20;
       return term_tsk(FID_IO_BIND, _t_6);
     }
     r0 = term_clo(FID_VIZ_PARAM, _nd_12);
-    r1 = term_clo(FID_VIZ_LOOP_C96, _nd_13);
+    r1 = term_clo(FID_VIZ_LOOP_C130, _nd_13);
     r2 = _x_20;
     WL_JMP(FID_IO_BIND);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_LOOP_C96)
+  WL_CASE(FID_VIZ_LOOP_C130)
   {
     Term _a_10 = r0;
     Term _b_10 = r1;
@@ -4121,13 +4972,13 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     e.mem[_nd_14 + 8] = _x_28;
     e.mem[_nd_14 + 9] = _x_29;
     e.mem[_nd_14 + 10] = _x_25;
-    r0 = term_clo(FID_VIZ_LOOP_C97, _nd_14);
+    r0 = term_clo(FID_VIZ_LOOP_C131, _nd_14);
     WL_RETN(1);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_LOOP_C97)
+  WL_CASE(FID_VIZ_LOOP_C131)
   {
     Term _a_11 = r0;
     Term _b_11 = r1;
@@ -4159,19 +5010,19 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     if (!DEVICE && !seq && fid_nofk(FID_IO_BIND)) {
       u64 _t_5 = task_node(e, FID_IO_BIND, WL_CONT, WL_IDX, 0);
       e.mem[_t_5 + 0] = term_clo(FID_VIZ_PARAM, _nd_15);
-      e.mem[_t_5 + 1] = term_clo(FID_VIZ_LOOP_C98, _nd_16);
+      e.mem[_t_5 + 1] = term_clo(FID_VIZ_LOOP_C132, _nd_16);
       e.mem[_t_5 + 2] = _x_30;
       return term_tsk(FID_IO_BIND, _t_5);
     }
     r0 = term_clo(FID_VIZ_PARAM, _nd_15);
-    r1 = term_clo(FID_VIZ_LOOP_C98, _nd_16);
+    r1 = term_clo(FID_VIZ_LOOP_C132, _nd_16);
     r2 = _x_30;
     WL_JMP(FID_IO_BIND);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_LOOP_C98)
+  WL_CASE(FID_VIZ_LOOP_C132)
   {
     Term _a_12 = r0;
     Term _b_12 = r1;
@@ -4199,13 +5050,13 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     e.mem[_nd_17 + 9] = _x_40;
     e.mem[_nd_17 + 10] = _x_41;
     e.mem[_nd_17 + 11] = _x_36;
-    r0 = term_clo(FID_VIZ_LOOP_C99, _nd_17);
+    r0 = term_clo(FID_VIZ_LOOP_C133, _nd_17);
     WL_RETN(1);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_LOOP_C99)
+  WL_CASE(FID_VIZ_LOOP_C133)
   {
     Term _a_13 = r0;
     Term _b_13 = r1;
@@ -4239,19 +5090,19 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     if (!DEVICE && !seq && fid_nofk(FID_IO_BIND)) {
       u64 _t_4 = task_node(e, FID_IO_BIND, WL_CONT, WL_IDX, 0);
       e.mem[_t_4 + 0] = term_clo(FID_VIZ_PARAM, _nd_18);
-      e.mem[_t_4 + 1] = term_clo(FID_VIZ_LOOP_C100, _nd_19);
+      e.mem[_t_4 + 1] = term_clo(FID_VIZ_LOOP_C134, _nd_19);
       e.mem[_t_4 + 2] = _x_42;
       return term_tsk(FID_IO_BIND, _t_4);
     }
     r0 = term_clo(FID_VIZ_PARAM, _nd_18);
-    r1 = term_clo(FID_VIZ_LOOP_C100, _nd_19);
+    r1 = term_clo(FID_VIZ_LOOP_C134, _nd_19);
     r2 = _x_42;
     WL_JMP(FID_IO_BIND);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_LOOP_C100)
+  WL_CASE(FID_VIZ_LOOP_C134)
   {
     Term _a_14 = r0;
     Term _b_14 = r1;
@@ -4273,15 +5124,15 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
       STK(1) = _d_14;
       STK(2) = _e_14;
       STK(3) = _f_14;
-      STK(4) = FID_VIZ_LOOP_K101;
+      STK(4) = FID_VIZ_LOOP_K135;
       WL_PUSHN(5);
     } else {
-      u64 _t_0 = task_node(e, FID_VIZ_LOOP_K101, WL_CONT, WL_IDX, 1);
+      u64 _t_0 = task_node(e, FID_VIZ_LOOP_K135, WL_CONT, WL_IDX, 1);
       e.mem[_t_0 + 0] = _c_14;
       e.mem[_t_0 + 1] = _d_14;
       e.mem[_t_0 + 2] = _e_14;
       e.mem[_t_0 + 3] = _f_14;
-      WL_CONT = term_tsk(FID_VIZ_LOOP_K101, _t_0);
+      WL_CONT = term_tsk(FID_VIZ_LOOP_K135, _t_0);
       WL_IDX = 4;
     }
     if (!DEVICE && !seq && fid_nofk(FID_VIZ_STEP)) {
@@ -4311,7 +5162,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_LOOP_K101)
+  WL_CASE(FID_VIZ_LOOP_K135)
   {
     WL_POPN(4);
     Term _c_15 = STK(0);
@@ -4326,13 +5177,13 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     e.mem[_nd_20 + 2] = _e_15;
     e.mem[_nd_20 + 3] = _f_15;
     e.mem[_nd_20 + 4] = _h_0;
-    r0 = term_clo(FID_VIZ_LOOP_C102, _nd_20);
+    r0 = term_clo(FID_VIZ_LOOP_C136, _nd_20);
     WL_RETN(1);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_LOOP_C102)
+  WL_CASE(FID_VIZ_LOOP_C136)
   {
     Term _c_16 = r0;
     Term _d_16 = r1;
@@ -4349,19 +5200,19 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     if (!DEVICE && !seq && fid_nofk(FID_IO_BIND)) {
       u64 _t_3 = task_node(e, FID_IO_BIND, WL_CONT, WL_IDX, 0);
       e.mem[_t_3 + 0] = _h_1;
-      e.mem[_t_3 + 1] = term_clo(FID_VIZ_LOOP_C103, _nd_21);
+      e.mem[_t_3 + 1] = term_clo(FID_VIZ_LOOP_C137, _nd_21);
       e.mem[_t_3 + 2] = _x_56;
       return term_tsk(FID_IO_BIND, _t_3);
     }
     r0 = _h_1;
-    r1 = term_clo(FID_VIZ_LOOP_C103, _nd_21);
+    r1 = term_clo(FID_VIZ_LOOP_C137, _nd_21);
     r2 = _x_56;
     WL_JMP(FID_IO_BIND);
   }}
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_VIZ_LOOP_C103)
+  WL_CASE(FID_VIZ_LOOP_C137)
   {
     Term _c_17 = r0;
     Term _d_17 = r1;
@@ -4399,11 +5250,11 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     WL_OPEN
     if (seq) {
       WL_ROOM(1);
-      STK(0) = FID_MAIN_K105;
+      STK(0) = FID_MAIN_K139;
       WL_PUSHN(1);
     } else {
-      u64 _t_0 = task_node(e, FID_MAIN_K105, WL_CONT, WL_IDX, 1);
-      WL_CONT = term_tsk(FID_MAIN_K105, _t_0);
+      u64 _t_0 = task_node(e, FID_MAIN_K139, WL_CONT, WL_IDX, 1);
+      WL_CONT = term_tsk(FID_MAIN_K139, _t_0);
       WL_IDX = 0;
     }
     if (!seq) {
@@ -4417,19 +5268,19 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_MAIN_K105)
+  WL_CASE(FID_MAIN_K139)
   {
     Term _h_0 = r0;
     WL_OPEN
     if (seq) {
       WL_ROOM(2);
       STK(0) = _h_0;
-      STK(1) = FID_MAIN_K106;
+      STK(1) = FID_MAIN_K140;
       WL_PUSHN(2);
     } else {
-      u64 _t_2 = task_node(e, FID_MAIN_K106, WL_CONT, WL_IDX, 1);
+      u64 _t_2 = task_node(e, FID_MAIN_K140, WL_CONT, WL_IDX, 1);
       e.mem[_t_2 + 0] = _h_0;
-      WL_CONT = term_tsk(FID_MAIN_K106, _t_2);
+      WL_CONT = term_tsk(FID_MAIN_K140, _t_2);
       WL_IDX = 1;
     }
     if (!seq) {
@@ -4443,7 +5294,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_MAIN_K106)
+  WL_CASE(FID_MAIN_K140)
   {
     WL_POPN(1);
     Term _h_2 = STK(0);
@@ -4453,13 +5304,13 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
       WL_ROOM(3);
       STK(0) = _h_2;
       STK(1) = _h_1;
-      STK(2) = FID_MAIN_K107;
+      STK(2) = FID_MAIN_K141;
       WL_PUSHN(3);
     } else {
-      u64 _t_4 = task_node(e, FID_MAIN_K107, WL_CONT, WL_IDX, 1);
+      u64 _t_4 = task_node(e, FID_MAIN_K141, WL_CONT, WL_IDX, 1);
       e.mem[_t_4 + 0] = _h_2;
       e.mem[_t_4 + 1] = _h_1;
-      WL_CONT = term_tsk(FID_MAIN_K107, _t_4);
+      WL_CONT = term_tsk(FID_MAIN_K141, _t_4);
       WL_IDX = 2;
     }
     if (!seq) {
@@ -4473,7 +5324,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_MAIN_K107)
+  WL_CASE(FID_MAIN_K141)
   {
     WL_POPN(2);
     Term _h_4 = STK(0);
@@ -4485,14 +5336,14 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
       STK(0) = _h_4;
       STK(1) = _h_5;
       STK(2) = _h_3;
-      STK(3) = FID_MAIN_K108;
+      STK(3) = FID_MAIN_K142;
       WL_PUSHN(4);
     } else {
-      u64 _t_6 = task_node(e, FID_MAIN_K108, WL_CONT, WL_IDX, 1);
+      u64 _t_6 = task_node(e, FID_MAIN_K142, WL_CONT, WL_IDX, 1);
       e.mem[_t_6 + 0] = _h_4;
       e.mem[_t_6 + 1] = _h_5;
       e.mem[_t_6 + 2] = _h_3;
-      WL_CONT = term_tsk(FID_MAIN_K108, _t_6);
+      WL_CONT = term_tsk(FID_MAIN_K142, _t_6);
       WL_IDX = 3;
     }
     if (!seq) {
@@ -4506,7 +5357,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_MAIN_K108)
+  WL_CASE(FID_MAIN_K142)
   {
     WL_POPN(3);
     Term _h_7 = STK(0);
@@ -4520,15 +5371,15 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
       STK(1) = _h_8;
       STK(2) = _h_9;
       STK(3) = _h_6;
-      STK(4) = FID_MAIN_K109;
+      STK(4) = FID_MAIN_K143;
       WL_PUSHN(5);
     } else {
-      u64 _t_8 = task_node(e, FID_MAIN_K109, WL_CONT, WL_IDX, 1);
+      u64 _t_8 = task_node(e, FID_MAIN_K143, WL_CONT, WL_IDX, 1);
       e.mem[_t_8 + 0] = _h_7;
       e.mem[_t_8 + 1] = _h_8;
       e.mem[_t_8 + 2] = _h_9;
       e.mem[_t_8 + 3] = _h_6;
-      WL_CONT = term_tsk(FID_MAIN_K109, _t_8);
+      WL_CONT = term_tsk(FID_MAIN_K143, _t_8);
       WL_IDX = 4;
     }
     if (!seq) {
@@ -4542,7 +5393,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_MAIN_K109)
+  WL_CASE(FID_MAIN_K143)
   {
     WL_POPN(4);
     Term _h_11 = STK(0);
@@ -4558,16 +5409,16 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
       STK(2) = _h_13;
       STK(3) = _h_14;
       STK(4) = _h_10;
-      STK(5) = FID_MAIN_K110;
+      STK(5) = FID_MAIN_K144;
       WL_PUSHN(6);
     } else {
-      u64 _t_10 = task_node(e, FID_MAIN_K110, WL_CONT, WL_IDX, 1);
+      u64 _t_10 = task_node(e, FID_MAIN_K144, WL_CONT, WL_IDX, 1);
       e.mem[_t_10 + 0] = _h_11;
       e.mem[_t_10 + 1] = _h_12;
       e.mem[_t_10 + 2] = _h_13;
       e.mem[_t_10 + 3] = _h_14;
       e.mem[_t_10 + 4] = _h_10;
-      WL_CONT = term_tsk(FID_MAIN_K110, _t_10);
+      WL_CONT = term_tsk(FID_MAIN_K144, _t_10);
       WL_IDX = 5;
     }
     if (!seq) {
@@ -4581,7 +5432,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
 #endif
 
 #if !DEVICE
-  WL_CASE(FID_MAIN_K110)
+  WL_CASE(FID_MAIN_K144)
   {
     WL_POPN(5);
     Term _h_16 = STK(0);
@@ -4614,11 +5465,11 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
 #if !DEVICE
   WL_CASE(FID_VIZ_NEXT)
   {
-    Term _k_6 = r0;
+    Term _k_3 = r0;
     WL_OPEN
-    u64 _nd_6 = heap_alloc(e, cls_fit(1));
-    e.mem[_nd_6 + 0] = _k_6;
-    r0 = term_ctr(CID_VIZ_NEXT, _nd_6);
+    u64 _nd_3 = heap_alloc(e, cls_fit(1));
+    e.mem[_nd_3 + 0] = _k_3;
+    r0 = term_ctr(CID_VIZ_NEXT, _nd_3);
     WL_RETN(1);
   }}
 #endif
@@ -4626,13 +5477,13 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
 #if !DEVICE
   WL_CASE(FID_VIZ_PARAM)
   {
-    Term _i_2 = r0;
-    Term _k_7 = r1;
+    Term _i_1 = r0;
+    Term _k_4 = r1;
     WL_OPEN
-    u64 _nd_7 = heap_alloc(e, cls_fit(2));
-    e.mem[_nd_7 + 0] = _i_2;
-    e.mem[_nd_7 + 1] = _k_7;
-    r0 = term_ctr(CID_VIZ_PARAM, _nd_7);
+    u64 _nd_4 = heap_alloc(e, cls_fit(2));
+    e.mem[_nd_4 + 0] = _i_1;
+    e.mem[_nd_4 + 1] = _k_4;
+    r0 = term_ctr(CID_VIZ_PARAM, _nd_4);
     WL_RETN(1);
   }}
 #endif
@@ -4640,13 +5491,13 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
 #if !DEVICE
   WL_CASE(FID_VIZ_SHOW)
   {
-    Term _a_2 = r0;
-    Term _k_8 = r1;
+    Term _a_1 = r0;
+    Term _k_5 = r1;
     WL_OPEN
-    u64 _nd_8 = heap_alloc(e, cls_fit(2));
-    e.mem[_nd_8 + 0] = _a_2;
-    e.mem[_nd_8 + 1] = _k_8;
-    r0 = term_ctr(CID_VIZ_SHOW, _nd_8);
+    u64 _nd_5 = heap_alloc(e, cls_fit(2));
+    e.mem[_nd_5 + 0] = _a_1;
+    e.mem[_nd_5 + 1] = _k_5;
+    r0 = term_ctr(CID_VIZ_SHOW, _nd_5);
     WL_RETN(1);
   }}
 #endif
@@ -7622,7 +8473,7 @@ static pthread_cond_t  bv_asked = PTHREAD_COND_INITIALIZER;
 static pthread_cond_t  bv_shown = PTHREAD_COND_INITIALIZER;  // a new frame is ready (bendviz_wait)
 static bool            bv_want;                       // a request waiting for Bend
 static float           bv_ask[5], bv_now[5];          // the request, and the one being drawn
-static u32             bv_ask_word, bv_now_word;       // gpu flag and size, as Viz.next returns them
+static u32             bv_ask_word, bv_now_word;       // gpu flag, effect and size, as Viz.next returns them
 static u32*            bv_front;                       // the newest finished frame, rows packed
 static u32*            bv_back;                        // where the next one is being put
 static size_t          bv_cap;                         // pixels each of those holds
@@ -8179,8 +9030,8 @@ bool bendviz_start(const char* gpu_heap) {
 }
 
 // Asks for a frame of w x h (each at most BENDVIZ_MAX), replacing any request not yet started.
-// params: time, bass, mids, hue, beat.
-void bendviz_request(const float params[5], int w, int h, bool gpu) {
+// params: time, bass, mids, hue, beat; fx: 0 the plasma, 1 the tree.
+void bendviz_request(const float params[5], int w, int h, int fx, bool gpu) {
   w = w < 1 ? 1 : w > BENDVIZ_MAX ? BENDVIZ_MAX : w;
   h = h < 1 ? 1 : h > BENDVIZ_MAX ? BENDVIZ_MAX : h;
   if ((long)w * h > BENDVIZ_PIXELS) {  // the program's buffers hold 2^23 pixels: fewer rows
@@ -8188,7 +9039,7 @@ void bendviz_request(const float params[5], int w, int h, bool gpu) {
   }
   pthread_mutex_lock(&bv_lock);
   memcpy(bv_ask, params, sizeof bv_ask);
-  bv_ask_word = (u32)w | (u32)h << 13 | (gpu ? 1u << 31 : 0);
+  bv_ask_word = (u32)w | (u32)h << 13 | (u32)(fx & 15) << 26 | (gpu ? 1u << 31 : 0);
   bv_trace("request", bv_want, 0);
   if (!bv_want) bv_asked_at = io_tick();  // the first request since Bend last took one
   bv_want     = true;

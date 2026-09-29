@@ -15,8 +15,8 @@
 #define BOBS 180
 #define AUTO_SECONDS 40
 
-enum { FX_SPECTRUM, FX_PLASMA, FX_TUNNEL, FX_FEEDBACK, FX_FIRE, FX_BOBS, FX_BEND, FX_COUNT };
-static const char *const fx_names[FX_COUNT] = { "Spectrum", "Plasma (C)", "Tunnel", "Feedback", "Fire", "Stars & bobs", "Bend plasma" };
+enum { FX_SPECTRUM, FX_PLASMA, FX_TUNNEL, FX_FEEDBACK, FX_FIRE, FX_BOBS, FX_BEND, FX_BEND_TREE, FX_COUNT };
+static const char *const fx_names[FX_COUNT] = { "Spectrum", "Plasma (C)", "Tunnel", "Feedback", "Fire", "Stars & bobs", "Bend plasma", "Bend tree" };
 
 typedef struct { float x, y, z; } vec3;
 
@@ -461,14 +461,14 @@ static void bend_texture(viz *v, int w, int h) {
     v->bend_w = w, v->bend_h = h;
 }
 
-// The plasma again, written in Bend (bend/viz.bend), drawing every pixel of the area, by the same
-// function on the GPU or on the CPU's threads, as g chooses. It runs beside the player and draws
+// The plasma again, or a fractal tree, written in Bend (bend/viz.bend), drawing every pixel of the
+// area, by the same function on the GPU or on the CPU's threads, as g chooses. It runs beside the player and draws
 // at its own pace: each frame asks for the next and shows the newest one finished.
 static void fx_bend(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
     if (!v->bend_started) v->bend_started = bendviz_start("768MB"), v->bend_on_gpu = true;
     int w = (int)a.w < BENDVIZ_MAX ? (int)a.w : BENDVIZ_MAX, h = (int)a.h < BENDVIZ_MAX ? (int)a.h : BENDVIZ_MAX;
     float params[5] = { (float)v->t, v->bass, v->mid, v->hue, v->beat };
-    if (!v->bend_shown) bendviz_request(params, w, h, v->bend_on_gpu);
+    if (!v->bend_shown) bendviz_request(params, w, h, v->fx == FX_BEND_TREE, v->bend_on_gpu);
     // Without vsync the player would present as fast as it can, most often the frame already on
     // screen, and each present takes the GPU from Bend: a moment's wait for Bend's next frame (drawn
     // on the GPU, a millisecond or two) lets the player show only new ones.
@@ -534,7 +534,7 @@ static void fx_bend(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
     }
     // The next frame is asked for once this one is taken, so Bend draws it while the player draws
     // and presents this one, rather than each waiting for the other.
-    bendviz_request(params, w, h, v->bend_on_gpu);
+    bendviz_request(params, w, h, v->fx == FX_BEND_TREE, v->bend_on_gpu);
     bend_count_frame(v, fresh, (SDL_GetTicksNS() - take_from) / 1e6);
     if (v->bend_shown && v->bend_draw) {
         SDL_SetTextureBlendMode(v->bend_draw, SDL_BLENDMODE_NONE);
@@ -624,7 +624,7 @@ void viz_draw(viz *v, SDL_FRect a, double t, const char *title, const char *arti
     SDL_SetRenderDrawColor(v->ren, 0, 0, 0, 255);
     SDL_SetRenderDrawBlendMode(v->ren, SDL_BLENDMODE_NONE);
     // (a Bend frame covers the area, opaque: at 4K the fill would be 33 MB of writes for nothing)
-    if (!(v->fx == FX_BEND && v->bend_shown && v->bend_draw)) SDL_RenderFillRect(v->ren, &a);
+    if (!(v->fx >= FX_BEND && v->bend_shown && v->bend_draw)) SDL_RenderFillRect(v->ren, &a);
     switch (v->fx) {
     case FX_SPECTRUM: fx_spectrum(v, a); break;
     case FX_PLASMA: fx_plasma(v, a); break;
@@ -719,7 +719,7 @@ void viz_step(viz *v, int dir) {
 }
 
 const char *viz_name(const viz *v) { return fx_names[v->fx]; }
-bool viz_is_bend(const viz *v) { return v->fx == FX_BEND; }
+bool viz_is_bend(const viz *v) { return v->fx >= FX_BEND; }
 
 // Three lines of at most 63 characters (the stats overlay's width; it shows 12 lines in all).
 bool viz_bend_stats(const viz *v, char *out, size_t size) {

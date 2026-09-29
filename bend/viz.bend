@@ -11,7 +11,7 @@
 import Base
 
 # What the player asks for: bit 31 set for the GPU, the width in bits 0-12 and the height in
-# bits 13-25 (each at most 4096).
+# bits 13-25 (each at most 4096), and the effect in bits 26-29 (0 the plasma, 1 the tree).
 def Viz.next() -> IO(U32):
   import "./bridge.c"
 
@@ -159,21 +159,131 @@ def Viz.leaf(+j: U32, +k: Viz.K, a: Array<U32>) -> Array<U32>:
 def Viz.frame.gpu(+k: Viz.K, a: Array<U32>) -> Array<U32>:
   Array.spread(~U32, ~Viz.K, ~Viz.leaf, a, 32768, k)
 
+# The tree: a trunk from the bottom of the frame, each branch splitting into two shorter ones,
+# Viz.depth levels deep, their angles and lengths moved by the music. Every branch forks exactly
+# two, so the work is balanced, the case Bend's scheduler is built for, and the same recursion runs
+# on the CPU's threads or the GPU.
+
+# Black first: a leaf clears pixels j, j + 32768, ... as the plasma's leaves draw them.
+def Viz.zput(inside: Bool, +i: U32, a: Array<U32>) -> Array<U32>:
+  match inside:
+    case True{}:
+      Array.set(U32, a, i, 0)
+    case False{}:
+      a
+
+def Viz.zlin(n: Nat, +i: U32, +k: Viz.K, a: Array<U32>) -> Array<U32>:
+  match n:
+    case 0n:
+      a
+    case 1n+r:
+      K{t, zoom, mid, hue, beat, w, h} = k
+      Viz.zlin(r, (i + 32768 : U32), k, Viz.zput((i < w * h : U32), i, a))
+
+def Viz.zleaf(+j: U32, +k: Viz.K, a: Array<U32>) -> Array<U32>:
+  K{t, zoom, mid, hue, beat, w, h} = k
+  Viz.zlin(U32.to_nat(((w * h + 32767) / 32768 : U32)), j, k, a)
+
+# One pixel of a branch, if it lies in the frame (a coordinate one past, so that one left of or
+# above the frame comes out 0).
+def Viz.dot.at(inside: Bool, +x: U32, +y: U32, +c: U32, +w: U32, a: Array<U32>) -> Array<U32>:
+  match inside:
+    case True{}:
+      Array.set(U32, a, (y * w + x : U32), c)
+    case False{}:
+      a
+
+def Viz.dot(+x: F32, +y: F32, +c: U32, +k: Viz.K, a: Array<U32>) -> Array<U32>:
+  K{t, zoom, mid, hue, beat, w, h} = k
+  +xi = F32.to_u32((x + 1.0 : F32))
+  +yi = F32.to_u32((y + 1.0 : F32))
+  Viz.dot.at(((xi >= 1) && (yi >= 1) && (xi <= w) && (yi <= h) : U32), (xi - 1 : U32), (yi - 1 : U32), c, w, a)
+
+# A branch's line: n pixels from (x, y), each (sx, sy) on from the last.
+def Viz.seg(n: Nat, +x: F32, +y: F32, +sx: F32, +sy: F32, +c: U32, +k: Viz.K, a: Array<U32>) -> Array<U32>:
+  match n:
+    case 0n:
+      a
+    case 1n+r:
+      Viz.seg(r, (x + sx : F32), (y + sy : F32), sx, sy, c, k, Viz.dot(x, y, c, k, a))
+
+# A branch d levels above the tips, from (x, y) at angle ang (radians, 0 pointing right, up
+# positive), len pixels long: its line, then its two children at once.
+@unsafe
+def Viz.branch(+d: Nat, +x: F32, +y: F32, +ang: F32, +len: F32, +k: Viz.K, a: Array<U32>) -> Array<U32>:
+  K{t, zoom, mid, hue, beat, w, h} = k
+  +dx = (len * F32.cos(ang) : F32)
+  +dy = (0.0 - len * F32.sin(ang) : F32)
+  +n = F32.to_u32((F32.max(F32.max(dx, (0.0 - dx : F32)), F32.max(dy, (0.0 - dy : F32))) + 1.0 : F32))
+  +c = Viz.color((U32.to_f32(U32.from_nat(d)) * 0.06 + t * 0.05 : F32), t, hue, beat)
+  Viz.branch.on(d, (x + dx : F32), (y + dy : F32), ang, len, k,
+    Viz.seg(U32.to_nat(n), x, y, (dx / U32.to_f32(n) : F32), (dy / U32.to_f32(n) : F32), c, k, a))
+
+@unsafe
+def Viz.branch.on(+d: Nat, +x: F32, +y: F32, +ang: F32, +len: F32, +k: Viz.K, a: Array<U32>) -> Array<U32>:
+  match d:
+    case 0n:
+      a
+    case 1n+e:
+      Viz.branch2(e, x, y, ang, len, k, Array.fork(U32, a))
+
+@unsafe
+def Viz.branch2(+e: Nat, +x: F32, +y: F32, +ang: F32, +len: F32, +k: Viz.K, p: Array<U32> & Array<U32>) -> Array<U32>:
+  (l, r) = p
+  Viz.branch3(e, x, y, ang, len, k, l, r)
+
+@unsafe
+def Viz.branch3(+e: Nat, +x: F32, +y: F32, +ang: F32, +len: F32, +k: Viz.K, l: Array<U32>, r: Array<U32>) -> Array<U32>:
+  K{t, zoom, mid, hue, beat, w, h} = k
+  +lvl = U32.to_f32(U32.from_nat(e))
+  +spread = (0.3 + mid * 0.4 + beat * 0.15 + 0.1 * F32.sin((t * 1.3 + lvl * 0.7 : F32)) : F32)
+  +sway = (0.08 * F32.sin((t * 0.9 + lvl * 0.4 : F32)) : F32)
+  +len2 = (len * (0.7 + zoom * 1.2 : F32) : F32)
+  q z = Viz.branch(e, x, y, (ang + spread + sway : F32), len2, k, l) Viz.branch(e, x, y, (ang - spread + sway : F32), len2, k, r)
+  Array.join(U32, q, z)
+
+# Levels of the tree: 2^17 - 1 branches.
+def Viz.depth() -> Nat:
+  16n
+
+@unsafe
+def Viz.tree(+k: Viz.K, a: Array<U32>) -> Array<U32>:
+  K{t, zoom, mid, hue, beat, w, h} = k
+  Viz.branch(Viz.depth(), (U32.to_f32(w) * 0.5 : F32), U32.to_f32(h), 1.5708, (U32.to_f32(h) * 0.24 : F32), k,
+    Array.spread(~U32, ~Viz.K, ~Viz.zleaf, a, 32768, k))
+
+# One effect's frame: the tree, or the plasma.
+@unsafe
+def Viz.pick(tree: Bool, +k: Viz.K, a: Array<U32>) -> Array<U32>:
+  match tree:
+    case True{}:
+      Viz.tree(k, a)
+    case False{}:
+      Viz.frame.gpu(k, a)
+
+@unsafe
+def Viz.pick.cpu(tree: Bool, +k: Viz.K, a: Array<U32>) -> Array<U32>:
+  match tree:
+    case True{}:
+      Viz.tree(k, a)
+    case False{}:
+      Viz.frame(k, a)
+
 # Two frames in one launch: the GPU's growing and packing passes, and the round trip to it, are
 # paid once for both.
 @unsafe
-def Viz.frames.gpu(+k: Viz.K, +k2: Viz.K, a: Array<U32>, b: Array<U32>) -> Array<U32> & Array<U32>:
-  x y = Viz.frame.gpu(k, a) Viz.frame.gpu(k2, b)
+def Viz.frames.gpu(+fx: U32, +k: Viz.K, +k2: Viz.K, a: Array<U32>, b: Array<U32>) -> Array<U32> & Array<U32>:
+  x y = Viz.pick(U32.is_eq(fx, 1), k, a) Viz.pick(U32.is_eq(fx, 1), k2, b)
   (x, y)
 
 # The same pixels, on the GPU or on the CPU's threads.
 @unsafe
-def Viz.draw(gpu: Bool, +k: Viz.K, +k2: Viz.K, a: Array<U32>, b: Array<U32>) -> Array<U32> & Array<U32>:
+def Viz.draw(gpu: Bool, +fx: U32, +k: Viz.K, +k2: Viz.K, a: Array<U32>, b: Array<U32>) -> Array<U32> & Array<U32>:
   match gpu:
     case True{}:
-      Viz.frames.gpu!(k, k2, a, b)
+      Viz.frames.gpu!(fx, k, k2, a, b)
     case False{}:
-      (Viz.frame(k, a), Viz.frame(k2, b))
+      (Viz.pick.cpu(U32.is_eq(fx, 1), k, a), Viz.pick.cpu(U32.is_eq(fx, 1), k2, b))
 
 # The frame asked for and the one after it, dt seconds on (a value bound in a do block is used once,
 # so the request is taken apart here), shown in turn.
@@ -184,7 +294,8 @@ def Viz.step(+ask: U32, +t: F32, bass: F32, +mid: F32, +hue: F32, +beat: F32, dt
   +h = (ask >> 13n .&. 8191 : U32)
   +k = {K{t, z, mid, hue, beat, w, h} : Viz.K}
   +k2 = {K{(t + dt : F32), z, mid, hue, beat, w, h} : Viz.K}
-  Viz.show2(Viz.draw(U32.is_eq((ask >> 31n : U32), 1), k, k2, a, b))
+  +fx = (ask >> 26n .&. 15 : U32)
+  Viz.show2(Viz.draw(U32.is_eq((ask >> 31n : U32), 1), fx, k, k2, a, b))
 
 @unsafe
 def Viz.show2(p: Array<U32> & Array<U32>) -> IO(Array<U32> & Array<U32>):

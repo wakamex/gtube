@@ -17,7 +17,7 @@ static pthread_cond_t  bv_asked = PTHREAD_COND_INITIALIZER;
 static pthread_cond_t  bv_shown = PTHREAD_COND_INITIALIZER;  // a new frame is ready (bendviz_wait)
 static bool            bv_want;                       // a request waiting for Bend
 static float           bv_ask[5], bv_now[5];          // the request, and the one being drawn
-static u32             bv_ask_word, bv_now_word;       // gpu flag and size, as Viz.next returns them
+static u32             bv_ask_word, bv_now_word;       // gpu flag, effect and size, as Viz.next returns them
 static u32*            bv_front;                       // the newest finished frame, rows packed
 static u32*            bv_back;                        // where the next one is being put
 static size_t          bv_cap;                         // pixels each of those holds
@@ -574,8 +574,8 @@ bool bendviz_start(const char* gpu_heap) {
 }
 
 // Asks for a frame of w x h (each at most BENDVIZ_MAX), replacing any request not yet started.
-// params: time, bass, mids, hue, beat.
-void bendviz_request(const float params[5], int w, int h, bool gpu) {
+// params: time, bass, mids, hue, beat; fx: 0 the plasma, 1 the tree.
+void bendviz_request(const float params[5], int w, int h, int fx, bool gpu) {
   w = w < 1 ? 1 : w > BENDVIZ_MAX ? BENDVIZ_MAX : w;
   h = h < 1 ? 1 : h > BENDVIZ_MAX ? BENDVIZ_MAX : h;
   if ((long)w * h > BENDVIZ_PIXELS) {  // the program's buffers hold 2^23 pixels: fewer rows
@@ -583,7 +583,7 @@ void bendviz_request(const float params[5], int w, int h, bool gpu) {
   }
   pthread_mutex_lock(&bv_lock);
   memcpy(bv_ask, params, sizeof bv_ask);
-  bv_ask_word = (u32)w | (u32)h << 13 | (gpu ? 1u << 31 : 0);
+  bv_ask_word = (u32)w | (u32)h << 13 | (u32)(fx & 15) << 26 | (gpu ? 1u << 31 : 0);
   bv_trace("request", bv_want, 0);
   if (!bv_want) bv_asked_at = io_tick();  // the first request since Bend last took one
   bv_want     = true;
