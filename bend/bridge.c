@@ -427,8 +427,11 @@ static void bv_vk_start(void) {
 }
 
 // Under bv_lock: a buffer the next pass draws into (as many as the last pass showed) is on screen,
-// or waiting to be taken (and Bend starts no pass till none is).
+// or waiting to be taken (and Bend starts no pass till none is). Frames copied into images of their
+// own (under vsync) hold Bend while any waits to be taken: a pass makes two, one shows, and BV_OWN
+// images hold no more, so a pass run ahead would find none free and its frames would go blank.
 static bool bv_vk_holding(void) {
+  if (bv_vk.no_over && bv_vk.npub > 0) return true;
   for (int k = 1; k <= bv_per_pass; k += 1) {
     int next = bv_vk_next(k);
     if (next >= 0 && (next == bv_vk.shown || bv_vk_queued(next))) return true;
