@@ -15,7 +15,8 @@ import Base
 def Viz.next() -> IO(U32):
   import "./bridge.c"
 
-# 0 time in seconds, 1 bass, 2 mids, 3 hue, 4 beat (1 on a beat, fading).
+# 0 time in seconds, 1 bass, 2 mids, 3 hue, 4 beat (1 on a beat, fading), 5 the seconds between
+# the frames the player shows (averaged).
 def Viz.param(i: U32) -> IO(F32):
   import "./bridge.c"
 
@@ -158,26 +159,44 @@ def Viz.leaf(+j: U32, +k: Viz.K, a: Array<U32>) -> Array<U32>:
 def Viz.frame.gpu(+k: Viz.K, a: Array<U32>) -> Array<U32>:
   Array.spread(~U32, ~Viz.K, ~Viz.leaf, a, 32768, k)
 
+# Two frames in one launch: the GPU's growing and packing passes, and the round trip to it, are
+# paid once for both.
+@unsafe
+def Viz.frames.gpu(+k: Viz.K, +k2: Viz.K, a: Array<U32>, b: Array<U32>) -> Array<U32> & Array<U32>:
+  x y = Viz.frame.gpu(k, a) Viz.frame.gpu(k2, b)
+  (x, y)
+
 # The same pixels, on the GPU or on the CPU's threads.
 @unsafe
-def Viz.draw(gpu: Bool, +k: Viz.K, a: Array<U32>) -> Array<U32>:
+def Viz.draw(gpu: Bool, +k: Viz.K, +k2: Viz.K, a: Array<U32>, b: Array<U32>) -> Array<U32> & Array<U32>:
   match gpu:
     case True{}:
-      Viz.frame.gpu!(k, a)
+      Viz.frames.gpu!(k, k2, a, b)
     case False{}:
-      Viz.frame(k, a)
+      (Viz.frame(k, a), Viz.frame(k2, b))
 
-# One frame as asked (a value bound in a do block is used once, so the request is taken apart here).
+# The frame asked for and the one after it, dt seconds on (a value bound in a do block is used once,
+# so the request is taken apart here), shown in turn.
 @unsafe
-def Viz.step(+ask: U32, t: F32, bass: F32, mid: F32, hue: F32, beat: F32, a: Array<U32>) -> IO(Array<U32>):
-  +k = {K{t, (0.045 * (1.0 + bass * 0.5) : F32), mid, hue, beat, (ask .&. 8191 : U32), (ask >> 13n .&. 8191 : U32)} : Viz.K}
-  Viz.show(Viz.draw(U32.is_eq((ask >> 31n : U32), 1), k, a))
+def Viz.step(+ask: U32, +t: F32, bass: F32, +mid: F32, +hue: F32, +beat: F32, dt: F32, a: Array<U32>, b: Array<U32>) -> IO(Array<U32> & Array<U32>):
+  +z = (0.045 * (1.0 + bass * 0.5) : F32)
+  +w = (ask .&. 8191 : U32)
+  +h = (ask >> 13n .&. 8191 : U32)
+  +k = {K{t, z, mid, hue, beat, w, h} : Viz.K}
+  +k2 = {K{(t + dt : F32), z, mid, hue, beat, w, h} : Viz.K}
+  Viz.show2(Viz.draw(U32.is_eq((ask >> 31n : U32), 1), k, k2, a, b))
 
 @unsafe
-# Three frame buffers, drawn into in turn: the player draws the last frame from one while the next
-# is drawn into another, and the third frees up meanwhile, so no frame is copied aside for it and
-# neither waits for the other (bridge.c keeps Bend from drawing into a buffer still on screen).
-def Viz.loop(a: Array<U32>, b: Array<U32>, c: Array<U32>) -> IO(Unit):
+def Viz.show2(p: Array<U32> & Array<U32>) -> IO(Array<U32> & Array<U32>):
+  (x, y) = p
+  IO.bind(Array<U32>, Array<U32> & Array<U32>, Viz.show(x), x2 => IO.bind(Array<U32>, Array<U32> & Array<U32>, Viz.show(y), y2 => IO.pure(Array<U32> & Array<U32>, (x2, y2))))
+
+@unsafe
+# Six frame buffers, drawn into two at a time, in turn: the player draws the last two frames from
+# two while the next two are drawn into two others, and the third pair frees up meanwhile, so no
+# frame is copied aside for it and neither waits for the other (bridge.c keeps Bend from drawing
+# into a buffer still on screen).
+def Viz.loop(a: Array<U32>, b: Array<U32>, c: Array<U32>, d: Array<U32>, e: Array<U32>, f: Array<U32>) -> IO(Unit):
   do IO<Unit>:
     ask : U32 <- Viz.next()
     t : F32 <- Viz.param(0)
@@ -185,8 +204,14 @@ def Viz.loop(a: Array<U32>, b: Array<U32>, c: Array<U32>) -> IO(Unit):
     mid : F32 <- Viz.param(2)
     hue : F32 <- Viz.param(3)
     beat : F32 <- Viz.param(4)
-    d : Array<U32> <- Viz.step(ask, t, bass, mid, hue, beat, a)
-    Viz.loop(b, c, d)
+    dt : F32 <- Viz.param(5)
+    p : Array<U32> & Array<U32> <- Viz.step(ask, t, bass, mid, hue, beat, dt, a, b)
+    Viz.loop.at(c, d, e, f, p)
+
+@unsafe
+def Viz.loop.at(c: Array<U32>, d: Array<U32>, e: Array<U32>, f: Array<U32>, p: Array<U32> & Array<U32>) -> IO(Unit):
+  (x, y) = p
+  Viz.loop(c, d, e, f, x, y)
 
 # A frame buffer of 2^23 pixels (32 MB; 3840x2160 fits, and bridge.c scales down a bigger frame),
 # made on the GPU when there is one, so the host never writes it, which would then have to cross to
@@ -196,4 +221,4 @@ def Viz.blank(z: U32) -> Array<U32>:
 
 @unsafe
 def main() -> IO(Unit):
-  Viz.loop(Viz.blank!(0), Viz.blank!(0), Viz.blank!(0))
+  Viz.loop(Viz.blank!(0), Viz.blank!(0), Viz.blank!(0), Viz.blank!(0), Viz.blank!(0), Viz.blank!(0))

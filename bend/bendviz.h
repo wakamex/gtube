@@ -31,7 +31,7 @@ void bendviz_vk_unlock(void);
 void bendviz_vk_pump(void);  // holding the lock, before each present: makes Bend's waiting submit
 void bendviz_vk_mark(void);  // after each present: the draws so far are marked (see bridge.c)
 void bendviz_vk_settle(void);  // with vsync, after that: waits for the frame before this one
-#define BENDVIZ_TEXTURES 6  // image slots: two over Bend's frame buffers, or up to four it copies frames into
+#define BENDVIZ_TEXTURES 10  // image slots: six over Bend's frame buffers, and up to four it copies frames into
 bool bendviz_vk_frames(int w, int h, bool over);  // frames of w x h go into images (B8G8R8A8, linear, GENERAL layout)
 void bendviz_vk_unshare(void);  // after the player's textures of them are gone
 // The slot of a new frame and its VkImage (the same for the slot until bendviz_vk_frames), or -1.
