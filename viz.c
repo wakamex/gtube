@@ -623,7 +623,8 @@ void viz_draw(viz *v, SDL_FRect a, double t, const char *title, const char *arti
     SDL_SetRenderClipRect(v->ren, &(SDL_Rect){ (int)a.x, (int)a.y, (int)a.w, (int)a.h });
     SDL_SetRenderDrawColor(v->ren, 0, 0, 0, 255);
     SDL_SetRenderDrawBlendMode(v->ren, SDL_BLENDMODE_NONE);
-    SDL_RenderFillRect(v->ren, &a);
+    // (a Bend frame covers the area, opaque: at 4K the fill would be 33 MB of writes for nothing)
+    if (!(v->fx == FX_BEND && v->bend_shown && v->bend_draw)) SDL_RenderFillRect(v->ren, &a);
     switch (v->fx) {
     case FX_SPECTRUM: fx_spectrum(v, a); break;
     case FX_PLASMA: fx_plasma(v, a); break;
