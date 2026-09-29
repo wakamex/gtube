@@ -54,8 +54,8 @@ void bend_vk_let_go(void) {
     if (on_bend) bendviz_vk_unlock();
 }
 
-// Bend's work waiting to be submitted goes ahead of the present, on the same queue.
-void bend_vk_presenting(void) {
+// Bend's work waiting to be submitted goes on the queue now, ahead of the player's.
+void bend_vk_pump(void) {
     if (on_bend) bendviz_vk_pump();
 }
 

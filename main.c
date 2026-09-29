@@ -697,6 +697,7 @@ static void viz_frame(app *a, SDL_FRect area, const track *t) {
     } else if (a->audio) n = gs_mix_recent(a->audio_buf, 2048);
     viz_feed(a->viz, a->audio_buf, n, dt);
     viz_draw(a->viz, area, now, t ? t->title : "", t ? t->artist : "", a->glyphs, a->fonts);
+    bend_vk_pump();  // (Bend's next frame, if posted by now, goes ahead of the rest of this one)
 }
 
 SDL_AppResult SDL_AppIterate(void *state) {
@@ -931,7 +932,7 @@ drawn:
         SDL_DestroySurface(c), SDL_DestroySurface(s);
         return ok ? SDL_APP_SUCCESS : SDL_APP_FAILURE;
     }
-    bend_vk_presenting();
+    bend_vk_pump();
     SDL_RenderPresent(a->ren);
     bend_vk_presented(!a->uncapped);
     bend_vk_let_go();  // (not held while pacing)

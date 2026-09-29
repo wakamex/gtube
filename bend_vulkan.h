@@ -15,7 +15,7 @@ bool bend_vk_on(void);  // the renderer draws on Bend's device
 // on Bend's device: from the renderer's making on, let go only while it waits.
 void bend_vk_hold(void);
 void bend_vk_let_go(void);
-void bend_vk_presenting(void);       // just before each present
+void bend_vk_pump(void);             // makes Bend's waiting submit: after drawing the effect, and before each present
 void bend_vk_presented(bool vsync);  // after each present
 
 // Frames of w x h in textures of Bend's images; NULL if the renderer isn't on Bend's device.
