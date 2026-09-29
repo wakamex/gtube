@@ -18,24 +18,22 @@ void bendviz_discard(void);  // marks the newest frame taken without taking it (
 const uint32_t *bendviz_borrow(int *w, int *h, bool *gpu, double *ms);
 void bendviz_return(void);
 
-// Frames drawn on the GPU can stay there (graphics interop) when the player takes them with
-// bendviz_to_d3d11; bendviz_device_frames(true) asks for that from the next frame on.
+// Frames drawn on the GPU can stay there when the player draws on Bend's Vulkan device and takes
+// them with bendviz_vk_take; bendviz_device_frames(true) asks for that from the next frame on.
 void bendviz_device_frames(bool on);
-#ifdef _WIN32
-// Copies the newest device frame into a Direct3D 11 texture (ID3D11Texture2D*, ARGB, tw x th),
-// on the GPU: 1 done; 0 no such frame (w and h give a waiting frame's size, for a texture that
-// size); -1 interop failed (stop asking for device frames).
-int bendviz_to_d3d11(void *texture, int tw, int th, int *w, int *h, bool *gpu, double *ms);
-void bendviz_release_d3d11(void);  // before destroying that texture or the renderer
-void bendviz_interop_apart(bool apart);  // presents wait for the vertical blank (vsync)
-// Frames into Direct3D textures shared with CUDA, without mapping them (see bridge.c).
-#define BENDVIZ_TEXTURES 4  // textures shared, so one Direct3D is done with is there to copy into early
-void bendviz_d3d11_share(void *const tex[BENDVIZ_TEXTURES], void *fence_cuda, void *fence_d3d, int w, int h);
-void bendviz_d3d11_unshare(void);
-bool bendviz_d3d11_failed(void);
-// d3d_completed: a value Direct3D's fence has already reached.
-int bendviz_d3d11_take(unsigned long long d3d_done, unsigned long long d3d_completed, unsigned long long *wait_value, int *w, int *h, bool *gpu, double *ms);
-#endif
+// The player on Bend's Vulkan device (see bridge.c). bendviz_vk_open opens the device with the
+// extensions the player's drawing needs, before bendviz_start: a VkInstance, VkPhysicalDevice,
+// VkDevice and queue family, or false.
+bool bendviz_vk_open(const char *const *iexts, int niexts, const char *const *dexts, int ndexts, void **inst, void **phys, void **dev,
+                     unsigned *family);
+void bendviz_vk_lock(void);  // held around the player's drawing when the queue is shared
+void bendviz_vk_unlock(void);
+void bendviz_vk_mark(void);  // after each present: the draws so far are marked (see bridge.c)
+void bendviz_vk_settle(void);  // with vsync, after that: waits for the frame before this one
+#define BENDVIZ_TEXTURES 4  // images Bend copies frames into, so one is free while one is on screen and one waits
+bool bendviz_vk_images(int w, int h, unsigned long long image[BENDVIZ_TEXTURES]);  // VkImages, B8G8R8A8, GENERAL layout
+void bendviz_vk_unshare(void);  // after the player's textures of them are gone
+int bendviz_vk_take(int *w, int *h, bool *gpu, double *ms);  // the image of a new frame, or -1
 bool bendviz_gpu(void);  // the GPU is in use
 // For measuring: the heap's span, and kernel launches, time spent in the launch calls and waiting for them so far.
 void bendviz_heap(void **base, size_t *bytes);

@@ -44,6 +44,7 @@
 #include "signin.h"
 #include "state.h"
 #include "viz.h"
+#include "bend_vulkan.h"
 #include "tools.h"
 
 #define RATE 48000
@@ -277,8 +278,12 @@ SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
     a->persist = !a->shot && !demo;
     a->window = (window_state){ SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 720, 560, false };
     if (a->persist) state_load_window(dir, &a->window);
-    if (!SDL_CreateWindowAndRenderer("gesso gtube", a->window.w, a->window.h, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN, &a->win, &a->ren))
+    // On Bend's Vulkan device if there is one, so the Bend effect's frames never leave the GPU.
+    SDL_WindowFlags wf = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN;
+    if ((a->shot || !bend_vk_window("gesso gtube", a->window.w, a->window.h, wf, &a->win, &a->ren))
+        && !SDL_CreateWindowAndRenderer("gesso gtube", a->window.w, a->window.h, wf, &a->win, &a->ren))
         return SDL_Log("window: %s", SDL_GetError()), SDL_APP_FAILURE;
+    bend_vk_hold();  // the player's drawing shares Bend's queue: held but while waiting (see bend_vulkan.h)
     if (on_a_display(a->window.x, a->window.y)) SDL_SetWindowPosition(a->win, a->window.x, a->window.y);
     if (a->window.maximized) SDL_MaximizeWindow(a->win);
     if (a->fullscreen) SDL_SetWindowFullscreen(a->win, true);
@@ -921,7 +926,10 @@ drawn:
         return ok ? SDL_APP_SUCCESS : SDL_APP_FAILURE;
     }
     SDL_RenderPresent(a->ren);
+    bend_vk_presented(!a->uncapped);
+    bend_vk_let_go();  // (not held while pacing)
     gs_pace_wait(&a->pace);
+    bend_vk_hold();
     return SDL_APP_CONTINUE;
 }
 

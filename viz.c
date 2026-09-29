@@ -6,7 +6,7 @@
 #include <string.h>
 
 #include "bend/bendviz.h"
-#include "bend_d3d11.h"
+#include "bend_vulkan.h"
 #include "gs_dsp.h"
 
 #define FFT_N 2048
@@ -57,9 +57,8 @@ struct viz {
     SDL_Texture *bend_tex;  // the Bend effect's newest frame, when it came through the host or a mapped texture
     SDL_Texture *bend_draw; // the texture holding the newest frame: bend_tex or a shared one
     int bend_w, bend_h;
-    bend_share *bend_share; // Windows: textures Bend copies its frames into (bend_d3d11.c)
-    bool bend_share_off;    // they can't be made, or Bend couldn't use them
-    int bend_interop;       // frames on the device go straight into bend_tex: 1 yes, -1 no, 0 not known yet
+    bend_share *bend_share; // textures Bend copies its frames into, on its Vulkan device (bend_vulkan.c)
+    int bend_interop;       // frames drawn on the GPU stay there: 1 yes, -1 no, 0 not known yet
     bool bend_on_device;    // the last frame did
     bool bend_on_gpu;       // where the Bend effect is asked to draw (g switches it)
     bool bend_drawn_gpu;    // where its newest frame was drawn, and how long that took
@@ -420,11 +419,8 @@ static void fx_fire(viz *v, SDL_FRect a) {
     show(v, &v->fire, a);
 }
 
-// Destroys the Bend effect's texture, which CUDA may have registered.
+// Destroys the Bend effect's texture of frames that came through the host.
 static void bend_release(viz *v) {
-#ifdef _WIN32
-    if (v->bend_interop == 1) bendviz_release_d3d11();
-#endif
     if (v->bend_draw == v->bend_tex) v->bend_draw = NULL;
     if (v->bend_tex) SDL_DestroyTexture(v->bend_tex);
     v->bend_tex = NULL;
@@ -457,9 +453,8 @@ static void bend_count_frame(viz *v, bool fresh, double take_ms) {
     }
 }
 
-// The Bend effect's texture, w x h. Static, because Direct3D 11 makes streaming textures dynamic
-// resources, which CUDA cannot write; ARGB, which Direct3D 11 stores in Bend's byte order (the
-// alpha byte is unused, drawn without blending).
+// The Bend effect's texture for frames that come through the host, w x h: ARGB, stored in Bend's
+// byte order (the alpha byte is unused, drawn without blending).
 static void bend_texture(viz *v, int w, int h) {
     bend_release(v);
     v->bend_tex = SDL_CreateTexture(v->ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STATIC, w, h);
@@ -477,7 +472,11 @@ static void fx_bend(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
     // Without vsync the player would present as fast as it can, most often the frame already on
     // screen, and each present takes the GPU from Bend: a moment's wait for Bend's next frame (drawn
     // on the GPU, a millisecond or two) lets the player show only new ones.
-    if (!v->vsync && v->bend_shown && v->bend_drawn_gpu) bendviz_wait(8);
+    if (!v->vsync && v->bend_shown && v->bend_drawn_gpu) {
+        bend_vk_let_go();  // (Bend submits its frame meanwhile)
+        bendviz_wait(8);
+        bend_vk_hold();
+    }
     uint64_t take_from = SDL_GetTicksNS();  // (the time taking a frame, for the stats)
     // BENDVIZ_NO_TAKE: new frames are thrown away rather than copied into the texture, to measure
     // what taking them costs Bend (the effect shows its first frame only).
@@ -493,18 +492,15 @@ static void fx_bend(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
     bool gpu;
     double ms;
     bool fresh = false;
-#ifdef _WIN32
-    // On Direct3D 11, a frame drawn on the GPU goes into the texture on the GPU, never crossing to
-    // the host; anything else (the CPU's frames, or interop failing) comes through the host.
+    // On Bend's Vulkan device, a frame drawn on the GPU goes into a texture on the GPU, never
+    // crossing to the host; anything else (the CPU's frames, a frame of a size just left, or no such
+    // device) comes through the host.
     if (!v->bend_interop) {
-        const char *r = SDL_GetRendererName(v->ren);
-        v->bend_interop = r && !strcmp(r, "direct3d11") ? 1 : -1;
+        v->bend_interop = bend_vk_on() ? 1 : -1;
         bendviz_device_frames(v->bend_interop == 1);
     }
-    static int no_share = -1;  // BENDVIZ_NO_SHARE: map the texture each frame, as before
-    if (no_share < 0) no_share = SDL_getenv("BENDVIZ_NO_SHARE") != NULL;
-    if (v->bend_interop == 1 && !v->bend_share_off && !no_share) {
-        // Textures shared with Bend, the size of the frames it draws (at most BENDVIZ_PIXELS)
+    if (v->bend_interop == 1) {
+        // Textures the size of the frames Bend draws (at most BENDVIZ_PIXELS)
         int sw = w, sh = (long)w * h > BENDVIZ_PIXELS ? (int)(BENDVIZ_PIXELS / w) : h, cw = 0, ch = 0;
         if (v->bend_share) bend_share_size(v->bend_share, &cw, &ch);
         if (!v->bend_share || cw != sw || ch != sh) {
@@ -512,10 +508,10 @@ static void fx_bend(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
             bend_share_free(v->bend_share);
             v->bend_share = bend_share_new(v->ren, sw, sh);
         }
-        if (!v->bend_share || bend_share_failed()) {
-            SDL_Log("bend: textures shared with CUDA are not available; mapping the texture instead");
-            if (v->bend_draw != v->bend_tex) v->bend_draw = NULL;
-            bend_share_free(v->bend_share), v->bend_share = NULL, v->bend_share_off = true;
+        if (!v->bend_share) {
+            SDL_Log("bend: no textures on Bend's Vulkan device; frames come through the host");
+            v->bend_interop = -1;
+            bendviz_device_frames(false);
         } else {
             bool new_frame;
             SDL_Texture *t = bend_share_frame(v->bend_share, &new_frame, &gpu, &ms);
@@ -525,23 +521,6 @@ static void fx_bend(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
             }
         }
     }
-    if (v->bend_interop == 1) {  // frames not in shared textures (a size just changed, or none)
-        SDL_FlushRenderer(v->ren);  // nothing queued may still be using the texture
-        void *d3d = v->bend_tex ? SDL_GetPointerProperty(SDL_GetTextureProperties(v->bend_tex), SDL_PROP_TEXTURE_D3D11_TEXTURE_POINTER, NULL) : NULL;
-        int r = bendviz_to_d3d11(d3d, v->bend_w, v->bend_h, &fw, &fh, &gpu, &ms);
-        if (r == 0 && fw > 0 && fh > 0 && (fw != v->bend_w || fh != v->bend_h)) {
-            bend_texture(v, fw, fh);
-            d3d = SDL_GetPointerProperty(SDL_GetTextureProperties(v->bend_tex), SDL_PROP_TEXTURE_D3D11_TEXTURE_POINTER, NULL);
-            r = bendviz_to_d3d11(d3d, fw, fh, &fw, &fh, &gpu, &ms);
-        }
-        if (r == 1) v->bend_drawn_gpu = gpu, v->bend_ms = ms, v->bend_shown = true, v->bend_on_device = true, fresh = true, v->bend_draw = v->bend_tex;
-        if (r < 0) {
-            SDL_Log("bend: graphics interop failed; frames come through the host");
-            v->bend_interop = -1;
-            bendviz_device_frames(false);
-        }
-    }
-#endif
     const uint32_t *frame = bendviz_borrow(&fw, &fh, &gpu, &ms);
     if (frame) {
         if (fw != v->bend_w || fh != v->bend_h) bend_texture(v, fw, fh);
@@ -720,9 +699,7 @@ viz *viz_new(SDL_Renderer *ren, int rate) {
 
 void viz_free(viz *v) {
     if (!v) return;
-#ifdef _WIN32
     bend_share_free(v->bend_share), v->bend_share = NULL, v->bend_draw = NULL;
-#endif
     bend_release(v);
     SDL_Texture *all[] = { v->pattern, v->ball, v->glow, v->feed[0], v->feed[1], v->fire.tex, v->plasma.tex, v->bend_tex };
     for (size_t i = 0; i < sizeof all / sizeof *all; i++)
@@ -756,14 +733,7 @@ bool viz_bend_stats(const viz *v, char *out, size_t size) {
     return true;
 }
 void viz_bend_switch(viz *v) { v->bend_on_gpu = !v->bend_on_gpu; }
-void viz_set_vsync(viz *v, bool on) {
-    v->vsync = on;
-#ifdef _WIN32
-    bendviz_interop_apart(on);
-#else
-    (void)on;
-#endif
-}
+void viz_set_vsync(viz *v, bool on) { v->vsync = on; }
 int viz_index(const viz *v, int *count) { *count = FX_COUNT; return v->fx; }
 void viz_set_auto(viz *v, bool on) { v->automatic = on, v->fx_since = v->t; }
 void viz_set_scroller(viz *v, bool on) { v->scroller = on; }

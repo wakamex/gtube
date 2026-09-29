@@ -10,11 +10,20 @@
 #if defined(__CUDACC_RTC__)
 #define BEND_RTC 1
 #endif
+#if defined(__OPENCL_C_VERSION__)
+#define BEND_OCL 1  // OpenCL C, for Vulkan through clspv
+#endif
+#if defined(__SLANG__)
+#define BEND_SLANG 1  // Slang, for Vulkan (SPIR-V with buffer device addresses)
+#endif
+#ifndef BEND_VULKAN
+#define BEND_VULKAN 0  // (1: the host runs the GPU program on Vulkan)
+#endif
 
 #ifdef __METAL_VERSION__
 #include <metal_stdlib>
 using namespace metal;
-#elif !defined(BEND_RTC)
+#elif !defined(BEND_RTC) && !defined(BEND_OCL) && !defined(BEND_SLANG)
 #ifdef __APPLE__
 #define _DARWIN_UNLIMITED_SELECT
 #else
@@ -234,6 +243,282 @@ static bool gpu_open_rtc(void) {
   GPU_RTC_FNS(GPU_FN_LOAD)
   return ok;
 }
+#elif BEND_VULKAN
+#ifndef _WIN32
+#include <dlfcn.h>
+#endif
+
+// Vulkan is loaded when first needed, as CUDA is, and the host declares the
+// few types and calls it makes (as vulkan_core.h 1.3 does, big output structs
+// as their leading fields and padding). Its GPU program is Slang's SPIR-V.
+
+#ifdef _WIN32
+#define VKAPI __stdcall
+#else
+#define VKAPI
+#endif
+
+typedef struct VkInstance_T*       VkInstance;
+typedef struct VkPhysicalDevice_T* VkPhysicalDevice;
+typedef struct VkDevice_T*         VkDevice;
+typedef struct VkQueue_T*          VkQueue;
+typedef struct VkCommandBuffer_T*  VkCommandBuffer;
+typedef uint64_t VkBuffer, VkDeviceMemory, VkShaderModule, VkPipelineLayout,
+  VkPipeline, VkCommandPool, VkFence, VkSemaphore, VkQueryPool;
+typedef int      VkResult;
+typedef uint32_t VkFlags;
+typedef uint64_t VkDeviceSize;
+typedef void (VKAPI* VkVoidFn)(void);
+
+typedef struct {
+  int sType; const void* pNext; const char* app; uint32_t app_ver;
+  const char* engine; uint32_t engine_ver; uint32_t api;
+} VkApplicationInfo;
+typedef struct {
+  int sType; const void* pNext; VkFlags flags; const VkApplicationInfo* app;
+  uint32_t nlayers; const char* const* layers;
+  uint32_t nexts; const char* const* exts;
+} VkInstanceCreateInfo;
+typedef struct {
+  uint32_t api, driver, vendor, device; int type; char name[256];
+  uint8_t rest[548];
+} __attribute__((aligned(8))) VkPhysicalDeviceProperties;
+typedef struct { VkFlags flags; uint32_t heap; } VkMemoryType;
+typedef struct { VkDeviceSize size; VkFlags flags; } VkMemoryHeap;
+typedef struct {
+  uint32_t ntypes; VkMemoryType types[32];
+  uint32_t nheaps; VkMemoryHeap heaps[16];
+} VkPhysicalDeviceMemoryProperties;
+typedef struct {
+  VkFlags flags; uint32_t count, stamp_bits, grain[3];
+} VkQueueFamilyProperties;
+typedef struct {
+  int sType; const void* pNext; VkFlags flags; uint32_t family, count;
+  const float* prio;
+} VkDeviceQueueCreateInfo;
+typedef struct { int sType; void* pNext; uint32_t on[55]; } VkPhysicalDeviceFeatures2;
+typedef struct { int sType; void* pNext; uint32_t on[48]; } VkPhysicalDeviceVulkan12Features;
+typedef struct {
+  int sType; const void* pNext; VkFlags flags;
+  uint32_t nqueues; const VkDeviceQueueCreateInfo* queues;
+  uint32_t nlayers; const char* const* layers;
+  uint32_t nexts; const char* const* exts; const void* features;
+} VkDeviceCreateInfo;
+typedef struct {
+  int sType; const void* pNext; VkFlags flags; VkDeviceSize size; VkFlags usage;
+  int sharing; uint32_t nfams; const uint32_t* fams;
+} VkBufferCreateInfo;
+typedef struct { VkDeviceSize size, align; uint32_t types; } VkMemoryRequirements;
+typedef struct {
+  int sType; const void* pNext; VkFlags flags; uint32_t mask;
+} VkMemoryAllocateFlagsInfo;
+typedef struct {
+  int sType; const void* pNext; VkDeviceSize size; uint32_t type;
+} VkMemoryAllocateInfo;
+typedef struct { int sType; const void* pNext; VkBuffer buf; } VkBufferDeviceAddressInfo;
+typedef struct {
+  int sType; const void* pNext; VkFlags flags; size_t size; const uint32_t* code;
+} VkShaderModuleCreateInfo;
+typedef struct { VkFlags stages; uint32_t off, size; } VkPushConstantRange;
+typedef struct {
+  int sType; const void* pNext; VkFlags flags; uint32_t nsets; const void* sets;
+  uint32_t nranges; const VkPushConstantRange* ranges;
+} VkPipelineLayoutCreateInfo;
+typedef struct {
+  int sType; const void* pNext; VkFlags flags; VkFlags stage; VkShaderModule mod;
+  const char* name; const void* spec;
+} VkPipelineShaderStageCreateInfo;
+typedef struct {
+  int sType; const void* pNext; VkFlags flags;
+  VkPipelineShaderStageCreateInfo stage; VkPipelineLayout layout;
+  VkPipeline base; int32_t base_at;
+} VkComputePipelineCreateInfo;
+typedef struct {
+  int sType; const void* pNext; VkFlags flags; uint32_t family;
+} VkCommandPoolCreateInfo;
+typedef struct {
+  int sType; const void* pNext; VkCommandPool pool; int level; uint32_t count;
+} VkCommandBufferAllocateInfo;
+typedef struct {
+  int sType; const void* pNext; VkFlags flags; const void* inherit;
+} VkCommandBufferBeginInfo;
+typedef struct { int sType; const void* pNext; VkFlags src, dst; } VkMemoryBarrier;
+typedef struct { VkDeviceSize src, dst, size; } VkBufferCopy;
+typedef struct {
+  int sType; const void* pNext; uint32_t nwaits; const void* waits;
+  const VkFlags* wait_stages; uint32_t ncmds; const VkCommandBuffer* cmds;
+  uint32_t nsigs; const void* sigs;
+} VkSubmitInfo;
+typedef struct { int sType; const void* pNext; VkFlags flags; } VkFenceCreateInfo;
+typedef struct { int sType; const void* pNext; VkFlags flags; } VkSemaphoreCreateInfo;
+typedef struct {
+  int sType; const void* pNext; VkFlags flags; int type; uint32_t count; VkFlags stats;
+} VkQueryPoolCreateInfo;
+typedef struct {
+  int sType; const void* pNext; int type; uint64_t initial;
+} VkSemaphoreTypeCreateInfo;
+typedef struct {
+  int sType; const void* pNext; uint32_t nwaits; const uint64_t* waits;
+  uint32_t nsigs; const uint64_t* sigs;
+} VkTimelineSemaphoreSubmitInfo;
+
+VkVoidFn VKAPI vkGetInstanceProcAddr(VkInstance inst, const char* name);
+VkResult VKAPI vkCreateInstance(const VkInstanceCreateInfo* ci, const void* al,
+  VkInstance* inst);
+VkResult VKAPI vkEnumeratePhysicalDevices(VkInstance inst, uint32_t* n,
+  VkPhysicalDevice* devs);
+void VKAPI vkGetPhysicalDeviceProperties(VkPhysicalDevice pd,
+  VkPhysicalDeviceProperties* p);
+void VKAPI vkGetPhysicalDeviceMemoryProperties(VkPhysicalDevice pd,
+  VkPhysicalDeviceMemoryProperties* p);
+void VKAPI vkGetPhysicalDeviceQueueFamilyProperties(VkPhysicalDevice pd,
+  uint32_t* n, VkQueueFamilyProperties* p);
+VkResult VKAPI vkCreateDevice(VkPhysicalDevice pd, const VkDeviceCreateInfo* ci,
+  const void* al, VkDevice* dev);
+void VKAPI vkGetDeviceQueue(VkDevice dev, uint32_t family, uint32_t i, VkQueue* q);
+VkResult VKAPI vkCreateBuffer(VkDevice dev, const VkBufferCreateInfo* ci,
+  const void* al, VkBuffer* buf);
+void VKAPI vkGetBufferMemoryRequirements(VkDevice dev, VkBuffer buf,
+  VkMemoryRequirements* mr);
+VkResult VKAPI vkAllocateMemory(VkDevice dev, const VkMemoryAllocateInfo* ai,
+  const void* al, VkDeviceMemory* mem);
+VkResult VKAPI vkBindBufferMemory(VkDevice dev, VkBuffer buf, VkDeviceMemory mem,
+  VkDeviceSize off);
+VkResult VKAPI vkMapMemory(VkDevice dev, VkDeviceMemory mem, VkDeviceSize off,
+  VkDeviceSize size, VkFlags flags, void** p);
+uint64_t VKAPI vkGetBufferDeviceAddress(VkDevice dev,
+  const VkBufferDeviceAddressInfo* ai);
+VkResult VKAPI vkCreateShaderModule(VkDevice dev, const VkShaderModuleCreateInfo* ci,
+  const void* al, VkShaderModule* mod);
+VkResult VKAPI vkCreatePipelineLayout(VkDevice dev,
+  const VkPipelineLayoutCreateInfo* ci, const void* al, VkPipelineLayout* pl);
+VkResult VKAPI vkCreateComputePipelines(VkDevice dev, uint64_t cache, uint32_t n,
+  const VkComputePipelineCreateInfo* ci, const void* al, VkPipeline* p);
+VkResult VKAPI vkCreateCommandPool(VkDevice dev, const VkCommandPoolCreateInfo* ci,
+  const void* al, VkCommandPool* pool);
+VkResult VKAPI vkAllocateCommandBuffers(VkDevice dev,
+  const VkCommandBufferAllocateInfo* ai, VkCommandBuffer* cb);
+VkResult VKAPI vkBeginCommandBuffer(VkCommandBuffer cb,
+  const VkCommandBufferBeginInfo* bi);
+VkResult VKAPI vkEndCommandBuffer(VkCommandBuffer cb);
+void VKAPI vkCmdBindPipeline(VkCommandBuffer cb, int point, VkPipeline p);
+void VKAPI vkCmdPushConstants(VkCommandBuffer cb, VkPipelineLayout pl,
+  VkFlags stages, uint32_t off, uint32_t size, const void* v);
+void VKAPI vkCmdDispatch(VkCommandBuffer cb, uint32_t x, uint32_t y, uint32_t z);
+void VKAPI vkCmdPipelineBarrier(VkCommandBuffer cb, VkFlags src, VkFlags dst,
+  VkFlags dep, uint32_t nmem, const VkMemoryBarrier* mem, uint32_t nbuf,
+  const void* bufs, uint32_t nimg, const void* imgs);
+void VKAPI vkCmdCopyBuffer(VkCommandBuffer cb, VkBuffer src, VkBuffer dst,
+  uint32_t n, const VkBufferCopy* r);
+void VKAPI vkCmdFillBuffer(VkCommandBuffer cb, VkBuffer buf, VkDeviceSize off,
+  VkDeviceSize size, uint32_t v);
+VkResult VKAPI vkQueueSubmit(VkQueue q, uint32_t n, const VkSubmitInfo* si,
+  VkFence fence);
+VkResult VKAPI vkCreateFence(VkDevice dev, const VkFenceCreateInfo* ci,
+  const void* al, VkFence* fence);
+VkResult VKAPI vkWaitForFences(VkDevice dev, uint32_t n, const VkFence* fences,
+  uint32_t all, uint64_t ns);
+VkResult VKAPI vkResetFences(VkDevice dev, uint32_t n, const VkFence* fences);
+VkResult VKAPI vkCreateSemaphore(VkDevice dev, const VkSemaphoreCreateInfo* ci,
+  const void* al, VkSemaphore* sem);
+VkResult VKAPI vkCreateQueryPool(VkDevice dev, const VkQueryPoolCreateInfo* ci,
+  const void* al, VkQueryPool* pool);
+void VKAPI vkCmdResetQueryPool(VkCommandBuffer cb, VkQueryPool pool, uint32_t first,
+  uint32_t n);
+void VKAPI vkCmdWriteTimestamp(VkCommandBuffer cb, VkFlags stage, VkQueryPool pool,
+  uint32_t i);
+VkResult VKAPI vkGetQueryPoolResults(VkDevice dev, VkQueryPool pool, uint32_t first,
+  uint32_t n, size_t size, void* out, VkDeviceSize stride, VkFlags flags);
+
+#define GPU_VK_FNS(X) \
+  X(vkEnumeratePhysicalDevices) X(vkGetPhysicalDeviceProperties) \
+  X(vkGetPhysicalDeviceMemoryProperties) \
+  X(vkGetPhysicalDeviceQueueFamilyProperties) X(vkCreateDevice) \
+  X(vkGetDeviceQueue) X(vkCreateBuffer) X(vkGetBufferMemoryRequirements) \
+  X(vkAllocateMemory) X(vkBindBufferMemory) X(vkMapMemory) \
+  X(vkGetBufferDeviceAddress) X(vkCreateShaderModule) \
+  X(vkCreatePipelineLayout) X(vkCreateComputePipelines) \
+  X(vkCreateCommandPool) X(vkAllocateCommandBuffers) \
+  X(vkBeginCommandBuffer) X(vkEndCommandBuffer) X(vkCmdBindPipeline) \
+  X(vkCmdPushConstants) X(vkCmdDispatch) X(vkCmdPipelineBarrier) \
+  X(vkCmdCopyBuffer) X(vkCmdFillBuffer) X(vkQueueSubmit) X(vkCreateFence) \
+  X(vkWaitForFences) X(vkResetFences) X(vkCreateSemaphore) X(vkCreateQueryPool) \
+  X(vkCmdResetQueryPool) X(vkCmdWriteTimestamp) X(vkGetQueryPoolResults)
+
+#define GPU_FN_PTR(api) static __typeof__(api)* gpu_fn_##api;
+GPU_FN_PTR(vkGetInstanceProcAddr)
+GPU_FN_PTR(vkCreateInstance)
+GPU_VK_FNS(GPU_FN_PTR)
+
+#define vkGetInstanceProcAddr (*gpu_fn_vkGetInstanceProcAddr)
+#define vkCreateInstance      (*gpu_fn_vkCreateInstance)
+#define vkEnumeratePhysicalDevices (*gpu_fn_vkEnumeratePhysicalDevices)
+#define vkGetPhysicalDeviceProperties (*gpu_fn_vkGetPhysicalDeviceProperties)
+#define vkGetPhysicalDeviceMemoryProperties \
+  (*gpu_fn_vkGetPhysicalDeviceMemoryProperties)
+#define vkGetPhysicalDeviceQueueFamilyProperties \
+  (*gpu_fn_vkGetPhysicalDeviceQueueFamilyProperties)
+#define vkCreateDevice        (*gpu_fn_vkCreateDevice)
+#define vkGetDeviceQueue      (*gpu_fn_vkGetDeviceQueue)
+#define vkCreateBuffer        (*gpu_fn_vkCreateBuffer)
+#define vkGetBufferMemoryRequirements (*gpu_fn_vkGetBufferMemoryRequirements)
+#define vkAllocateMemory      (*gpu_fn_vkAllocateMemory)
+#define vkBindBufferMemory    (*gpu_fn_vkBindBufferMemory)
+#define vkMapMemory           (*gpu_fn_vkMapMemory)
+#define vkGetBufferDeviceAddress (*gpu_fn_vkGetBufferDeviceAddress)
+#define vkCreateShaderModule  (*gpu_fn_vkCreateShaderModule)
+#define vkCreatePipelineLayout (*gpu_fn_vkCreatePipelineLayout)
+#define vkCreateComputePipelines (*gpu_fn_vkCreateComputePipelines)
+#define vkCreateCommandPool   (*gpu_fn_vkCreateCommandPool)
+#define vkAllocateCommandBuffers (*gpu_fn_vkAllocateCommandBuffers)
+#define vkBeginCommandBuffer  (*gpu_fn_vkBeginCommandBuffer)
+#define vkEndCommandBuffer    (*gpu_fn_vkEndCommandBuffer)
+#define vkCmdBindPipeline     (*gpu_fn_vkCmdBindPipeline)
+#define vkCmdPushConstants    (*gpu_fn_vkCmdPushConstants)
+#define vkCmdDispatch         (*gpu_fn_vkCmdDispatch)
+#define vkCmdPipelineBarrier  (*gpu_fn_vkCmdPipelineBarrier)
+#define vkCmdCopyBuffer       (*gpu_fn_vkCmdCopyBuffer)
+#define vkCmdFillBuffer       (*gpu_fn_vkCmdFillBuffer)
+#define vkQueueSubmit         (*gpu_fn_vkQueueSubmit)
+#define vkCreateFence         (*gpu_fn_vkCreateFence)
+#define vkWaitForFences       (*gpu_fn_vkWaitForFences)
+#define vkResetFences         (*gpu_fn_vkResetFences)
+#define vkCreateSemaphore     (*gpu_fn_vkCreateSemaphore)
+#define vkCreateQueryPool     (*gpu_fn_vkCreateQueryPool)
+#define vkCmdResetQueryPool   (*gpu_fn_vkCmdResetQueryPool)
+#define vkCmdWriteTimestamp   (*gpu_fn_vkCmdWriteTimestamp)
+#define vkGetQueryPoolResults (*gpu_fn_vkGetQueryPoolResults)
+
+static void* gpu_sym(void* lib, const char* name) {
+#ifdef _WIN32
+  return lib == NULL ? NULL : (void*)GetProcAddress((HMODULE)lib, name);
+#else
+  return lib == NULL ? NULL : dlsym(lib, name);
+#endif
+}
+
+static bool gpu_open_vk(void) {
+#ifdef _WIN32
+  void* lib = (void*)LoadLibraryA("vulkan-1.dll");
+#else
+  void* lib = dlopen("libvulkan.so.1", RTLD_NOW | RTLD_LOCAL);
+#endif
+  gpu_fn_vkGetInstanceProcAddr = (__typeof__(gpu_fn_vkGetInstanceProcAddr))
+    gpu_sym(lib, "vkGetInstanceProcAddr");
+  gpu_fn_vkCreateInstance = gpu_fn_vkGetInstanceProcAddr == NULL ? NULL
+    : (__typeof__(gpu_fn_vkCreateInstance))vkGetInstanceProcAddr(NULL,
+      "vkCreateInstance");
+  return gpu_fn_vkCreateInstance != NULL;
+}
+
+// The rest, once there is an instance.
+static bool gpu_load_vk(VkInstance inst) {
+  bool ok = true;
+#define GPU_FN_LOAD(api) \
+  ok = ok && (gpu_fn_##api = (__typeof__(gpu_fn_##api))vkGetInstanceProcAddr(inst, #api));
+  GPU_VK_FNS(GPU_FN_LOAD)
+  return ok;
+}
 #endif
 #endif
 
@@ -266,6 +551,35 @@ static bool gpu_open_rtc(void) {
 #define BAR()   threadgroup_barrier(mem_flags::mem_threadgroup)
 #define BARD()  threadgroup_barrier(mem_flags::mem_device \
   | mem_flags::mem_threadgroup)
+#elif defined(BEND_OCL)
+#define DEV     __global
+#define THR     __private
+#define TG      __local
+// Everything inlines: clspv can't write a function taking an Env (a struct
+// holding a pointer to global memory).
+#define INLINE  static inline __attribute__((always_inline))
+#define OUTLINE INLINE
+#define CONSTV  __constant
+#define DEVICE  1
+#define CLZ(x)  (u32)clz((uint)(x))
+#define FENCE() mem_fence(CLK_GLOBAL_MEM_FENCE)
+#define BAR()   barrier(CLK_LOCAL_MEM_FENCE)
+#define BARD()  barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE)
+#elif defined(BEND_SLANG)
+// Slang has pointers to device memory only: the group's memory is one array
+// (bend_vote) that a TGP indexes, and a thread's arrays pass inout.
+#define DEV
+#define THR
+#define TG
+#define INLINE
+#define OUTLINE
+#define CONSTV  static const
+#define DEVICE  1
+#define CLZ(x)  ((u32)(31 - firstbithigh((uint)(x))))
+#define long    int64_t
+#define FENCE() DeviceMemoryBarrier()
+#define BAR()   GroupMemoryBarrierWithGroupSync()
+#define BARD()  AllMemoryBarrierWithGroupSync()
 #else
 #define DEV
 #define THR
@@ -293,7 +607,30 @@ static bool gpu_open_rtc(void) {
 #endif
 #endif
 #undef FAR  // windows.h has its own
+#if defined(BEND_OCL)
+#define FAR INLINE
+#elif defined(BEND_SLANG)
+#define FAR
+#else
 #define FAR static __attribute__((noinline))
+#endif
+
+// A thread's output array (WL_OUT, sized by WL_OSZ), a group-memory pointer
+// (TGP) and a cell of one (TGA): in Slang inout arrays and indices.
+#ifdef BEND_SLANG
+#define WL_OUTN      16
+#define WL_OUT(o)    inout Term o[WL_OUTN]
+#define WL_OSZ(n)    WL_OUTN
+#define THR_ARR(T, v, n) inout T v[n]
+#define TGP          u32
+#define TGA(p, i)    bend_vote[(p) + (i)]
+#else
+#define WL_OUT(o)    THR Term* o
+#define WL_OSZ(n)    n
+#define THR_ARR(T, v, n) THR T* v
+#define TGP          TG u32*
+#define TGA(p, i)    (p)[i]
+#endif
 
 #if DEVICE
 #define LOCK(l)
@@ -316,27 +653,40 @@ static bool gpu_open_rtc(void) {
 #define WL_AGAIN(F) continue
 
 #define LANE_STEP (DEVICE ? (long)CUBE : 1)
-#define STK(I)    sp[(long)(I) * LANE_STEP]
+#ifdef BEND_SLANG  // (NVIDIA's Vulkan misreads a negative pointer index)
+#define STK(I)      (*(DEV Term*)((u64)sp + 8 * (u64)((long)(I) * LANE_STEP)))
+#define SP_MOVE(N)  sp = (DEV Term*)((u64)sp + 8 * (u64)(N))
+#else
+#define STK(I)      sp[(long)(I) * LANE_STEP]
+#define SP_MOVE(N)  sp += (N)
+#endif
 
-#define WL_RETN(N)  { rn = (N); sp -= LANE_STEP; WL_DYN((u32)STK(0)); }
+#define WL_RETN(N)  { rn = (N); SP_MOVE(-(LANE_STEP)); WL_DYN((u32)STK(0)); }
 #define WL_CONT     STK(-3)
 #define WL_IDX      STK(-2)
-#define WL_POPN(N)  sp -= N * LANE_STEP
-#define WL_PUSHN(N) sp += N * LANE_STEP
+#define WL_POPN(N)  SP_MOVE(-(N * LANE_STEP))
+#define WL_PUSHN(N) SP_MOVE(N * LANE_STEP)
 #define WL_FRAME(T) \
   u64 wtl = task_tail(T); \
   u64 wtw = e.mem[wtl + 1]; \
   STK(0) = e.mem[wtl]; \
   STK(1) = (wtw >> 32) & 0xFFFF; \
   STK(2) = FID_EXIT; \
-  sp += 3 * LANE_STEP;
+  SP_MOVE(3 * LANE_STEP);
 #define WL_ARGS(A, N) \
   for (u32 wi = 0; wi + 1 < N; wi += 1) { \
     STK(wi) = e.mem[A + wi]; \
   } \
-  sp += (N - 1) * LANE_STEP;
+  SP_MOVE((N - 1) * LANE_STEP);
+#ifdef BEND_OCL  // (spike) no check: Vulkan can't compare pointers, and LLVM
+#define WL_PAST(a, b) false  // folds integer compares of addresses back into them
+#elif defined(BEND_SLANG)
+#define WL_PAST(a, b) ((u64)(a) >= (u64)(b))
+#else
+#define WL_PAST(a, b) ((a) >= (b))
+#endif
 #define WL_ROOM(N) \
-  if (DEVICE && sp + (N) * CUBE >= e.mem + STAT_OFF + CUBE) { \
+  if (DEVICE && WL_PAST(sp + (N) * CUBE, e.mem + STAT_OFF + CUBE)) { \
     err_post(e.mem, ERR_DEEP); \
     return 0; \
   }
@@ -344,10 +694,14 @@ static bool gpu_open_rtc(void) {
 // Types
 // =====
 
-#ifdef __METAL_VERSION__
+#if defined(__METAL_VERSION__) || defined(BEND_OCL)
 typedef ulong u64;
 typedef uint  u32;
 typedef uchar u8;
+#elif defined(BEND_SLANG)
+typedef uint64_t u64;
+typedef uint     u32;
+typedef uint8_t  u8;
 #elif defined(BEND_RTC)
 typedef unsigned long long u64;
 typedef unsigned int       u32;
@@ -361,9 +715,16 @@ typedef float f32;
 
 typedef u64 Term;
 
+// A lane's heap, and its allocator's words. Under OpenCL (clspv) the words
+// are an offset into the heap: clspv mislowers a struct holding a second
+// pointer to global memory, storing it into the heap.
 typedef struct {
   DEV u64* mem;
+#ifdef BEND_OCL
+  u64      alc;
+#else
   DEV u64* alc;
+#endif
 } Env;
 
 typedef struct {
@@ -466,7 +827,7 @@ static u32             pool_done;
 static pthread_mutex_t pool_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t  pool_wake = PTHREAD_COND_INITIALIZER;
 
-#if BEND_METAL || BEND_CUDA
+#if BEND_METAL || BEND_CUDA || BEND_VULKAN
 #pragma clang diagnostic ignored "-Wc23-extensions"
 static const char BEND_SRC[] = {
 #embed __FILE__
@@ -643,6 +1004,20 @@ CONSTV u8 CID_T[][2] = { { 2, 0 }, { 0, 0 }, { 2, 0 }, { 2, 1 }, { 1, 0 }, { 2, 
 // Metal's a32_load reads through a volatile local, or the M1 pipeline
 // build dies. A weak CAS may fail with the cell still x: a32_cmpx loops.
 
+#ifdef BEND_SLANG
+#define A32_LOOP(k, x) \
+  u32 a32_##k(DEV u32* p, u32 v) { \
+    u32 o = a32_load(p); \
+    for (;;) { \
+      u32 w; \
+      InterlockedCompareExchange(*p, o, x, w); \
+      if (w == o) { \
+        return o; \
+      } \
+      o = w; \
+    } \
+  }
+#else
 #define A32_LOOP(k, x) \
   INLINE u32 a32_##k(DEV u32* p, u32 v) { \
     u32 o = a32_load(p); \
@@ -650,6 +1025,7 @@ CONSTV u8 CID_T[][2] = { { 2, 0 }, { 0, 0 }, { 2, 0 }, { 2, 1 }, { 1, 0 }, { 2, 
     } \
     return o; \
   }
+#endif
 
 #ifdef __METAL_VERSION__
 
@@ -688,6 +1064,58 @@ INLINE bool a32_swp(DEV u32* p, u32* e, u32 v) {
   return *e == x;
 }
 
+#elif defined(BEND_OCL)
+
+// OpenCL's own atomics, which take either address space; the loads and
+// stores keep theirs through __typeof__.
+#define A32(p) (p)
+#define atomic_load_explicit(p, o) (*(volatile __typeof__(*(p))*)(p))
+#define atomic_store_explicit(p, v, o) \
+  (*(volatile __typeof__(*(p))*)(p) = (v))
+#define atomic_fetch_add_explicit(p, v, o) atomic_add(p, v)
+#define atomic_fetch_sub_explicit(p, v, o) atomic_sub(p, v)
+#define atomic_fetch_and_explicit(p, v, o) atomic_and(p, v)
+#define atomic_fetch_or_explicit(p, v, o) atomic_or(p, v)
+#define atomic_fetch_xor_explicit(p, v, o) atomic_xor(p, v)
+#define atomic_fetch_min_explicit(p, v, o) atomic_min(p, v)
+#define atomic_fetch_max_explicit(p, v, o) atomic_max(p, v)
+#define atomic_compare_exchange_weak_explicit(p, e, v, s, f) a32_swp(p, e, v)
+
+INLINE bool a32_swp(DEV u32* p, THR u32* e, u32 v) {
+  u32 x = *e;
+  *e = atomic_cmpxchg((volatile DEV u32*)p, x, v);
+  return *e == x;
+}
+
+#elif defined(BEND_SLANG)
+
+// Device cells by pointer, the group's by index into bend_vote (TGP); every
+// device access an atomic, as Slang has no volatile.
+groupshared u32 bend_vote[TG_HOLD * 2];
+#define A32(p) (p)
+#define memory_order_relaxed 0
+#define memory_order_release 0
+#define memory_order_acquire 0
+#define memory_order_acq_rel 0
+u32 atomic_load_explicit(u32* p, int o) { u32 r; InterlockedAdd(*p, 0u, r); return r; }
+u32 atomic_load_explicit(u32 p, int o) { return bend_vote[p]; }
+void atomic_store_explicit(u32* p, u32 v, int o) { u32 r; InterlockedExchange(*p, v, r); }
+void atomic_store_explicit(u32 p, u32 v, int o) { bend_vote[p] = v; }
+u32 atomic_fetch_add_explicit(u32* p, u32 v, int o) { u32 r; InterlockedAdd(*p, v, r); return r; }
+u32 atomic_fetch_add_explicit(u32 p, u32 v, int o) { u32 r; InterlockedAdd(bend_vote[p], v, r); return r; }
+u32 atomic_fetch_and_explicit(u32* p, u32 v, int o) { u32 r; InterlockedAnd(*p, v, r); return r; }
+u32 atomic_fetch_and_explicit(u32 p, u32 v, int o) { u32 r; InterlockedAnd(bend_vote[p], v, r); return r; }
+u32 atomic_fetch_or_explicit(u32* p, u32 v, int o) { u32 r; InterlockedOr(*p, v, r); return r; }
+u32 atomic_fetch_or_explicit(u32 p, u32 v, int o) { u32 r; InterlockedOr(bend_vote[p], v, r); return r; }
+u32 atomic_fetch_xor_explicit(u32* p, u32 v, int o) { u32 r; InterlockedXor(*p, v, r); return r; }
+u32 atomic_fetch_xor_explicit(u32 p, u32 v, int o) { u32 r; InterlockedXor(bend_vote[p], v, r); return r; }
+u32 atomic_fetch_min_explicit(u32* p, u32 v, int o) { u32 r; InterlockedMin(*p, v, r); return r; }
+u32 atomic_fetch_min_explicit(u32 p, u32 v, int o) { u32 r; InterlockedMin(bend_vote[p], v, r); return r; }
+u32 atomic_fetch_max_explicit(u32* p, u32 v, int o) { u32 r; InterlockedMax(*p, v, r); return r; }
+u32 atomic_fetch_max_explicit(u32 p, u32 v, int o) { u32 r; InterlockedMax(bend_vote[p], v, r); return r; }
+u32 atomic_fetch_sub_explicit(u32* p, u32 v, int o) { u32 r; InterlockedAdd(*p, 0u - v, r); return r; }
+u32 atomic_fetch_sub_explicit(u32 p, u32 v, int o) { u32 r; InterlockedAdd(bend_vote[p], 0u - v, r); return r; }
+
 #else
 
 #define A32(p) ((_Atomic u32*)(p))
@@ -722,7 +1150,11 @@ INLINE bool a32_swp(DEV u32* p, u32* e, u32 v) {
 #define a32_max(p, v) atomic_fetch_max_explicit(A32(p), v, RLX)
 #define a32_sub_rel(p, v)   (FENCE(), atomic_fetch_sub_explicit(A32(p), v, REL))
 #define a32_store_rel(p, v) (FENCE(), atomic_store_explicit(A32(p), v, REL))
+#if defined(BEND_OCL) || defined(BEND_SLANG)  // (clspv keeps &H[word]'s type)
+#define a32_at(H, word)     ((DEV u32*)(H) + 2 * (u64)(word))
+#else
 #define a32_at(H, word)     ((DEV u32*)&(H)[word])
+#endif
 
 INLINE u32 a32_load_acq(DEV u32* p) {
   u32 v = atomic_load_explicit(A32(p), ACQ);
@@ -730,6 +1162,15 @@ INLINE u32 a32_load_acq(DEV u32* p) {
   return v;
 }
 
+#ifdef BEND_SLANG
+u32 a32_cmpx(DEV u32* p, u32 x, u32 v) {
+  u32 o;
+  FENCE();
+  InterlockedCompareExchange(*p, x, v, o);
+  FENCE();
+  return o;
+}
+#else
 INLINE bool a32_cas(DEV u32* p, THR u32* e, u32 v) {
   FENCE();
   bool ok = atomic_compare_exchange_weak_explicit(A32(p), e, v, ACR, ACQ);
@@ -737,14 +1178,15 @@ INLINE bool a32_cas(DEV u32* p, THR u32* e, u32 v) {
   return ok;
 }
 
-A32_LOOP(exch, v)
-
 INLINE u32 a32_cmpx(DEV u32* p, u32 x, u32 v) {
   u32 o = x;
   while (!a32_cas(p, &o, v) && o == x) {
   }
   return o;
 }
+#endif
+
+A32_LOOP(exch, v)
 
 // Err
 // ===
@@ -810,6 +1252,15 @@ INLINE f32 atan2_c99(f32 y, f32 x) {
 #define U32_QUO(a, b) \
   ((a) / 2 / (b) * 2 + ((a) - (a) / 2 / (b) * 2 * (b) >= (b)))
 
+#ifdef BEND_SLANG
+INLINE f32 f32_unbox(u64 x) {
+  return asfloat((u32)x);
+}
+
+INLINE u64 f32_rewrap(f32 x) {
+  return asuint(x);
+}
+#else
 INLINE f32 f32_unbox(u64 x) {
   union { u32 u; f32 f; } p = { (u32)x };
   return p.f;
@@ -819,6 +1270,7 @@ INLINE u64 f32_rewrap(f32 x) {
   union { f32 f; u32 u; } p = { x };
   return p.u;
 }
+#endif
 
 INLINE u64 f32_to_u32(u64 a) {
   f32 v = f32_unbox(a);
@@ -859,29 +1311,36 @@ A32_LOOP(fadd, f32_rewrap(f32_unbox(o) + f32_unbox(v)))
 
 #define bank_at(H, c) ((DEV Bank*)((H) + H_BANK) + (c))
 
+// A Bank's fields by its words (off, then rd and wr, then top), made from H:
+// clspv (for Vulkan) indexes the u32 fields of a struct pointer made from a
+// u64 pointer in u64s, as it does ring_word's (see ring_slot32).
+#define bank_word(c)   (H_BANK + 3 * (u64)(c))
+#define bank_off(H, c) (H)[bank_word(c)]
+#define bank_rd(H, c)  a32_at(H, bank_word(c) + 1)
+#define bank_wr(H, c)  (a32_at(H, bank_word(c) + 1) + 1)
+#define bank_top(H, c) a32_at(H, bank_word(c) + 2)
+
 INLINE u64 bank_pop(DEV u64* H, u32 c) {
-  DEV Bank* b = bank_at(H, c);
   u64 got = 0;
   LOCK(bank_lock);
-  u32 t = a32_sub(&b->rd, 1);
+  u32 t = a32_sub(bank_rd(H, c), 1);
   if ((int)t > 0) {
-    got = H[b->off + t - 1];
+    got = H[bank_off(H, c) + t - 1];
   } else {
-    a32_add(&b->rd, 1);
+    a32_add(bank_rd(H, c), 1);
   }
   if (!DEVICE) {
-    b->wr = b->top = b->rd;
+    *bank_wr(H, c) = *bank_top(H, c) = *bank_rd(H, c);
   }
   UNLOCK(bank_lock);
   return got;
 }
 
 INLINE void bank_push(DEV u64* H, u32 c, u64 head) {
-  DEV Bank* b = bank_at(H, c);
   LOCK(bank_lock);
-  H[b->off + a32_add(&b->wr, 1)] = head;
+  H[bank_off(H, c) + a32_add(bank_wr(H, c), 1)] = head;
   if (!DEVICE) {
-    b->rd = b->top = b->wr;
+    *bank_rd(H, c) = *bank_top(H, c) = *bank_wr(H, c);
   }
   UNLOCK(bank_lock);
 }
@@ -898,8 +1357,15 @@ INLINE void bank_push(DEV u64* H, u32 c, u64 head) {
 // down the chain (0.02 to 0.04 ms a kernel at 32,768 lanes). The bump grows
 // only when all of these are empty.
 
+#ifdef BEND_OCL
+#define ALC_AT(e, i)   (e).mem[(e).alc + (u64)(i) * LANE_STEP]
+#else
 #define ALC_AT(e, i)   (e).alc[(i) * LANE_STEP]
+#endif
 #define ALC_LEN(e, c)  ALC_AT(e, NCLS_ALL + (c))
+// The words in a node of class c (below 32). A 32-bit shift: clspv writes
+// the 128-bit shift LLVM makes of a 64-bit one as an invalid constant.
+#define CLS_WORDS(c)   ((u64)(1u << (c)))
 #define ALC_COLD(e, c) ALC_AT(e, 2 * NCLS_ALL + (c))
 #define KEEP(c)        (KEEP_WORDS >> (c) ? KEEP_WORDS >> (c) : 1)
 
@@ -953,7 +1419,7 @@ INLINE u64 heap_alloc(Env e, u32 cls) {
   u64 h = ALC_AT(e, cls);
   if (h) {
     ALC_AT(e, cls)   = e.mem[h];
-    ALC_LEN(e, cls) -= 1ull << cls;
+    ALC_LEN(e, cls) -= CLS_WORDS(cls);
     return h;
   }
   return heap_alloc_miss(e, cls);
@@ -965,7 +1431,7 @@ INLINE void heap_free(Env e, u32 cls, u64 loc) {
   }
   e.mem[loc]       = ALC_AT(e, cls);
   ALC_AT(e, cls)   = loc;
-  ALC_LEN(e, cls) += 1ull << cls;
+  ALC_LEN(e, cls) += CLS_WORDS(cls);
   if (ALC_LEN(e, cls) >= KEEP_WORDS) {
     heap_hand(e, cls);
   }
@@ -1178,7 +1644,7 @@ OUTLINE void span_fade(Env e, Term t, u64 src, u32 n) {
   term_drop(e, t);
 }
 
-INLINE u64 ctr_take(Env e, Term t, u32 n, THR Term* out) {
+INLINE u64 ctr_take(Env e, Term t, u32 n, THR_ARR(Term, out, WL_OUTN)) {
   DEV u64* H = e.mem;
   if (!term_rfc(t)) {
     for (u32 j = 0; j < n; j += 1) {
@@ -1226,7 +1692,7 @@ INLINE Term term_word(Env e, Term w) {
   }
 
 INLINE DEV u32a* blk_ptr(DEV u64* H, u64 loc, u32 i) {
-  return (DEV u32a*)(H + loc) + i;
+  return (DEV u32a*)H + 2 * loc + i;  // (from H, as ring_slot32)
 }
 
 INLINE Term blk_read(DEV u64* H, bool arr, u64 loc, u32 i) {
@@ -1245,7 +1711,7 @@ INLINE void blk_write(DEV u64* H, bool arr, u64 loc, u32 i, Term v) {
 }
 
 INLINE u32 blk_at(Term a, u64 i, u32 lgs) {
-  return ((u32)i & (u32)((1ull << (blk_cls(a) - lgs)) - 1)) << lgs;
+  return ((u32)i & ((1u << (blk_cls(a) - lgs)) - 1)) << lgs;  // (a class < 32)
 }
 
 INLINE Term blk_keep(Env e, u64 at) {
@@ -1321,7 +1787,8 @@ INLINE Term blk_half(Env e, Term a, u32 hi) {
   return term_blk(arr, c, n);
 }
 
-INLINE Term blk_new(Env e, bool arr, u64 d, u32 lgs, u32 n, THR Term* v) {
+INLINE Term blk_new(Env e, bool arr, u64 d, u32 lgs, u32 n,
+  THR_ARR(Term, v, WL_OUTN)) {
   DEV u64* H = e.mem;
   if (d + lgs > 31) {
     err_post(H, ERR_ARRS);
@@ -1347,8 +1814,12 @@ INLINE Term blk_new(Env e, bool arr, u64 d, u32 lgs, u32 n, THR Term* v) {
 // planes LANES wide: a smaller bag has deeper rings in the same region
 #define ring_word(H, r, w) ((H) + RING_OFF + (w) * LANES + (r))
 #define ring_slot(H, r, p) ring_word(H, r, (p) & (RING_LEN - 1))
-#define ring_get(H, r)     ((DEV u32*)ring_word(H, r, RING_LEN))
-#define ring_put(H, r)     ((DEV u32*)ring_word(H, r, RING_LEN + 1))
+// A ring's u32 cells are made from H, not from ring_word's u64 pointer: clspv
+// (for Vulkan) indexes a u32 view of a u64 pointer in u64s, off by half.
+#define ring_index(r, w)   (RING_OFF + (u64)(w) * LANES + (r))
+#define ring_slot32(H, r, p) a32_at(H, ring_index(r, (p) & (RING_LEN - 1)))
+#define ring_get(H, r)     a32_at(H, ring_index(r, RING_LEN))
+#define ring_put(H, r)     a32_at(H, ring_index(r, RING_LEN + 1))
 
 INLINE u32 ring_lap(u32 pos) {
   return ~(u32)(pos / RING_LEN) & 1;
@@ -1360,7 +1831,7 @@ INLINE void ring_push(DEV u64* H, u32 r, Term tsk) {
     err_post(H, ERR_RING);
     return;
   }
-  DEV u32* lo = (DEV u32*)ring_slot(H, r, pos);
+  DEV u32* lo = ring_slot32(H, r, pos);
   a32_store(lo, (u32)tsk);
   a32_store_rel(lo + 1, (u32)(tsk >> 32) | (ring_lap(pos) << 31));
 }
@@ -1389,7 +1860,8 @@ INLINE u64 task_tail(Term t) {
   return term_loc(t) + fid_arity((u32)term_aux(t));
 }
 
-INLINE Term task_deliver(DEV u64* H, Term cont, u32 idx, THR Term* v, u32 n) {
+INLINE Term task_deliver(DEV u64* H, Term cont, u32 idx,
+  THR_ARR(Term, v, WL_RESW), u32 n) {
   u64 at = cont == TERM_HOLE ? H_ROOT_WORD : term_loc(cont) + idx;
   for (u32 j = 0; j < WL_RESW; j += 1) {
     if (j < n) {
@@ -1455,17 +1927,20 @@ INLINE Term spread_give(Env e, Term cont, Term v) {
 // throughout the one big kernel.)
 #define DEAL_BATCH 16
 
-INLINE void deal_publish(DEV u32* THR* hi, THR u32* hv, u32 n) {
+// hi holds the high words' places as u32 offsets from H (not pointers: an
+// array of pointers doesn't survive clspv's lowering for Vulkan).
+INLINE void deal_publish(DEV u64* H, THR_ARR(u64, hi, DEAL_BATCH),
+  THR_ARR(u32, hv, DEAL_BATCH), u32 n) {
   if (n == 0) {
     return;
   }
   FENCE();
   for (u32 i = 0; i < n; i += 1) {
-    atomic_store_explicit(A32(hi[i]), hv[i], REL);
+    atomic_store_explicit(A32((DEV u32*)H + hi[i]), hv[i], REL);
   }
 }
 
-INLINE void task_deal(DEV u64* H, Term join, u32 base, u32 stride, TG u32* cur) {
+INLINE void task_deal(DEV u64* H, Term join, u32 base, u32 stride, TGP cur) {
   u64 loc = term_loc(join);
   u32 ar  = fid_arity((u32)term_aux(join));
   u32 g   = 0;
@@ -1473,7 +1948,7 @@ INLINE void task_deal(DEV u64* H, Term join, u32 base, u32 stride, TG u32* cur) 
     u32 rem = (u32)H[loc + ar + 1];
     g = a32_add(a32_at(H, H_CURSOR), rem);
   }
-  DEV u32* hi[DEAL_BATCH];
+  u64      hi[DEAL_BATCH];
   u32      hv[DEAL_BATCH];
   u32      n = 0;
   for (u32 i = 0; i < ar; i += 1) {
@@ -1492,16 +1967,17 @@ INLINE void task_deal(DEV u64* H, Term join, u32 base, u32 stride, TG u32* cur) 
         err_post(H, ERR_RING);
         continue;
       }
-      DEV u32* lo = (DEV u32*)ring_slot(H, to, pos);
+      DEV u32* lo = ring_slot32(H, to, pos);
       a32_store(lo, (u32)k);
-      hi[n] = lo + 1, hv[n] = (u32)(k >> 32) | (ring_lap(pos) << 31), n += 1;
+      hi[n] = 2 * (RING_OFF + (u64)(pos & (RING_LEN - 1)) * LANES + to) + 1;
+      hv[n] = (u32)(k >> 32) | (ring_lap(pos) << 31), n += 1;
       if (n == DEAL_BATCH) {
-        deal_publish(hi, hv, n);
+        deal_publish(H, hi, hv, n);
         n = 0;
       }
     }
   }
-  deal_publish(hi, hv, n);
+  deal_publish(H, hi, hv, n);
 }
 
 // Root
@@ -1511,7 +1987,7 @@ INLINE bool root_done(DEV u64* H) {
   return a32_load_acq(a32_at(H, H_ROOT_DONE)) != 0;
 }
 
-static u32 root_take(DEV u64* H, THR Term* v) {
+static u32 root_take(DEV u64* H, THR_ARR(Term, v, WL_RESW)) {
   u32 n = a32_load_acq(a32_at(H, H_ROOT_DONE)) - 1;
   for (u32 j = 0; j < n; j += 1) {
     v[j] = H[H_ROOT_WORD + j];
@@ -1525,7 +2001,7 @@ static u32 root_take(DEV u64* H, THR Term* v) {
 
 CONSTV u64 STAT_IMG[] = { 0 };
 
-INLINE Term spin_0(Env e, THR Term* o, u32 r0, Term r1, Term r2) {
+INLINE Term spin_0(Env e, WL_OUT(o), u32 r0, Term r1, Term r2) {
   u32 wpoll = 0;
   Term _v_1 = 0;
   u32 _c_0 = r0;
@@ -1545,7 +2021,7 @@ INLINE Term spin_0(Env e, THR Term* o, u32 r0, Term r1, Term r2) {
   return 1;
 }
 
-INLINE Term spin_2(Env e, THR Term* o, u32 r0, u32 r1) {
+INLINE Term spin_2(Env e, WL_OUT(o), u32 r0, u32 r1) {
   u32 wpoll = 0;
   u32 _v_5 = 0;
   u32 _x_2 = r0;
@@ -1558,14 +2034,14 @@ INLINE Term spin_2(Env e, THR Term* o, u32 r0, u32 r1) {
   return 1;
 }
 
-INLINE Term spin_4(Env e, THR Term* o, u32 r0, u32 r1) {
+INLINE Term spin_4(Env e, WL_OUT(o), u32 r0, u32 r1) {
   u32 wpoll = 0;
   u32 _v_10 = 0;
   u32 _a_1 = r0;
   u32 _b_0 = r1;
   WL_SPIN
     Term _v_11 = 0;
-    Term _o_1[1];
+    Term _o_1[WL_OSZ(1)];
     if (spin_0(e, _o_1, ((u64)(f32_unbox(_a_1) < f32_unbox(_b_0))), _a_1, _b_0) == 0) {
       return 0;
     }
@@ -1577,7 +2053,7 @@ INLINE Term spin_4(Env e, THR Term* o, u32 r0, u32 r1) {
   return 1;
 }
 
-INLINE Term spin_3(Env e, THR Term* o, u32 r0, u32 r1, u32 r2, u32 r3) {
+INLINE Term spin_3(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3) {
   u32 wpoll = 0;
   u32 _v_7 = 0;
   u32 _f_0 = r0;
@@ -1587,7 +2063,7 @@ INLINE Term spin_3(Env e, THR Term* o, u32 r0, u32 r1, u32 r2, u32 r3) {
   WL_SPIN
     u32 _v_8 = 0;
     u32 _v_9 = 0;
-    Term _o_2[1];
+    Term _o_2[WL_OSZ(1)];
     if (spin_4(e, _o_2, 1065353216ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1058642330ull) + f32_unbox(f32_rewrap(f32_unbox(1048576000ull) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_f_0) * f32_unbox(1095306838ull))) + f32_unbox(_t_0)))))))))) + f32_unbox(f32_rewrap(f32_unbox(_beat_0) * f32_unbox(1048576000ull))))) == 0) {
       return 0;
     }
@@ -1605,7 +2081,7 @@ INLINE Term spin_3(Env e, THR Term* o, u32 r0, u32 r1, u32 r2, u32 r3) {
   return 1;
 }
 
-INLINE Term spin_1(Env e, THR Term* o, u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, u32 r8) {
+INLINE Term spin_1(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, u32 r8) {
   u32 wpoll = 0;
   u32 _v_2 = 0;
   u32 _x_1 = r0;
@@ -1626,7 +2102,7 @@ INLINE Term spin_1(Env e, THR Term* o, u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u
     u32 _w3_0 = f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_dx_0) + f32_unbox(_dy_0))) * f32_unbox(1060320051ull))) + f32_unbox(f32_rewrap(f32_unbox(_k_7) * f32_unbox(1060320051ull)))))));
     u32 _v_3 = 0;
     u32 _v_4 = 0;
-    Term _o_0[1];
+    Term _o_0[WL_OSZ(1)];
     if (spin_2(e, _o_0, _dx_0, _dy_0) == 0) {
       return 0;
     }
@@ -1634,7 +2110,7 @@ INLINE Term spin_1(Env e, THR Term* o, u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u
     _v_3 = _v_4;
     u32 _w4_0 = f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_v_3) * f32_unbox(1069547520ull))) - f32_unbox(f32_rewrap(f32_unbox(_k_7) * f32_unbox(1073741824ull))))) - f32_unbox(f32_rewrap(f32_unbox(_k_9) * f32_unbox(1077936128ull)))))));
     u32 _v_6 = 0;
-    Term _o_3[1];
+    Term _o_3[WL_OSZ(1)];
     if (spin_3(e, _o_3, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_w1_0) + f32_unbox(_w2_0))) + f32_unbox(_w3_0))) + f32_unbox(_w4_0))) + f32_unbox(1082130432ull))) * f32_unbox(1040187392ull))) + f32_unbox(f32_rewrap(f32_unbox(_k_7) * f32_unbox(1041865114ull)))), _k_7, _k_10, _k_11) == 0) {
       return 0;
     }
@@ -1646,7 +2122,7 @@ INLINE Term spin_1(Env e, THR Term* o, u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u
   return 1;
 }
 
-INLINE Term spin_5(Env e, THR Term* o, Term r0, Term r1) {
+INLINE Term spin_5(Env e, WL_OUT(o), Term r0, Term r1) {
   u32 wpoll = 0;
   Term _v_2 = 0;
   Term _a_1 = r0;
@@ -1660,7 +2136,7 @@ INLINE Term spin_5(Env e, THR Term* o, Term r0, Term r1) {
   return 1;
 }
 
-INLINE Term spin_6(Env e, THR Term* o, u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, u32 r8, Term r9) {
+INLINE Term spin_6(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, u32 r8, Term r9) {
   u32 wpoll = 0;
   Term _v_1 = 0;
   u32 _x_1 = r0;
@@ -1676,7 +2152,7 @@ INLINE Term spin_6(Env e, THR Term* o, u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u
   WL_SPIN
     u32 _v_2 = 0;
     u32 _v_3 = 0;
-    Term _o_0[1];
+    Term _o_0[WL_OSZ(1)];
     if (spin_1(e, _o_0, _x_1, _y_1, _k_7, _k_8, _k_9, _k_10, _k_11, _k_12, _k_13) == 0) {
       return 0;
     }
@@ -1693,7 +2169,7 @@ INLINE Term spin_6(Env e, THR Term* o, u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u
   return 1;
 }
 
-INLINE Term spin_7(Env e, THR Term* o, Term r0) {
+INLINE Term spin_7(Env e, WL_OUT(o), Term r0) {
   u32 wpoll = 0;
   Term _v_4 = 0;
   Term _v_5 = 0;
@@ -1709,7 +2185,7 @@ INLINE Term spin_7(Env e, THR Term* o, Term r0) {
   return 1;
 }
 
-INLINE Term spin_8(Env e, THR Term* o, u32 r0, u32 r1) {
+INLINE Term spin_8(Env e, WL_OUT(o), u32 r0, u32 r1) {
   u32 wpoll = 0;
   u32 _v_3 = 0;
   u32 _a_1 = r0;
@@ -1726,7 +2202,7 @@ INLINE Term spin_8(Env e, THR Term* o, u32 r0, u32 r1) {
   return 1;
 }
 
-INLINE Term spin_9(Env e, THR Term* o, u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, u32 r8, u32 r9, Term r10) {
+INLINE Term spin_9(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, u32 r8, u32 r9, Term r10) {
   u32 wpoll = 0;
   Term _v_5 = 0;
   u32 _inside_0 = r0;
@@ -1743,7 +2219,7 @@ INLINE Term spin_9(Env e, THR Term* o, u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u
   WL_SPIN
     if (_inside_0 == 1) {
       Term _v_6 = 0;
-      Term _o_1[1];
+      Term _o_1[WL_OSZ(1)];
       if (spin_6(e, _o_1, _x_1, _y_1, _k_7, _k_8, _k_9, _k_10, _k_11, _k_12, _k_13, _a_2) == 0) {
         return 0;
       }
@@ -1758,7 +2234,7 @@ INLINE Term spin_9(Env e, THR Term* o, u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u
   return 1;
 }
 
-INLINE Term spin_10(Env e, THR Term* o, Term r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, u32 r8, u32 r9, Term r10) {
+INLINE Term spin_10(Env e, WL_OUT(o), Term r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, u32 r8, u32 r9, Term r10) {
   u32 wpoll = 0;
   Term _v_2 = 0;
   Term _n_1 = r0;
@@ -1780,14 +2256,14 @@ INLINE Term spin_10(Env e, THR Term* o, Term r0, u32 r1, u32 r2, u32 r3, u32 r4,
       Term _v_3 = 0;
       u32 _v_4 = 0;
       u32 _v_5 = 0;
-      Term _o_0[1];
+      Term _o_0[WL_OSZ(1)];
       if (spin_8(e, _o_0, U32_BIN(_x_1, <, _k_12), U32_BIN(_y_1, <, _k_13)) == 0) {
         return 0;
       }
       _v_5 = _o_0[0];
       _v_4 = _v_5;
       Term _v_6 = 0;
-      Term _o_1[1];
+      Term _o_1[WL_OSZ(1)];
       if (spin_9(e, _o_1, _v_4, _x_1, _y_1, _k_7, _k_8, _k_9, _k_10, _k_11, _k_12, _k_13, _a_1) == 0) {
         return 0;
       }
@@ -1823,7 +2299,7 @@ INLINE Term spin_10(Env e, THR Term* o, Term r0, u32 r1, u32 r2, u32 r3, u32 r4,
   return 1;
 }
 
-INLINE Term spin_11(Env e, THR Term* o, u32 r0) {
+INLINE Term spin_11(Env e, WL_OUT(o), u32 r0) {
   u32 wpoll = 0;
   u32 _v_2 = 0;
   u32 _b_0 = r0;
@@ -1839,7 +2315,7 @@ INLINE Term spin_11(Env e, THR Term* o, u32 r0) {
   return 1;
 }
 
-INLINE Term spin_12(Env e, THR Term* o, u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, u32 r8, u32 r9, u32 r10, Term r11) {
+INLINE Term spin_12(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, u32 r8, u32 r9, u32 r10, Term r11) {
   u32 wpoll = 0;
   Term _v_5 = 0;
   u32 _inside_0 = r0;
@@ -1858,7 +2334,7 @@ INLINE Term spin_12(Env e, THR Term* o, u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, 
     if (_inside_0 == 1) {
       u32 _v_6 = 0;
       u32 _v_7 = 0;
-      Term _o_1[1];
+      Term _o_1[WL_OSZ(1)];
       if (spin_1(e, _o_1, _x_1, _y_1, _k_7, _k_8, _k_9, _k_10, _k_11, _k_12, _k_13) == 0) {
         return 0;
       }
@@ -1878,7 +2354,7 @@ INLINE Term spin_12(Env e, THR Term* o, u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, 
   return 1;
 }
 
-INLINE Term spin_13(Env e, THR Term* o, Term r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, u32 r8, u32 r9, Term r10) {
+INLINE Term spin_13(Env e, WL_OUT(o), Term r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, u32 r8, u32 r9, Term r10) {
   u32 wpoll = 0;
   Term _v_1 = 0;
   Term _n_0 = r0;
@@ -1899,7 +2375,7 @@ INLINE Term spin_13(Env e, THR Term* o, Term r0, u32 r1, u32 r2, u32 r3, u32 r4,
       Term _r_0 = (_n_0 - 1);
       Term _v_2 = 0;
       Term _v_3 = 0;
-      Term _o_0[1];
+      Term _o_0[WL_OSZ(1)];
       if (spin_10(e, _o_0, 16ull, _x_1, _y_1, _k_7, _k_8, _k_9, _k_10, _k_11, _k_12, _k_13, _a_1) == 0) {
         return 0;
       }
@@ -1935,7 +2411,7 @@ INLINE Term spin_13(Env e, THR Term* o, Term r0, u32 r1, u32 r2, u32 r3, u32 r4,
   return 1;
 }
 
-INLINE Term spin_14(Env e, THR Term* o, Term r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, u32 r8, u32 r9, u32 r10, u32 r11, u32 r12, Term r13) {
+INLINE Term spin_14(Env e, WL_OUT(o), Term r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, u32 r8, u32 r9, u32 r10, u32 r11, u32 r12, Term r13) {
   u32 wpoll = 0;
   Term _v_1 = 0;
   Term _n_0 = r0;
@@ -1959,7 +2435,7 @@ INLINE Term spin_14(Env e, THR Term* o, Term r0, u32 r1, u32 r2, u32 r3, u32 r4,
       Term _r_0 = (_n_0 - 1);
       u32 _v_2 = 0;
       u32 _v_3 = 0;
-      Term _o_0[1];
+      Term _o_0[WL_OSZ(1)];
       if (spin_11(e, _o_0, U32_BIN(U32_BIN(_x_0, +, _d_0), >=, _k_12)) == 0) {
         return 0;
       }
@@ -1967,7 +2443,7 @@ INLINE Term spin_14(Env e, THR Term* o, Term r0, u32 r1, u32 r2, u32 r3, u32 r4,
       _v_2 = _v_3;
       Term _v_4 = 0;
       Term _v_5 = 0;
-      Term _o_1[1];
+      Term _o_1[WL_OSZ(1)];
       if (spin_12(e, _o_1, U32_BIN(_i_0, <, U32_BIN(_k_12, *, _k_13)), _i_0, _x_0, _y_0, _k_7, _k_8, _k_9, _k_10, _k_11, _k_12, _k_13, _a_5) == 0) {
         return 0;
       }
@@ -2009,7 +2485,7 @@ INLINE Term spin_14(Env e, THR Term* o, Term r0, u32 r1, u32 r2, u32 r3, u32 r4,
   return 1;
 }
 
-INLINE Term spin_15(Env e, THR Term* o, u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, Term r8) {
+INLINE Term spin_15(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, Term r8) {
   u32 wpoll = 0;
   Term _v_2 = 0;
   u32 _j_0 = r0;
@@ -2027,7 +2503,7 @@ INLINE Term spin_15(Env e, THR Term* o, u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, 
     Term _a_4 = 32768ull;
     Term _a_5 = 32768ull;
     Term _v_3 = 0;
-    Term _o_0[1];
+    Term _o_0[WL_OSZ(1)];
     if (spin_14(e, _o_0, ((u32)(_a_3) == 0 ? 0 : (u64)U32_QUO((u32)(_a_2), (u32)(_a_3))), _j_0, ((u32)(_k_5) == 0 ? _j_0 : U32_BIN(_j_0, -, U32_QUO((u32)(_j_0), (u32)(_k_5)) * _k_5)), ((u32)(_k_5) == 0 ? 0 : (u64)U32_QUO((u32)(_j_0), (u32)(_k_5))), ((u32)(_k_5) == 0 ? _a_4 : U32_BIN(_a_4, -, U32_QUO((u32)(_a_4), (u32)(_k_5)) * _k_5)), ((u32)(_k_5) == 0 ? 0 : (u64)U32_QUO((u32)(_a_5), (u32)(_k_5))), _k_0, _k_1, _k_2, _k_3, _k_4, _k_5, _k_6, _a_1) == 0) {
       return 0;
     }
@@ -2106,7 +2582,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
       Term _r_0 = (_c_0 - 1);
       Term _v_0 = 0;
       Term _v_1 = 0;
-      Term _o_1[1];
+      Term _o_1[WL_OSZ(1)];
       if (spin_15(e, _o_1, _i_0, _x_0, _x_1, _x_2, _x_3, _x_4, _x_5, _x_6, _a_0) == 0) {
         return 0;
       }
@@ -2157,7 +2633,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     WL_SPIN
     u32 _v_0 = 0;
     u32 _v_1 = 0;
-    Term _o_0[1];
+    Term _o_0[WL_OSZ(1)];
     if (spin_8(e, _o_0, U32_BIN(_x_0, <, _k_5), U32_BIN(_y_0, <, _k_6)) == 0) {
       return 0;
     }
@@ -2169,7 +2645,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     } else {
       if (_d_0 == 0) {
         Term _v_2 = 0;
-        Term _o_1[1];
+        Term _o_1[WL_OSZ(1)];
         if (spin_13(e, _o_1, 16ull, _y_0, _x_0, _k_0, _k_1, _k_2, _k_3, _k_4, _k_5, _k_6, _a_0) == 0) {
           return 0;
         }
@@ -2182,7 +2658,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
         Term _v_4 = 0;
         Term _v_5 = 0;
         Term _v_6 = 0;
-        Term _o_2[2];
+        Term _o_2[WL_OSZ(2)];
         if (spin_7(e, _o_2, _a_0) == 0) {
           return 0;
         }
@@ -2194,7 +2670,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
         Term _v_8 = 0;
         Term _v_9 = 0;
         Term _v_10 = 0;
-        Term _o_3[2];
+        Term _o_3[WL_OSZ(2)];
         if (spin_7(e, _o_3, _v_4) == 0) {
           return 0;
         }
@@ -2206,7 +2682,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
         Term _v_12 = 0;
         Term _v_13 = 0;
         Term _v_14 = 0;
-        Term _o_4[2];
+        Term _o_4[WL_OSZ(2)];
         if (spin_7(e, _o_4, _v_8) == 0) {
           return 0;
         }
@@ -2515,7 +2991,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     WL_OPEN
     Term _v_21 = 0;
     Term _v_22 = 0;
-    Term _o_5[1];
+    Term _o_5[WL_OSZ(1)];
     if (spin_5(e, _o_5, _q_4, _w_3) == 0) {
       return 0;
     }
@@ -2523,14 +2999,14 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     _v_21 = _v_22;
     Term _v_23 = 0;
     Term _v_24 = 0;
-    Term _o_6[1];
+    Term _o_6[WL_OSZ(1)];
     if (spin_5(e, _o_6, _r_2, _z_1) == 0) {
       return 0;
     }
     _v_24 = _o_6[0];
     _v_23 = _v_24;
     Term _v_25 = 0;
-    Term _o_7[1];
+    Term _o_7[WL_OSZ(1)];
     if (spin_5(e, _o_7, _v_21, _v_23) == 0) {
       return 0;
     }
@@ -2827,7 +3303,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
   {
     u32 _z_0 = r0;
     WL_OPEN
-    Term _fv_0[1];
+    Term _fv_0[WL_OSZ(1)];
     _fv_0[0] = _z_0;
     r0 = blk_new(e, 0, 23ull, 0, 1, _fv_0);
     WL_RETN(1);
@@ -3355,7 +3831,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
       STK(0) = lp;
       STK(1) = 0;
       STK(2) = FID_EXIT;
-      sp += 3 * LANE_STEP;
+      SP_MOVE(3 * LANE_STEP);
       seq |= fid_nofk(f) << 1;
       WL_LOAD(term_loc(lp), war)
       r0 = c, r2 = (u32)is, r3 = is >> 32;
@@ -3413,7 +3889,7 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     if (err_seen(e.mem)) {
       return 0;
     }
-    sp -= 2 * LANE_STEP;
+    SP_MOVE(-(2 * LANE_STEP));
     Term cont = STK(0);
     u32  idx  = (u32)STK(1);
     if (cont != TERM_HOLE && fid_resw((u32)term_aux(cont))) {
@@ -3467,28 +3943,28 @@ INLINE u64 spread_steps(DEV u64* H, Term t) {
     : H[term_loc(t) + SPRD_C];
 }
 
-INLINE u32 spread_post(DEV u64* H, Term t, TG u32* vote) {
-  u32     k   = a32_add(vote + SPRD_N, 1);
-  u64     loc = term_loc(t);
-  TG u32* p   = vote + SPRD_LIST + SPRD_LW * k;
-  p[0] = (u32)t, p[1] = (u32)(t >> 32);
+INLINE u32 spread_post(DEV u64* H, Term t, TGP vote) {
+  u32 k   = a32_add(vote + SPRD_N, 1);
+  u64 loc = term_loc(t);
+  TGP p   = vote + SPRD_LIST + SPRD_LW * k;
+  TGA(p, 0) = (u32)t, TGA(p, 1) = (u32)(t >> 32);
   if (term_tag(t) == TAG_SPR) {
     u64 is = H[loc + 1];
-    p[2] = (u32)is, p[3] = (u32)H[loc + 2], p[4] = (u32)(is >> 32);
+    TGA(p, 2) = (u32)is, TGA(p, 3) = (u32)H[loc + 2], TGA(p, 4) = (u32)(is >> 32);
   } else {
-    p[2] = (u32)H[loc + SPRD_I], p[3] = (u32)H[loc + SPRD_C];
-    p[4] = (u32)H[loc + SPRD_ST];
+    TGA(p, 2) = (u32)H[loc + SPRD_I], TGA(p, 3) = (u32)H[loc + SPRD_C];
+    TGA(p, 4) = (u32)H[loc + SPRD_ST];
   }
   return k;
 }
 
-INLINE void spread_split(Env e, TG u32* vote, u32 lane, u32 rg, u32 posted,
+INLINE void spread_split(Env e, TGP vote, u32 lane, u32 rg, u32 posted,
   u32 ran) {
   DEV u64* H    = e.mem;
   u32      m    = CUBE_T / posted;  // lanes a loop
   bool     mine = (ran & 3) == 3;
-  TG u32*  own  = vote + SPRD_LIST + SPRD_LW * (ran >> 2);
-  Term     t    = mine ? own[0] | (u64)own[1] << 32 : 0;
+  TGP      own  = vote + SPRD_LIST + SPRD_LW * (ran >> 2);
+  Term     t    = mine ? TGA(own, 0) | (u64)TGA(own, 1) << 32 : 0;
   if (m < 2) {
     if (mine) {
       ring_push(H, rg, t);
@@ -3503,7 +3979,7 @@ INLINE void spread_split(Env e, TG u32* vote, u32 lane, u32 rg, u32 posted,
   if (mine) {
     u32 f     = (u32)term_aux(t);
     u32 ar    = fid_arity(f);
-    u32 parts = own[3] < m ? own[3] : m;
+    u32 parts = TGA(own, 3) < m ? TGA(own, 3) : m;
     u64 loc   = term_loc(t);
     if (term_tag(t) == TAG_SPR) {  // a part: a loop of its own now
       Term lp = H[loc];
@@ -3512,7 +3988,7 @@ INLINE void spread_split(Env e, TG u32* vote, u32 lane, u32 rg, u32 posted,
         H[n + w] = H[term_loc(lp) + w];
       }
       loc = n, t = term_tsk(f, n);
-      own[0] = (u32)t, own[1] = (u32)(t >> 32);
+      TGA(own, 0) = (u32)t, TGA(own, 1) = (u32)(t >> 32);
     }
     H[loc + SPRD_A] = term_keep(e, H[loc + SPRD_A], parts);
     for (u32 w = SPRD_ST + 1; w < ar; w += 1) {
@@ -3521,7 +3997,7 @@ INLINE void spread_split(Env e, TG u32* vote, u32 lane, u32 rg, u32 posted,
       }
     }
     u64 cells = heap_alloc(e, cls_fit(parts * SPRD_CELL));
-    own[5] = (u32)cells, own[6] = (u32)(cells >> 32);
+    TGA(own, 5) = (u32)cells, TGA(own, 6) = (u32)(cells >> 32);
     H[loc + SPRD_C]  = 0;
     H[loc + SPRD_I]  = 0;
     H[loc + SPRD_ST] = cells | (u64)parts << 48;
@@ -3530,14 +4006,14 @@ INLINE void spread_split(Env e, TG u32* vote, u32 lane, u32 rg, u32 posted,
   BARD();
   u32 k = lane / m, q = lane % m;
   if (k < posted) {
-    TG u32* p     = vote + SPRD_LIST + SPRD_LW * k;
-    u32     c     = p[3];
+    TGP     p     = vote + SPRD_LIST + SPRD_LW * k;
+    u32     c     = TGA(p, 3);
     u32     parts = c < m ? c : m;
     if (q < parts) {
-      Term pt   = p[0] | (u64)p[1] << 32;
-      u64  cell = (p[5] | (u64)p[6] << 32) + q * SPRD_CELL;
+      Term pt   = TGA(p, 0) | (u64)TGA(p, 1) << 32;
+      u64  cell = (TGA(p, 5) | (u64)TGA(p, 6) << 32) + q * SPRD_CELL;
       H[cell]     = pt;
-      H[cell + 1] = (u32)(p[2] + q * p[4]) | (u64)(u32)(p[4] * parts) << 32;
+      H[cell + 1] = (u32)(TGA(p, 2) + q * TGA(p, 4)) | (u64)(u32)(TGA(p, 4) * parts) << 32;
       H[cell + 2] = (c - q + parts - 1) / parts;
       ring_push(H, rg, term_make(TAG_SPR, term_aux(pt), cell));
     }
@@ -3553,14 +4029,14 @@ INLINE void spread_split(Env e, TG u32* vote, u32 lane, u32 rg, u32 posted,
 // lane skips a fork-free one). The host grows a row ring by
 // ring and drains a ring; a device lane does both.
 INLINE u32 monk_step(Env e, DEV Term* stk, u32 rg, u32 put0, u32 base, u32 stride,
-  TG u32* cur) {
+  TGP cur) {
   DEV u64* H   = e.mem;
   bool     seq = stride == 0;
   DEV u32* get = ring_get(H, rg);
   if (*get == put0) {
     return 0;
   }
-  DEV u32* lo = (DEV u32*)ring_slot(H, rg, *get);
+  DEV u32* lo = ring_slot32(H, rg, *get);
   u32      hi = a32_load_acq(lo + 1);
   Term     t  = (((u64)hi << 32) | a32_load(lo)) & ~RFC_BIT;
   if ((hi >> 31) != ring_lap(*get)) {
@@ -3633,19 +4109,20 @@ INLINE void dev_cut(Env e) {
 
 INLINE void bank_pack(DEV u64* H, u32 lane) {
   for (u32 c = 0; c < NCLS_ALL; c += 1) {
-    DEV Bank* b  = bank_at(H, c);
-    u32       rd = b->rd;
-    u32       n  = b->wr - b->top;
+    u64 off = bank_off(H, c);
+    u32 rd  = *bank_rd(H, c);
+    u32 top = *bank_top(H, c);
+    u32 n   = *bank_wr(H, c) - top;
     for (u32 i = 0; i < n; i += CUBE_T) {
-      Term v = i + lane < n ? H[b->off + b->top + i + lane] : 0;
+      Term v = i + lane < n ? H[off + top + i + lane] : 0;
       BAR();
       if (i + lane < n) {
-        H[b->off + rd + i + lane] = v;
+        H[off + rd + i + lane] = v;
       }
     }
     BAR();
     if (lane == 0) {
-      b->rd = b->wr = b->top = rd + n;
+      *bank_rd(H, c) = *bank_wr(H, c) = *bank_top(H, c) = rd + n;
     }
   }
 }
@@ -3656,6 +4133,36 @@ kernel void bend_dev(DEV u64* H [[buffer(0)]], constant u32& pass [[buffer(1)]],
   u32 grids [[threadgroups_per_grid]],
   u32 row [[threadgroup_position_in_grid]],
   u32 lane [[thread_position_in_threadgroup]]) {
+#elif defined(BEND_OCL)
+// The heap's address comes as an integer and the arguments in a uniform
+// buffer, so the one push constant block is clspv's for the module's
+// constants (Vulkan allows an entry point one). grids is passed, as clspv's
+// get_num_groups would take another push constant.
+__kernel void bend_dev(ulong heap, u32 pass, u32 grids, TG u32* vote) {
+  DEV u64* H = (DEV u64*)heap;
+  u32 row   = get_group_id(0);
+  u32 lane  = get_local_id(0);
+#elif defined(BEND_SLANG)
+// Both entries' arguments (GpuArgs on the host).
+struct BendArgs {
+  u64 heap;
+  u32 pass;
+  u32 grids;
+  u64 list;
+  u64 stage;
+  u32 n;
+  u32 in;
+};
+[[vk::push_constant]] BendArgs bend_args;
+[shader("compute")]
+[numthreads(CUBE_T, 1, 1)]
+void bend_dev(uint3 bend_gid : SV_GroupID, uint3 bend_lid : SV_GroupThreadID) {
+  DEV u64* H     = (DEV u64*)bend_args.heap;
+  u32      pass  = bend_args.pass;
+  u32      grids = bend_args.grids;
+  u32      row   = bend_gid.x;
+  u32      lane  = bend_lid.x;
+  TGP      vote  = 0;
 #else
 extern "C" __global__ void bend_dev(DEV u64* H, u32 pass) {
   extern __shared__ u32 vote[];
@@ -3670,7 +4177,11 @@ extern "C" __global__ void bend_dev(DEV u64* H, u32 pass) {
   u32  stride = grids == 1 ? CUBE_G : 1;
   u32  me     = row * CUBE_T + stride * lane;
   u32 rg     = pass ? ring_flip(me) : me;
+#ifdef BEND_OCL
+  Env  e      = { H, ALC_OFF + me };
+#else
   Env  e      = { H, H + ALC_OFF + me };
+#endif
   DEV Term*  stk    = (DEV Term*)(H + STAK_OFF + me);
   if (lane == 0) {
     for (u32 i = 0; i < 5; i += 1) {
@@ -3721,7 +4232,7 @@ extern "C" __global__ void bend_dev(DEV u64* H, u32 pass) {
   dev_cut(e);
 }
 
-#ifndef __METAL_VERSION__
+#if !defined(__METAL_VERSION__) && !defined(BEND_OCL) && !defined(BEND_SLANG)
 // Moves whole pages (512 words, a group each) between the corpus and a
 // page-locked stage on the host: in, the stage's pages to list[i]; out, back.
 extern "C" __global__ void bend_pages(DEV u64* H, const u32* list, u32 n,
@@ -3730,6 +4241,34 @@ extern "C" __global__ void bend_pages(DEV u64* H, const u32* list, u32 n,
   u64*     s = stage + ((u64)blockIdx.x << 9);
   for (u32 i = threadIdx.x; i < 512; i += blockDim.x) {
     if (in) {
+      h[i] = s[i];
+    } else {
+      s[i] = h[i];
+    }
+  }
+}
+#elif defined(BEND_SLANG)
+// Copies rows of 32-bit words (an app's frame into an image's memory): row
+// bend_gid.x, n words, from list (rows packed) to stage (rows as far apart
+// as the in field says, in bytes).
+[shader("compute")]
+[numthreads(256, 1, 1)]
+void bend_blit(uint3 bend_gid : SV_GroupID, uint3 bend_lid : SV_GroupThreadID) {
+  DEV u32* s = (DEV u32*)(bend_args.list + (u64)bend_gid.x * bend_args.n * 4);
+  DEV u32* d = (DEV u32*)(bend_args.stage + (u64)bend_gid.x * bend_args.in);
+  for (u32 i = bend_lid.x; i < bend_args.n; i += 256) {
+    d[i] = s[i];
+  }
+}
+
+[shader("compute")]
+[numthreads(128, 1, 1)]
+void bend_pages(uint3 bend_gid : SV_GroupID, uint3 bend_lid : SV_GroupThreadID) {
+  DEV u32* list = (DEV u32*)bend_args.list;
+  DEV u64* h    = (DEV u64*)(bend_args.heap + ((u64)list[bend_gid.x] << 12));
+  DEV u64* s    = (DEV u64*)(bend_args.stage + ((u64)bend_gid.x << 12));
+  for (u32 i = bend_lid.x; i < 512; i += 128) {
+    if (bend_args.in != 0) {
       h[i] = s[i];
     } else {
       s[i] = h[i];
@@ -3918,15 +4457,27 @@ static Term* pool_stack(void) {
 
 #else
 
+#if BEND_VULKAN
+// A fault on the corpus pages it in, through the driver: room for that.
+static void gpu_sig(int sig, siginfo_t* si, void* uc);
+#define POOL_SIGSTK (1 << 18)
+#else
+#define POOL_SIGSTK SIGSTKSZ
+#endif
+
 static Term* pool_stack(void) {
   u64   len = 1ull << 31;
-  char* p   = pool_mmap(len + 16384 + SIGSTKSZ);
+  char* p   = pool_mmap(len + 16384 + POOL_SIGSTK);
   if (mprotect(p + len, 16384, PROT_NONE) != 0) {
     err_fail("stack guard failed");
   }
-  stack_t ss = { .ss_sp = p + len + 16384, .ss_size = SIGSTKSZ };
+  stack_t ss = { .ss_sp = p + len + 16384, .ss_size = POOL_SIGSTK };
   sigaltstack(&ss, NULL);
+#if BEND_VULKAN
+  struct sigaction sa = { .sa_sigaction = gpu_sig, .sa_flags = SA_ONSTACK | SA_SIGINFO };
+#else
   struct sigaction sa = { .sa_handler = err_trap, .sa_flags = SA_ONSTACK };
+#endif
   sigaction(SIGSEGV, &sa, NULL);
   sigaction(SIGBUS, &sa, NULL);
   return (Term*)p;
@@ -4059,11 +4610,11 @@ static void gpu_note(const char* path) {
     " stale)\n", path);
 }
 
-#if !BEND_CUDA
+#if !BEND_CUDA && !BEND_VULKAN
 #define gpu_map pool_mmap
 #endif
 
-#if BEND_METAL || BEND_CUDA
+#if BEND_METAL || BEND_CUDA || BEND_VULKAN
 
 static void gpu_kernel(u32 pass, u32 groups);
 
@@ -4080,10 +4631,11 @@ static void gpu_run(u32 f) {
 
 #endif
 
-#if BEND_CUDA
+#if BEND_CUDA || BEND_VULKAN
 
+// (a Vulkan program's key differs from CUDA's for the same text)
 static u64 gpu_hash(void) {
-  u64 key = 14695981039346656037ull ^ CUBE_LOG;
+  u64 key = 14695981039346656037ull ^ CUBE_LOG ^ ((u64)BEND_VULKAN << 40);
   for (const char* p = BEND_SRC; *p != 0; p += 1) {
     key = (key ^ (u8)*p) * 1099511628211ull;
   }
@@ -4621,6 +5173,680 @@ static void gpu_pass(u32 f) {
   }
   gpu_fetch_take();
 }
+
+#elif BEND_VULKAN
+
+// Vulkan: one device and one queue (the first family that both computes and
+// draws, so an app embedding Bend can draw on it too), the corpus a device
+// buffer the GPU program reaches by its address. Vulkan shares no memory
+// both sides use at full speed, so the host works on a copy it pages in on
+// demand, as CUDA does on Windows (see there): a page's first touch after a
+// launch faults and fetches it, the written pages go back before the next
+// launch (small ones through bend_pages), and the hot ones come out after
+// it. A second fault on a page the host holds is a write, so the fault needs
+// no decoding. Launches and copies are recorded into one command buffer and
+// run at the wait (gpu_flush); one lock covers the pages and the queue.
+
+typedef struct {
+  u64 heap;
+  u32 pass;
+  u32 grids;
+  u64 list;
+  u64 stage;
+  u32 n;
+  u32 in;
+} GpuArgs;  // the push constants (BendArgs on the device)
+
+typedef struct {
+  VkBuffer       buf;
+  VkDeviceMemory mem;
+  u64            at;   // its device address
+  char*          map;  // its host view (host-visible buffers)
+} GpuBuf;
+
+#define GPU_STAGE   256        // pages a kernel moves
+#define GPU_RELEARN 64         // launches between relearning the hot pages
+#define GPU_RUN     16         // a run this long is a plain copy
+#define GPU_BULK    (4u << 20) // bytes a plain copy moves at a time
+
+static VkInstance         gpu_inst;
+static VkPhysicalDevice   gpu_phys;
+static VkDevice           gpu_dev;
+static u32                gpu_family;
+static VkQueue            gpu_queue;
+static VkPipelineLayout   gpu_layout;
+static VkPipeline         gpu_pso;
+static VkPipeline         gpu_pages_pso;
+static VkPipeline         gpu_blit_pso;
+static VkCommandPool      gpu_cmds;
+static VkCommandBuffer    gpu_cb;
+static VkFence            gpu_fence;
+static bool               gpu_rec;    // gpu_cb is recording
+static pthread_mutex_t    gpu_qlock = PTHREAD_MUTEX_INITIALIZER;  // submits (an app drawing shares the queue)
+static atomic_uint        gpu_qwant;  // submits waiting for gpu_qlock (an app yields to them)
+static bool               gpu_qshared;  // the family's one queue (else Bend's is its second)
+static VkSemaphore        gpu_wait_sem; // the next submit waits for this timeline to reach gpu_wait_at
+static u64                gpu_wait_at;
+// With BEND_VK_STAMPS set, each command's time on the GPU (timestamps
+// between them), summed by its kind (a pass and groups, or a copy) for
+// gpu_stamps_take: for measuring.
+#define GPU_STAMPS 32
+static VkQueryPool gpu_stamp_pool;
+static double      gpu_stamp_ns;    // per tick
+static u32         gpu_nstamp;      // commands stamped in the buffer recording
+static u32         gpu_stamp_kind[GPU_STAMPS];
+static u32         gpu_kind_next;   // the kind of the next command
+static double      gpu_kind_ms[GPU_STAMPS];
+static u64         gpu_kind_n[GPU_STAMPS];
+static u32         gpu_kind_id[GPU_STAMPS];
+static u32         gpu_nkinds;
+static const char* const* gpu_iexts;  // extensions an embedding app needs
+static u32                gpu_niexts;
+static const char* const* gpu_dexts;
+static u32                gpu_ndexts;
+static GpuBuf             gpu_heap;   // the corpus on the device
+static GpuBuf             gpu_xfer;   // host-visible: page stages and lists, and a bulk area
+static char*              gpu_fill;   // the host's copy, always writable
+static u8*                gpu_held;   // per page: 0 not held, 1 held, 2 held and written, 3 hot
+static u32*               gpu_list;   // the pages held
+static u32                gpu_nheld;
+static u32*               gpu_last;   // the pages held when last given up
+static u32                gpu_nlast;
+static u64                gpu_pages;
+static u64                gpu_faults; // pages fetched on a fault, and the time, so far
+static u64                gpu_fault_ns;
+static u64*               gpu_in_stage;
+static u64*               gpu_out_stage;
+static char*              gpu_bulk;
+static u32*               gpu_in_list;
+static u32*               gpu_out_list;
+static u32                gpu_nout;
+#ifdef _WIN32
+static SRWLOCK gpu_lock = SRWLOCK_INIT;
+#define gpu_lock_on()  AcquireSRWLockExclusive(&gpu_lock)
+#define gpu_lock_off() ReleaseSRWLockExclusive(&gpu_lock)
+#define GPU_Q    "\""  // (cmd.exe wants the whole command quoted too)
+#define GPU_NULL " >nul 2>&1"
+#else
+static pthread_mutex_t gpu_lock = PTHREAD_MUTEX_INITIALIZER;
+#define gpu_lock_on()  pthread_mutex_lock(&gpu_lock)
+#define gpu_lock_off() pthread_mutex_unlock(&gpu_lock)
+#define GPU_Q    ""
+#define GPU_NULL " >/dev/null 2>&1"
+#endif
+static u64 io_tick(void);
+
+static const char* gpu_slangc(void) {
+  const char* c = getenv("BEND_SLANGC");
+  return c != NULL ? c : "slangc";
+}
+
+static char* gpu_read(const char* path, long* n) {
+  FILE* in   = fopen(path, "rb");
+  long  size = in != NULL && fseek(in, 0, SEEK_END) == 0 ? ftell(in) : 0;
+  char* bin  = size > 0 ? malloc((size_t)size) : NULL;
+  if (bin != NULL && (fseek(in, 0, SEEK_SET) != 0
+    || fread(bin, 1, (size_t)size, in) != (size_t)size)) {
+    free(bin);
+    bin = NULL;
+  }
+  if (in != NULL) {
+    fclose(in);
+  }
+  *n = size;
+  return bin;
+}
+
+// A GPU program to run: the sidecar made for this source, or slangc (at
+// $BEND_SLANGC, else on the PATH) to make one; else the bangs run on the CPU.
+static bool gpu_ready(void) {
+  FILE* in  = fopen(gpu_path(), "rb");
+  u64   key = 0;
+  bool  ok  = in != NULL && fread(&key, 8, 1, in) == 1 && key == gpu_hash();
+  if (in != NULL) {
+    fclose(in);
+  }
+  if (!ok) {
+    char cmd[4200];
+    snprintf(cmd, sizeof cmd, GPU_Q "\"%s\" -v" GPU_NULL GPU_Q, gpu_slangc());
+    ok = system(cmd) == 0;
+  }
+  if (!ok) {
+    fprintf(stderr, "bend: no GPU program for this device (%s) and no slangc to"
+      " make one; running on the CPU\n", gpu_path());
+  }
+  return ok;
+}
+
+// (again, once open: an embedding app opens it first, to draw on it)
+static bool gpu_probe(void) {
+  VkPhysicalDevice pds[8];
+  u32              n = 8;
+  if (gpu_dev != NULL) {
+    return true;
+  }
+  if (!gpu_open_vk()) {
+    return false;
+  }
+  VkApplicationInfo    app = { 0, NULL, "bend", 0, "bend", 0, (1u << 22) | (3u << 12) };
+  VkInstanceCreateInfo ic  = { 1, NULL, 0, &app, 0, NULL, gpu_niexts, gpu_iexts };
+  if (vkCreateInstance(&ic, NULL, &gpu_inst) != 0 || !gpu_load_vk(gpu_inst)
+    || vkEnumeratePhysicalDevices(gpu_inst, &n, pds) < 0 || n == 0) {
+    return false;
+  }
+  gpu_phys = pds[0];
+  for (u32 i = 0; i < n; i += 1) {
+    VkPhysicalDeviceProperties pp;
+    vkGetPhysicalDeviceProperties(pds[i], &pp);
+    if (pp.type == 2) {  // a discrete GPU first
+      gpu_phys = pds[i];
+      break;
+    }
+  }
+  VkQueueFamilyProperties fams[16];
+  u32                     nf = 16;
+  vkGetPhysicalDeviceQueueFamilyProperties(gpu_phys, &nf, fams);
+  for (gpu_family = 0; gpu_family < nf && (fams[gpu_family].flags & 3) != 3;
+    gpu_family += 1) {
+  }
+  if (gpu_family == nf) {
+    return false;
+  }
+  // The GPU program's 64- and 8-bit integers, and its pointers; timeline
+  // semaphores for an app drawing on another queue.
+  VkPhysicalDeviceVulkan12Features f12 = { 51, NULL };
+  VkPhysicalDeviceFeatures2        f2  = { 1000059000, &f12 };
+  f12.on[8] = 1, f12.on[37] = 1, f12.on[38] = 1, f2.on[40] = 1;
+  // Two queues of the family if it has them: an app drawing on the device
+  // takes the first (as SDL does), and Bend's submits need not wait for its.
+  u32                     nq      = fams[gpu_family].count > 1 ? 2 : 1;
+  float                   prio[2] = { 1, 1 };
+  VkDeviceQueueCreateInfo qi      = { 2, NULL, 0, gpu_family, nq, prio };
+  VkDeviceCreateInfo      dc   = { 3, &f2, 0, 1, &qi, 0, NULL, gpu_ndexts,
+    gpu_dexts, NULL };
+  VkCommandPoolCreateInfo     pc = { 39, NULL, 2, gpu_family };
+  VkCommandBufferAllocateInfo ca = { 40, NULL, 0, 0, 1 };
+  VkFenceCreateInfo           fc = { 8, NULL, 0 };
+  if (vkCreateDevice(gpu_phys, &dc, NULL, &gpu_dev) != 0) {
+    return false;
+  }
+  vkGetDeviceQueue(gpu_dev, gpu_family, nq - 1, &gpu_queue);
+  gpu_qshared = nq == 1;
+  if (vkCreateCommandPool(gpu_dev, &pc, NULL, &gpu_cmds) != 0) {
+    return false;
+  }
+  ca.pool = gpu_cmds;
+  if (getenv("BEND_VK_STAMPS") != NULL) {
+    VkQueryPoolCreateInfo   qc = { 11, NULL, 0, 2, GPU_STAMPS + 1, 0 };
+    VkPhysicalDeviceProperties pp;
+    vkGetPhysicalDeviceProperties(gpu_phys, &pp);
+    float period;
+    memcpy(&period, pp.rest + 444, 4);  // (limits.timestampPeriod)
+    gpu_stamp_ns = period;
+    if (vkCreateQueryPool(gpu_dev, &qc, NULL, &gpu_stamp_pool) != 0) {
+      gpu_stamp_pool = 0;
+    }
+  }
+  return vkAllocateCommandBuffers(gpu_dev, &ca, &gpu_cb) == 0
+    && vkCreateFence(gpu_dev, &fc, NULL, &gpu_fence) == 0 && gpu_ready();
+}
+
+static bool gpu_make(const char* path) {
+  char src[4200], spv[4200], cmd[13000];
+  u64  n = strlen(BEND_SRC);
+  snprintf(src, sizeof src, "%s.slang", path);
+  snprintf(spv, sizeof spv, "%s.spv", path);
+  FILE* f = fopen(src, "wb");
+  if (f == NULL || fwrite(BEND_SRC, 1, n, f) != n || fclose(f) != 0) {
+    err_fail("cannot write the GPU program's source");
+  }
+  snprintf(cmd, sizeof cmd, GPU_Q "\"%s\" \"%s\" -target spirv -O2 -DCUBE_LOG=%u"
+    " -fvk-use-entrypoint-name -o \"%s\"" GPU_NULL GPU_Q, gpu_slangc(), src,
+    CUBE_LOG, spv);
+  int   rc  = system(cmd);
+  long  len = 0;
+  char* bin = gpu_read(spv, &len);
+  remove(src);
+  remove(spv);
+  if (rc != 0 || bin == NULL) {
+    err_fail("cannot compile the GPU program (slangc)");
+  }
+  u64   key = gpu_hash();
+  FILE* out = fopen(path, "wb");
+  bool  ok  = out != NULL && fwrite(&key, 8, 1, out) == 1
+    && fwrite(bin, 1, (size_t)len, out) == (size_t)len && fclose(out) == 0;
+  free(bin);
+  return ok;
+}
+
+// A device-local heap's half.
+static u64 gpu_span(void) {
+  VkPhysicalDeviceMemoryProperties mp;
+  vkGetPhysicalDeviceMemoryProperties(gpu_phys, &mp);
+  u64 most = 0;
+  for (u32 i = 0; i < mp.nheaps; i += 1) {
+    if ((mp.heaps[i].flags & 1) != 0 && mp.heaps[i].size > most) {
+      most = mp.heaps[i].size;
+    }
+  }
+  return most / 2;
+}
+
+// Of the memory types in the mask, one with the want properties (and the
+// nice ones if some has them), or ~0u.
+static u32 gpu_mem_pick(u32 mask, VkFlags want, VkFlags nice) {
+  VkPhysicalDeviceMemoryProperties mp;
+  vkGetPhysicalDeviceMemoryProperties(gpu_phys, &mp);
+  for (u32 k = 0; k < 2; k += 1) {
+    VkFlags w = k == 0 ? want | nice : want;
+    for (u32 t = 0; t < mp.ntypes; t += 1) {
+      if ((mask >> t & 1) != 0 && (mp.types[t].flags & w) == w) {
+        return t;
+      }
+    }
+  }
+  return ~0u;
+}
+
+// A buffer the GPU program can address, in memory with the want properties
+// (and the nice ones if some has them), mapped if host-visible.
+static bool gpu_buf_new(GpuBuf* b, u64 bytes, VkFlags want, VkFlags nice) {
+  VkBufferCreateInfo   bi = { 12, NULL, 0, bytes, 0x20023, 0, 0, NULL };
+  VkMemoryRequirements mr;
+  if (vkCreateBuffer(gpu_dev, &bi, NULL, &b->buf) != 0) {
+    return false;
+  }
+  vkGetBufferMemoryRequirements(gpu_dev, b->buf, &mr);
+  u32 t = gpu_mem_pick(mr.types, want, nice);
+  VkMemoryAllocateFlagsInfo fl = { 1000060000, NULL, 2, 0 };
+  VkMemoryAllocateInfo      ai = { 5, &fl, mr.size, t };
+  VkBufferDeviceAddressInfo di = { 1000244001, NULL, 0 };
+  if (t == ~0u || vkAllocateMemory(gpu_dev, &ai, NULL, &b->mem) != 0
+    || vkBindBufferMemory(gpu_dev, b->buf, b->mem, 0) != 0) {
+    return false;
+  }
+  di.buf = b->buf;
+  b->at  = vkGetBufferDeviceAddress(gpu_dev, &di);
+  return (want & 2) == 0
+    || vkMapMemory(gpu_dev, b->mem, 0, bytes, 0, (void**)&b->map) == 0;
+}
+
+static void gpu_load(u64 bytes) {
+  const char* path = gpu_path();
+  long        n    = 0;
+  char*       bin  = gpu_read(path, &n);
+  u64         key  = 0;
+  if (bin != NULL && n > 8) {
+    memcpy(&key, bin, 8);
+  }
+  if (key != gpu_hash()) {
+    free(bin);
+    gpu_note(path);
+    gpu_make(path);
+    bin = gpu_read(path, &n);
+  }
+  if (bin == NULL || n <= 8) {
+    err_fail("cannot load the GPU program");
+  }
+  VkShaderModule           mod;
+  VkPipeline               ps[3];
+  VkShaderModuleCreateInfo mc = { 16, NULL, 0, (size_t)(n - 8),
+    (const uint32_t*)(bin + 8) };
+  VkPushConstantRange        pr = { 0x20, 0, sizeof(GpuArgs) };
+  VkPipelineLayoutCreateInfo lc = { 30, NULL, 0, 0, NULL, 1, &pr };
+  if (vkCreateShaderModule(gpu_dev, &mc, NULL, &mod) != 0
+    || vkCreatePipelineLayout(gpu_dev, &lc, NULL, &gpu_layout) != 0) {
+    err_fail("cannot load the GPU program");
+  }
+  VkComputePipelineCreateInfo pc[3] = {
+    { 29, NULL, 0, { 18, NULL, 0, 0x20, mod, "bend_dev", NULL }, gpu_layout, 0, -1 },
+    { 29, NULL, 0, { 18, NULL, 0, 0x20, mod, "bend_pages", NULL }, gpu_layout, 0, -1 },
+    { 29, NULL, 0, { 18, NULL, 0, 0x20, mod, "bend_blit", NULL }, gpu_layout, 0, -1 } };
+  if (vkCreateComputePipelines(gpu_dev, 0, 3, pc, NULL, ps) != 0) {
+    err_fail("cannot load the GPU program");
+  }
+  gpu_pso       = ps[0];
+  gpu_pages_pso = ps[1];
+  gpu_blit_pso  = ps[2];
+  free(bin);
+}
+
+// Commands: each after a barrier on everything before it, on the queue too.
+static void gpu_cmd(void) {
+  if (!gpu_rec) {
+    VkCommandBufferBeginInfo bi = { 42, NULL, 1, NULL };
+    vkBeginCommandBuffer(gpu_cb, &bi);
+    gpu_rec = true;
+    if (gpu_stamp_pool != 0) {
+      vkCmdResetQueryPool(gpu_cb, gpu_stamp_pool, 0, GPU_STAMPS + 1);
+      gpu_nstamp = 0;
+    }
+  }
+  VkMemoryBarrier mb = { 46, NULL, 0x10000, 0x18000 };
+  vkCmdPipelineBarrier(gpu_cb, 0x10000, 0x10000, 0, 1, &mb, 0, NULL, 0, NULL);
+  if (gpu_stamp_pool != 0 && gpu_nstamp < GPU_STAMPS) {
+    vkCmdWriteTimestamp(gpu_cb, 0x2000, gpu_stamp_pool, gpu_nstamp);
+    gpu_stamp_kind[gpu_nstamp++] = gpu_kind_next;
+  }
+  gpu_kind_next = 0;
+}
+
+// The stamps of the buffer just run, summed by kind.
+static void gpu_stamps_add(void) {
+  u64 t[GPU_STAMPS + 1];
+  u32 n = gpu_nstamp;
+  if (n == 0 || vkGetQueryPoolResults(gpu_dev, gpu_stamp_pool, 0, n + 1, sizeof t,
+    t, 8, 1 | 2) != 0) {
+    return;
+  }
+  for (u32 i = 0; i < n; i += 1) {
+    u32 k = 0;
+    while (k < gpu_nkinds && gpu_kind_id[k] != gpu_stamp_kind[i]) {
+      k += 1;
+    }
+    if (k == gpu_nkinds && gpu_nkinds < GPU_STAMPS) {
+      gpu_kind_id[gpu_nkinds++] = gpu_stamp_kind[i];
+    }
+    if (k < gpu_nkinds) {
+      gpu_kind_ms[k] += (double)(t[i + 1] - t[i]) * gpu_stamp_ns / 1e6;
+      gpu_kind_n[k] += 1;
+    }
+  }
+}
+
+// The kinds so far ((pass + 1) * 1000 + groups for a kernel, 1 a copy, 2 a
+// page kernel, 4 an app's copy into an image, 0 else), each's mean ms and
+// count; then starts over.
+static int gpu_stamps_take(u32* kind, double* ms, u64* n, int most) {
+  int k = 0;
+  for (; k < most && k < (int)gpu_nkinds; k += 1) {
+    kind[k] = gpu_kind_id[k], n[k] = gpu_kind_n[k];
+    ms[k] = gpu_kind_n[k] ? gpu_kind_ms[k] / (double)gpu_kind_n[k] : 0;
+  }
+  gpu_nkinds = 0;
+  memset(gpu_kind_ms, 0, sizeof gpu_kind_ms);
+  memset(gpu_kind_n, 0, sizeof gpu_kind_n);
+  return k;
+}
+
+// Runs the recorded commands and waits for them (their writes then visible
+// to the host).
+static void gpu_flush(void) {
+  if (!gpu_rec) {
+    return;
+  }
+  if (gpu_stamp_pool != 0 && gpu_nstamp > 0) {
+    vkCmdWriteTimestamp(gpu_cb, 0x2000, gpu_stamp_pool, gpu_nstamp);
+  }
+  VkMemoryBarrier mb = { 46, NULL, 0x10000, 0x2000 };
+  VkFlags         ws = 0x10000;
+  VkTimelineSemaphoreSubmitInfo ti = { 1000207003, NULL, 1, &gpu_wait_at, 0, NULL };
+  VkSubmitInfo    si = { 4, NULL, 0, NULL, NULL, 1, &gpu_cb, 0, NULL };
+  if (gpu_wait_at != 0) {
+    si.pNext = &ti, si.nwaits = 1, si.waits = &gpu_wait_sem, si.wait_stages = &ws;
+  }
+  vkCmdPipelineBarrier(gpu_cb, 0x10000, 0x4000, 0, 1, &mb, 0, NULL, 0, NULL);
+  vkEndCommandBuffer(gpu_cb);
+  gpu_rec = false;
+  atomic_fetch_add(&gpu_qwant, 1);
+  pthread_mutex_lock(&gpu_qlock);
+  atomic_fetch_sub(&gpu_qwant, 1);
+  VkResult r = vkQueueSubmit(gpu_queue, 1, &si, gpu_fence);
+  pthread_mutex_unlock(&gpu_qlock);
+  gpu_wait_at = 0;
+  if (r != 0 || vkWaitForFences(gpu_dev, 1, &gpu_fence, 1, ~0ull) != 0
+    || vkResetFences(gpu_dev, 1, &gpu_fence) != 0) {
+    err_fail("device fault");
+  }
+  if (gpu_stamp_pool != 0) {
+    gpu_stamps_add();
+  }
+}
+
+static void gpu_launch(VkPipeline p, const GpuArgs* a, u32 groups) {
+  gpu_cmd();
+  vkCmdBindPipeline(gpu_cb, 1, p);
+  vkCmdPushConstants(gpu_cb, gpu_layout, 0x20, 0, sizeof *a, a);
+  vkCmdDispatch(gpu_cb, groups, 1, 1);
+}
+
+static void gpu_kernel(u32 pass, u32 groups) {
+  GpuArgs a = { gpu_heap.at, pass, groups };
+  gpu_kind_next = (pass + 1) * 1000 + groups;
+  gpu_launch(gpu_pso, &a, groups);
+}
+
+static void gpu_pages_run(u32* list, u32 n, u64* stage, u32 in) {
+  GpuArgs a = { gpu_heap.at, 0, n, gpu_xfer.at + (u64)((char*)list - gpu_xfer.map),
+    gpu_xfer.at + (u64)((char*)stage - gpu_xfer.map), n, in };
+  gpu_kind_next = 2;
+  gpu_launch(gpu_pages_pso, &a, n);
+}
+
+// Rows of n 32-bit words at byte at of the corpus into device memory at dst,
+// pitch bytes apart (an app's frame into an image).
+static void gpu_blit(u64 at, u64 dst, u32 n, u32 rows, u32 pitch) {
+  GpuArgs a = { gpu_heap.at, 0, rows, gpu_heap.at + at, dst, n, pitch };
+  gpu_kind_next = 4;
+  gpu_launch(gpu_blit_pso, &a, rows);
+}
+
+static void gpu_copy(GpuBuf* src, u64 from, GpuBuf* dst, u64 to, u64 n) {
+  VkBufferCopy c = { from, to, n };
+  gpu_kind_next = 1;
+  gpu_cmd();
+  vkCmdCopyBuffer(gpu_cb, src->buf, dst->buf, 1, &c);
+}
+
+// (level 0: no access, 1: read, 2: read and write)
+static bool gpu_guard(u64 i, u64 n, u32 level) {
+#ifdef _WIN32
+  static const DWORD how[] = { PAGE_NOACCESS, PAGE_READONLY, PAGE_READWRITE };
+  DWORD old;
+  return VirtualProtect((char*)CORPUS + (i << 12), n << 12, how[level], &old) != 0;
+#else
+  static const int how[] = { PROT_NONE, PROT_READ, PROT_READ | PROT_WRITE };
+  return mprotect((char*)CORPUS + (i << 12), n << 12, how[level]) == 0;
+#endif
+}
+
+// A fault at p: if p is in the corpus, fetches or opens its page.
+static bool gpu_hit(const void* p) {
+  char* at = (char*)p;
+  if (gpu_held == NULL || at < (char*)CORPUS
+    || at >= (char*)CORPUS + (gpu_pages << 12)) {
+    return false;
+  }
+  u64 i = (u64)(at - (char*)CORPUS) >> 12;
+  gpu_lock_on();
+  if (gpu_held[i] == 0) {
+    u64 t = io_tick();
+    gpu_copy(&gpu_heap, i << 12, &gpu_xfer, (u64)(gpu_bulk - gpu_xfer.map), 4096);
+    gpu_flush();
+    memcpy(gpu_fill + (i << 12), gpu_bulk, 4096);
+    gpu_faults += 1, gpu_fault_ns += io_tick() - t;
+    gpu_held[i]           = 1;
+    gpu_list[gpu_nheld++] = (u32)i;
+  } else {
+    gpu_held[i] = 2;
+  }
+  bool ok = gpu_guard(i, 1, gpu_held[i]);
+  gpu_lock_off();
+  return ok;
+}
+
+#ifdef _WIN32
+static LONG CALLBACK gpu_fault(EXCEPTION_POINTERS* x) {
+  return x->ExceptionRecord->ExceptionCode == EXCEPTION_ACCESS_VIOLATION
+    && gpu_hit((void*)x->ExceptionRecord->ExceptionInformation[1])
+    ? EXCEPTION_CONTINUE_EXECUTION : EXCEPTION_CONTINUE_SEARCH;
+}
+#else
+static void gpu_sig(int sig, siginfo_t* si, void* uc) {
+  if (!gpu_hit(si->si_addr)) {
+    err_trap(sig);
+  }
+}
+#endif
+
+static int gpu_page_cmp(const void* a, const void* b) {
+  u32 x = *(const u32*)a, y = *(const u32*)b;
+  return (x > y) - (x < y);
+}
+
+// As CUDA's on Windows (see there), under the lock.
+static void gpu_send(bool give_up, u64 lo, u64 hi) {
+  static u32 launches;
+  qsort(gpu_list, gpu_nheld, sizeof *gpu_list, gpu_page_cmp);
+  u32 m = 0, kept = 0;
+  u32 room = give_up && ++launches % GPU_RELEARN == 0 ? 0 : GPU_STAGE;
+  for (u32 k = 0, j; k < gpu_nheld; k = j) {
+    u64 i  = gpu_list[k];
+    u8  st = gpu_held[i];
+    for (j = k + 1; j < gpu_nheld && gpu_list[j] == i + (j - k)
+      && gpu_held[gpu_list[j]] == st; j += 1) {
+    }
+    u64 n = j - k;
+    if (!give_up) {
+      u64 a = i < lo ? lo : i, b = i + n < hi ? i + n : hi;
+      if (a >= b) {
+        continue;
+      }
+      i = a, n = b - a;
+    }
+    if (st >= 2 && n >= GPU_RUN) {
+      for (u64 at = i << 12, end = (i + n) << 12; at < end; at += GPU_BULK) {
+        u64 len = end - at < GPU_BULK ? end - at : GPU_BULK;
+        memcpy(gpu_bulk, gpu_fill + at, len);
+        gpu_copy(&gpu_xfer, (u64)(gpu_bulk - gpu_xfer.map), &gpu_heap, at, len);
+        gpu_flush();
+      }
+    } else if (st >= 2) {
+      for (u64 p = i; p < i + n; p += 1) {
+        if (m == GPU_STAGE) {
+          gpu_pages_run(gpu_in_list, m, gpu_in_stage, 1);
+          gpu_flush();
+          m = 0;
+        }
+        memcpy(gpu_in_stage + ((u64)m << 9), gpu_fill + (p << 12), 4096);
+        gpu_in_list[m++] = (u32)p;
+      }
+    }
+    if (give_up) {
+      u64 keep = kept + n <= room ? n : room - kept;
+      for (u64 p = i; p < i + keep; p += 1) {
+        gpu_last[kept++] = (u32)p;
+      }
+      if (keep < n) {
+        gpu_guard(i + keep, n - keep, 0);
+        memset(gpu_held + i + keep, 0, n - keep);
+      }
+    } else if (st == 2) {
+      gpu_guard(i, n, 1);
+      memset(gpu_held + i, 1, n);
+    }
+  }
+  if (m > 0) {
+    gpu_pages_run(gpu_in_list, m, gpu_in_stage, 1);
+  }
+  if (give_up) {
+    gpu_nlast = kept, gpu_nheld = 0;
+  }
+}
+
+static void gpu_fetch_queue(void) {
+  gpu_nout = gpu_nlast;
+  memcpy(gpu_out_list, gpu_last, gpu_nout * sizeof *gpu_out_list);
+  if (gpu_nout > 0) {
+    gpu_pages_run(gpu_out_list, gpu_nout, gpu_out_stage, 0);
+  }
+}
+
+static void gpu_fetch_take(void) {
+  for (u32 m = 0; m < gpu_nout; m += 1) {
+    u64 i = gpu_out_list[m];
+    memcpy(gpu_fill + (i << 12), gpu_out_stage + ((u64)m << 9), 4096);
+    if (gpu_held[i] != 3) {
+      gpu_guard(i, 1, 2);
+      gpu_held[i] = 3;
+    }
+    gpu_list[gpu_nheld++] = (u32)i;
+  }
+  gpu_nout = 0;
+}
+
+static u64* gpu_map(u64 bytes) {
+  u64 xfer = 2 * ((u64)GPU_STAGE << 12) + GPU_BULK + 2 * GPU_STAGE * 4;
+  gpu_pages = bytes >> 12;
+  gpu_held  = calloc(gpu_pages, 1);
+  gpu_list  = malloc(gpu_pages * sizeof *gpu_list);
+  gpu_last  = malloc(gpu_pages * sizeof *gpu_last);
+#ifdef _WIN32
+  HANDLE sec = CreateFileMappingA(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE,
+    (DWORD)(bytes >> 32), (DWORD)bytes, NULL);
+  char*  view = sec ? MapViewOfFile(sec, FILE_MAP_ALL_ACCESS, 0, 0, bytes) : NULL;
+  gpu_fill    = sec ? MapViewOfFile(sec, FILE_MAP_ALL_ACCESS, 0, 0, bytes) : NULL;
+  DWORD old;
+  bool  shut  = view != NULL && VirtualProtect(view, bytes, PAGE_NOACCESS, &old);
+#else
+  int   fd   = memfd_create("bend", 0);
+  char* view = fd < 0 || ftruncate(fd, (off_t)bytes) != 0 ? MAP_FAILED
+    : mmap(NULL, bytes, PROT_NONE, MAP_SHARED, fd, 0);
+  gpu_fill   = view == MAP_FAILED ? MAP_FAILED
+    : mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+  view       = view == MAP_FAILED ? NULL : view;
+  gpu_fill   = gpu_fill == MAP_FAILED ? NULL : gpu_fill;
+  bool shut  = true;
+#endif
+  if (view == NULL || gpu_fill == NULL || !shut || gpu_held == NULL
+    || gpu_list == NULL || gpu_last == NULL
+    || !gpu_buf_new(&gpu_heap, bytes, 1, 0)
+    || !gpu_buf_new(&gpu_xfer, xfer, 6, 8)) {
+    err_fail("corpus reservation failed");
+  }
+  gpu_in_stage  = (u64*)gpu_xfer.map;
+  gpu_out_stage = gpu_in_stage + ((u64)GPU_STAGE << 9);
+  gpu_bulk      = (char*)(gpu_out_stage + ((u64)GPU_STAGE << 9));
+  gpu_in_list   = (u32*)(gpu_bulk + GPU_BULK);
+  gpu_out_list  = gpu_in_list + GPU_STAGE;
+  gpu_cmd();
+  vkCmdFillBuffer(gpu_cb, gpu_heap.buf, 0, ~0ull, 0);
+  gpu_flush();
+#ifdef _WIN32
+  AddVectoredExceptionHandler(1, gpu_fault);
+#else
+  struct sigaction sa = { .sa_sigaction = gpu_sig, .sa_flags = SA_ONSTACK | SA_SIGINFO };
+  sigaction(SIGSEGV, &sa, NULL);
+#endif
+  return (u64*)view;
+}
+
+// Copies n bytes at byte at of the corpus on the device to dst, a bulk area
+// at a time (the host's writes there go first).
+static void gpu_fetch(void* dst, u64 at, u64 n) {
+  gpu_lock_on();
+  gpu_send(false, at >> 12, (at + n + 4095) >> 12);
+  for (u64 k = 0; k < n; k += GPU_BULK) {
+    u64 len = n - k < GPU_BULK ? n - k : GPU_BULK;
+    gpu_copy(&gpu_heap, at + k, &gpu_xfer, (u64)(gpu_bulk - gpu_xfer.map), len);
+    gpu_flush();
+    memcpy((char*)dst + k, gpu_bulk, len);
+  }
+  gpu_lock_off();
+}
+
+static void gpu_pass(u32 f) {
+  gpu_lock_on();
+  gpu_send(true, 0, ~0ull);
+  gpu_run(f);
+  gpu_fetch_queue();
+  gpu_flush();
+  gpu_fetch_take();
+  gpu_lock_off();
+}
+
+#define gpu_fault_count() gpu_faults
+#define gpu_fault_time()  gpu_fault_ns
 
 #else
 
@@ -5538,7 +6764,7 @@ OUTLINE void io_loop(u64* H) {
 
 #define BENDVIZ_MAX 4096
 #define BENDVIZ_PIXELS (1L << 23)  // the most pixels: the program's buffers (as in bendviz.h)
-#define BENDVIZ_TEXTURES 4          // textures shared with Direct3D (as in bendviz.h)
+#define BENDVIZ_TEXTURES 4          // images the player draws frames from (as in bendviz.h)
 
 static pthread_mutex_t bv_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t  bv_asked = PTHREAD_COND_INITIALIZER;
@@ -5551,11 +6777,9 @@ static u32*            bv_back;                        // where the next one is 
 static size_t          bv_cap;                         // pixels each of those holds
 static bool            bv_pinned;                      // they are page-locked (for the GPU's copies)
 static bool            bv_lent;                        // the player is reading the front buffer
-// Frames the player takes on the device (graphics interop): they never visit the host.
+// Frames the player takes on the device: they never visit the host.
 static bool            bv_device_ok;                   // the player can take them
-static unsigned long long bv_dev_front;                // the newest frame, in Bend's heap (CUdeviceptr)
-static bool            bv_front_on_device;             // the newest frame is bv_dev_front
-static bool            bv_front_shared;                // or in a shared texture (bendviz_d3d11_take)
+static bool            bv_front_shared;                // the newest frame is in an image the player draws (bendviz_vk_take)
 // Counts for the stats: frames Bend finished and dropped, and the time from a request (the first
 // not yet served) to the helper taking it and to Bend starting on it, summed over the frames.
 static u64             bv_asked_at, bv_took_at;
@@ -5580,23 +6804,6 @@ static void bv_trace(const char* what, long a, long b) {
   }
   pthread_mutex_unlock(&bv_trace_lock);
 }
-#if BEND_CUDA && defined(_WIN32)
-// The player's copy out of a frame into its texture is queued, and finishes on the GPU after the
-// player has moved on. An event marks it done, which drawing into that buffer again waits for, on
-// the GPU.
-typedef struct CUevent_st* BvReadEvent;
-static BvReadEvent bv_read_front;  // the player's copy out of the frame shown last
-static CUresult (CUDAAPI* bv_ev_wait)(CUstream, BvReadEvent, unsigned);
-static CUresult (CUDAAPI* bv_ev_mark)(BvReadEvent, CUstream);
-// A frame's copy queued behind its kernels (bv_early_copy).
-static struct {
-  unsigned long long shown[2];  // the buffers of the last two frames shown, newest first
-  pthread_t thread;             // Bend's thread
-  bool drawing;                 // from the frame's start (viz_next_pack) to its show
-  u32 waits;                    // waits for the GPU since the frame started
-  unsigned long long at;        // the buffer copied early, or 0
-} bv_early;
-#endif
 static int             bv_done_w, bv_done_h;
 static bool            bv_fresh, bv_done_gpu;
 static double          bv_ms;                          // how long the last frame took, all told
@@ -5636,8 +6843,16 @@ static Term viz_next_pack(Env e, IoWork* w) {
 #ifdef BENDVIZ_EMBED
   bv_count_launches();
 #endif
-#if BEND_CUDA && defined(_WIN32)
-  bv_early.thread = pthread_self(), bv_early.drawing = true, bv_early.waits = 0, bv_early.at = 0;
+#if BEND_VULKAN
+  // With BEND_VK_STAMPS: the GPU's time for each kind of command, every 500 frames, on stderr.
+  static u32 frames;
+  if (gpu_stamp_pool != 0 && ++frames % 500 == 0) {
+    u32 kind[GPU_STAMPS];
+    double ms[GPU_STAMPS];
+    u64 n[GPU_STAMPS];
+    int k = gpu_stamps_take(kind, ms, n, GPU_STAMPS);
+    for (int i = 0; i < k; i += 1) fprintf(stderr, "stamps: kind %u: %.3f ms x %.2f a frame\n", kind[i], ms[i], n[i] / 500.0);
+  }
 #endif
   bv_began = io_tick();
   bv_trace("began", 0, 0);
@@ -5694,250 +6909,129 @@ static bool bv_room(size_t n) {
   return bv_cap >= n;
 }
 
-#if BEND_CUDA && defined(_WIN32)
-// ---- Frames into Direct3D textures shared with CUDA ----
 
-// The player's side (gtube's viz.c) makes four textures and two fences, shared as NT handles
-// (bendviz_d3d11_share). Bend imports them into CUDA once, and after each frame copies it into a
-// texture neither on screen nor waiting to be taken, on its own stream, after waiting (on the GPU)
-// for Direct3D to be done with that texture, then signals its fence. The player makes Direct3D wait
-// (on the GPU) for that signal before drawing the texture, and signals its own fence as it goes. No
-// texture is mapped each frame, so neither thread holds up the other's calls into the driver (the
-// map cost Bend's launches 0.4 ms a frame at 4K), and the player takes a frame in no time.
+#if BEND_VULKAN
+// ---- Frames into Vulkan images the player draws ----
+
+// The player (gtube, on SDL's Vulkan renderer) draws on Bend's device (bendviz_vk_open), on the
+// first queue of the family, and shows frames in images Bend makes for it (bendviz_vk_images), each
+// an SDL texture. The images are linear, each with a buffer over its memory, and stay in the GENERAL
+// layout: a copy into an optimally tiled image (vkCmdCopyBufferToImage) took 0.7 ms at 4K on RTX
+// 30s, where Bend's own kernel writing the rows (bend_blit) takes a sixth of that. After each frame
+// Bend copies it, on its own queue, into an image neither on screen nor waiting to be taken, once
+// the player's draws of it are done: after each present the player
+// signals a timeline semaphore (bendviz_vk_mark), and the copy waits for the value marked after the
+// image was last drawn, on the GPU. Bend publishes the frame once its copy is done. With only one
+// queue both share it, and the player holds bendviz_vk_lock whenever it may submit.
 typedef struct {
-  int type;
-  union { int fd; struct { void* handle; const void* name; } win32; const void* nvSciBufObject; } handle;
-  unsigned long long size;
-  unsigned int flags;
-  unsigned int reserved[16];
-} BvExtMemDesc;  // CUDA_EXTERNAL_MEMORY_HANDLE_DESC
+  int sType; const void* pNext; VkFlags flags; int type; int format; uint32_t w, h, d;
+  uint32_t mips, layers; VkFlags samples; int tiling; VkFlags usage; int sharing;
+  uint32_t nfams; const uint32_t* fams; int layout;
+} BvImageInfo;  // VkImageCreateInfo
 typedef struct {
-  unsigned long long offset;
-  struct { size_t Width, Height, Depth; int Format; unsigned int NumChannels, Flags; } arrayDesc;
-  unsigned int numLevels;
-  unsigned int reserved[16];
-} BvExtArrayDesc;  // CUDA_EXTERNAL_MEMORY_MIPMAPPED_ARRAY_DESC
+  int sType; const void* pNext; VkFlags src, dst; int old_layout, new_layout;
+  uint32_t src_fam, dst_fam; uint64_t image;
+  VkFlags aspect; uint32_t mip, nmips, layer, nlayers;
+} BvImageBarrier;  // VkImageMemoryBarrier
+typedef struct { VkFlags aspect; uint32_t mip, layer; } BvSubresource;  // VkImageSubresource
+typedef struct { VkDeviceSize off, size, row, array, depth; } BvLayout;   // VkSubresourceLayout
+typedef struct { VkFlags linear, optimal, buffer; } BvFormat;             // VkFormatProperties
+
+static VkResult (VKAPI* bv_vk_create_image)(VkDevice, const BvImageInfo*, const void*, uint64_t*);
+static void (VKAPI* bv_vk_image_needs)(VkDevice, uint64_t, VkMemoryRequirements*);
+static VkResult (VKAPI* bv_vk_bind_image)(VkDevice, uint64_t, VkDeviceMemory, VkDeviceSize);
+static void (VKAPI* bv_vk_destroy_image)(VkDevice, uint64_t, const void*);
+static void (VKAPI* bv_vk_free)(VkDevice, VkDeviceMemory, const void*);
+static VkResult (VKAPI* bv_vk_queue_idle)(VkQueue);
+static VkResult (VKAPI* bv_vk_submit)(VkQueue, uint32_t, const VkSubmitInfo*, VkFence);
 typedef struct {
-  int type;
-  union { int fd; struct { void* handle; const void* name; } win32; const void* nvSciSyncObj; } handle;
-  unsigned int flags;
-  unsigned int reserved[16];
-} BvExtSemDesc;  // CUDA_EXTERNAL_SEMAPHORE_HANDLE_DESC
-typedef struct {
-  struct {
-    struct { unsigned long long value; } fence;
-    union { void* fence; unsigned long long reserved; } nvSciSync;
-    struct { unsigned long long key; } keyedMutex;
-    unsigned int reserved[12];
-  } params;
-  unsigned int flags;
-  unsigned int reserved[16];
-} BvSemSignal;  // CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS
-typedef struct {
-  struct {
-    struct { unsigned long long value; } fence;
-    union { void* fence; unsigned long long reserved; } nvSciSync;
-    struct { unsigned long long key; unsigned int timeoutMs; } keyedMutex;
-    unsigned int reserved[10];
-  } params;
-  unsigned int flags;
-  unsigned int reserved[16];
-} BvSemWait;  // CUDA_EXTERNAL_SEMAPHORE_WAIT_PARAMS
-typedef struct {
-  size_t srcXInBytes, srcY;
-  int srcMemoryType;
-  const void* srcHost;
-  CUdeviceptr srcDevice;
-  void* srcArray;
-  size_t srcPitch;
-  size_t dstXInBytes, dstY;
-  int dstMemoryType;
-  void* dstHost;
-  CUdeviceptr dstDevice;
-  void* dstArray;
-  size_t dstPitch;
-  size_t WidthInBytes, Height;
-} BvShareCopy;  // CUDA_MEMCPY2D
+  int sType; const void* pNext; VkFlags flags; uint32_t n; const VkSemaphore* sems; const uint64_t* values;
+} BvSemWait;  // VkSemaphoreWaitInfo
+static VkResult (VKAPI* bv_vk_sem_wait)(VkDevice, const BvSemWait*, uint64_t);
+static void (VKAPI* bv_vk_sub_layout)(VkDevice, uint64_t, const BvSubresource*, BvLayout*);
+static void (VKAPI* bv_vk_format)(VkPhysicalDevice, int, BvFormat*);
+static void (VKAPI* bv_vk_destroy_buf)(VkDevice, VkBuffer, const void*);
 
 static struct {
-  void* tex[BENDVIZ_TEXTURES];      // from the player: NT handles, the size, and a generation
-  void* fence_cuda;                 // (CUDA signals it, Direct3D waits)
-  void* fence_d3d;                  // (Direct3D signals it, CUDA waits)
-  int   w, h;
-  u32   gen;
-  // Bend's thread: the imports, of generation imported
-  u32   imported;
-  bool  failed;
-  void* mem[BENDVIZ_TEXTURES];
-  void* mip[BENDVIZ_TEXTURES];
-  void* arr[BENDVIZ_TEXTURES];
-  void* sem_cuda;
-  void* sem_d3d;
-  unsigned long long cuda_value;
-  // Under bv_lock: the texture on screen, the one waiting to be taken (-1 none), the Direct3D fence
-  // value after which each texture was last read, and the value CUDA signals for the waiting one.
-  int   shown, published;
-  unsigned long long read_done[BENDVIZ_TEXTURES], pub_value;
-  unsigned long long completed;     // a value Direct3D's fence has reached (as of the last take)
-  int   pending;                    // written this frame, published at the swap (-1 none)
-  unsigned long long pending_value;
-  bool  busy;                       // Bend's thread is using the imports (under bv_lock)
-} bv_share = { .shown = -1, .published = -1, .pending = -1 };
+  uint64_t       image[BENDVIZ_TEXTURES];
+  VkDeviceMemory mem[BENDVIZ_TEXTURES];
+  VkBuffer       buf[BENDVIZ_TEXTURES];   // over each image's memory, and its address
+  u64            at[BENDVIZ_TEXTURES];
+  u32            pitch;                   // bytes a row
+  bool           laid[BENDVIZ_TEXTURES];  // in the GENERAL layout (else still preinitialized)
+  int            w, h;
+  u32            gen;             // of the set (0: none), and of the pending copy's set
+  u32            pending_gen;
+  // Under bv_lock: the image on screen, the one waiting to be taken, and the one written this frame
+  // (published at the swap), -1 for none; and whether Bend's thread is copying.
+  int            shown, published, pending;
+  bool           busy;
+  bool           held;            // the player holds bendviz_vk_lock (its thread only)
+  VkSemaphore    sem;             // the player's marks, the last, and the one after each image was drawn
+  u64            mark;
+  u64            read_done[BENDVIZ_TEXTURES];
+  VkQueue        queue;           // the player's (the family's first)
+} bv_vk = { .shown = -1, .published = -1, .pending = -1 };
 
-static CUresult (CUDAAPI* bv_ext_import)(void**, const BvExtMemDesc*);
-static CUresult (CUDAAPI* bv_ext_array)(void**, void*, const BvExtArrayDesc*);
-static CUresult (CUDAAPI* bv_ext_level)(void**, void*, unsigned);
-static CUresult (CUDAAPI* bv_ext_sem)(void**, const BvExtSemDesc*);
-static CUresult (CUDAAPI* bv_ext_signal)(void* const*, const BvSemSignal*, unsigned, CUstream);
-static CUresult (CUDAAPI* bv_ext_wait)(void* const*, const BvSemWait*, unsigned, CUstream);
-static CUresult (CUDAAPI* bv_ext_free_mem)(void*);
-static CUresult (CUDAAPI* bv_ext_free_sem)(void*);
-static CUresult (CUDAAPI* bv_ext_free_mip)(void*);
-static CUresult (CUDAAPI* bv_ext_copy)(const BvShareCopy*, CUstream);
-
-static bool bv_share_load(void) {
+static bool bv_vk_load(void) {
   static int loaded;
   if (loaded == 0) {
-    static const char* const names[] = { "nvcuda.dll", NULL };
-    void* lib = gpu_lib_open(names);
-    bv_ext_import   = (__typeof__(bv_ext_import))gpu_sym(lib, "cuImportExternalMemory");
-    bv_ext_array    = (__typeof__(bv_ext_array))gpu_sym(lib, "cuExternalMemoryGetMappedMipmappedArray");
-    bv_ext_level    = (__typeof__(bv_ext_level))gpu_sym(lib, "cuMipmappedArrayGetLevel");
-    bv_ext_sem      = (__typeof__(bv_ext_sem))gpu_sym(lib, "cuImportExternalSemaphore");
-    bv_ext_signal   = (__typeof__(bv_ext_signal))gpu_sym(lib, "cuSignalExternalSemaphoresAsync");
-    bv_ext_wait     = (__typeof__(bv_ext_wait))gpu_sym(lib, "cuWaitExternalSemaphoresAsync");
-    bv_ext_free_mem = (__typeof__(bv_ext_free_mem))gpu_sym(lib, "cuDestroyExternalMemory");
-    bv_ext_free_sem = (__typeof__(bv_ext_free_sem))gpu_sym(lib, "cuDestroyExternalSemaphore");
-    bv_ext_free_mip = (__typeof__(bv_ext_free_mip))gpu_sym(lib, "cuMipmappedArrayDestroy");
-    bv_ext_copy     = (__typeof__(bv_ext_copy))gpu_sym(lib, "cuMemcpy2DAsync_v2");
-    loaded = bv_ext_import && bv_ext_array && bv_ext_level && bv_ext_sem && bv_ext_signal && bv_ext_wait
-      && bv_ext_free_mem && bv_ext_free_sem && bv_ext_free_mip && bv_ext_copy ? 1 : -1;
+#define BV_VK(f, name) f = (__typeof__(f))vkGetInstanceProcAddr(gpu_inst, name)
+    BV_VK(bv_vk_create_image, "vkCreateImage");
+    BV_VK(bv_vk_image_needs, "vkGetImageMemoryRequirements");
+    BV_VK(bv_vk_bind_image, "vkBindImageMemory");
+    BV_VK(bv_vk_destroy_image, "vkDestroyImage");
+    BV_VK(bv_vk_free, "vkFreeMemory");
+    BV_VK(bv_vk_queue_idle, "vkQueueWaitIdle");
+    BV_VK(bv_vk_sub_layout, "vkGetImageSubresourceLayout");
+    BV_VK(bv_vk_format, "vkGetPhysicalDeviceFormatProperties");
+    BV_VK(bv_vk_destroy_buf, "vkDestroyBuffer");
+    BV_VK(bv_vk_submit, "vkQueueSubmit");
+    BV_VK(bv_vk_sem_wait, "vkWaitSemaphores");
+    loaded = bv_vk_create_image && bv_vk_image_needs && bv_vk_bind_image && bv_vk_destroy_image && bv_vk_free
+      && bv_vk_queue_idle && bv_vk_sub_layout && bv_vk_format && bv_vk_destroy_buf && bv_vk_submit && bv_vk_sem_wait ? 1 : -1;
   }
   return loaded == 1;
 }
 
-// Drops the imports (Bend's context must be current).
-static void bv_share_drop(void) {
-  for (int i = 0; i < BENDVIZ_TEXTURES; i += 1) {
-    if (bv_share.mip[i]) bv_ext_free_mip(bv_share.mip[i]);
-    if (bv_share.mem[i]) bv_ext_free_mem(bv_share.mem[i]);
-    bv_share.mip[i] = bv_share.mem[i] = bv_share.arr[i] = NULL;
-  }
-  if (bv_share.sem_cuda) bv_ext_free_sem(bv_share.sem_cuda);
-  if (bv_share.sem_d3d) bv_ext_free_sem(bv_share.sem_d3d);
-  bv_share.sem_cuda = bv_share.sem_d3d = NULL;
-  bv_share.imported = 0;
+// A barrier moving an image between layouts, after everything before it on the queue.
+static void bv_vk_layout(uint64_t image, int from, int to, VkFlags src, VkFlags dst) {
+  BvImageBarrier b = { 45, NULL, src, dst, from, to, ~0u, ~0u, image, 1, 0, 1, 0, 1 };
+  vkCmdPipelineBarrier(gpu_cb, 0x10000, 0x10000, 0, 0, NULL, 0, NULL, 1, &b);
 }
 
-static bool bv_share_go(u32 gen, void* const tex[BENDVIZ_TEXTURES], void* fc, void* fd, unsigned long long at, int fw, int fh, bool idle);
-
-// On Bend's thread, the frame at `at` just drawn (fw x fh): into a shared texture, if the player
-// has shared some of this size (and, if idle, only into one Direct3D is known to be done with).
-// Whether it went; the swap then publishes it.
-static bool bv_share_frame(unsigned long long at, int fw, int fh, bool idle) {
+// On Bend's thread, the frame at byte `at` of the heap just drawn (fw x fh): into an image, if the
+// player has a set of this size. Whether it went; the swap then publishes it.
+static bool bv_vk_frame(unsigned long long at, int fw, int fh) {
   pthread_mutex_lock(&bv_lock);
-  u32 gen = bv_share.gen;
-  bool fits = gen != 0 && !bv_share.failed && bv_share.w == fw && bv_share.h == fh;
-  void* tex[BENDVIZ_TEXTURES];
-  memcpy(tex, bv_share.tex, sizeof tex);
-  void* fc = bv_share.fence_cuda;
-  void* fd = bv_share.fence_d3d;
-  bv_share.busy = fits;
-  pthread_mutex_unlock(&bv_lock);
-  if (!fits) {
-    return false;
-  }
-  bool went = bv_share_go(gen, tex, fc, fd, at, fw, fh, idle);
-  pthread_mutex_lock(&bv_lock);
-  bv_share.busy = false;
-  pthread_mutex_unlock(&bv_lock);
-  return went;
-}
-
-// A frame's copy queued behind its kernels. The program draws into two buffers in turn, so a
-// frame's buffer is the one shown two frames before, and at the frame's wait for its kernels
-// (bv_timed_sync, on Bend's thread) its copy into a texture is queued before the wait. The GPU
-// then goes on from the kernels to the copy, rather than turning to Direct3D's work while Bend's
-// thread makes those calls after the wait (four driver calls, 100 us), and back (each turn leaves
-// the GPU idle 50 us). The show checks the guess (the same buffer, done in that one wait) and
-// else copies as before. Only into a texture Direct3D is known to be done with: the wait for the
-// kernels waits for everything queued, and waiting there for Direct3D (a vertical blank, with
-// vsync) held Bend to 35 frames a second.
-// (bv_early, above)
-
-static void bv_early_copy(void) {
-  if (!bv_early.drawing || !pthread_equal(pthread_self(), bv_early.thread)) {
-    return;
-  }
-  bv_early.waits += 1;
-  unsigned long long at = bv_early.shown[1];
-  pthread_mutex_lock(&bv_lock);
-  bool device = bv_device_ok;
-  pthread_mutex_unlock(&bv_lock);
-  int fw = (int)(bv_now_word & 8191), fh = (int)(bv_now_word >> 13 & 8191);
-  if (bv_early.waits == 1 && at != 0 && device && bv_now_word >> 31 != 0 && bv_share_frame(at, fw, fh, true)) {
-    bv_early.at = at;
-  }
-}
-
-static bool bv_share_go(u32 gen, void* const tex[BENDVIZ_TEXTURES], void* fc, void* fd, unsigned long long at, int fw, int fh, bool idle) {
-  if (!bv_share_load()) {
-    return false;
-  }
-  if (bv_share.imported != gen) {
-    bv_share_drop();
-    bool ok = true;
-    for (int i = 0; ok && i < BENDVIZ_TEXTURES; i += 1) {
-      BvExtMemDesc md = { 0 };
-      md.type = 6, md.handle.win32.handle = tex[i];  // CU_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_RESOURCE
-      md.size = (unsigned long long)fw * fh * 4, md.flags = 1;  // CUDA_EXTERNAL_MEMORY_DEDICATED
-      BvExtArrayDesc ad = { 0 };
-      ad.arrayDesc.Width = (size_t)fw, ad.arrayDesc.Height = (size_t)fh;
-      ad.arrayDesc.Format = 1, ad.arrayDesc.NumChannels = 4, ad.numLevels = 1;  // CU_AD_FORMAT_UNSIGNED_INT8
-      ok = bv_ext_import(&bv_share.mem[i], &md) == CUDA_SUCCESS
-        && bv_ext_array(&bv_share.mip[i], bv_share.mem[i], &ad) == CUDA_SUCCESS
-        && bv_ext_level(&bv_share.arr[i], bv_share.mip[i], 0) == CUDA_SUCCESS;
+  u32 gen = bv_vk.gen;
+  int slot = -1;  // of those neither on screen nor waiting, the one the player drew longest ago
+  if (gen != 0 && bv_vk.w == fw && bv_vk.h == fh) {
+    for (int i = 0; i < BENDVIZ_TEXTURES; i += 1) {
+      if (i != bv_vk.shown && i != bv_vk.published && (slot < 0 || bv_vk.read_done[i] < bv_vk.read_done[slot])) slot = i;
     }
-    BvExtSemDesc sc = { 0 }, sd = { 0 };
-    sc.type = sd.type = 5;  // CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_D3D11_FENCE
-    sc.handle.win32.handle = fc, sd.handle.win32.handle = fd;
-    ok = ok && bv_ext_sem(&bv_share.sem_cuda, &sc) == CUDA_SUCCESS && bv_ext_sem(&bv_share.sem_d3d, &sd) == CUDA_SUCCESS;
-    if (!ok) {
-      bv_share_drop();
-      pthread_mutex_lock(&bv_lock);
-      bv_share.failed = true;  // (the player falls back to mapping the texture)
-      pthread_mutex_unlock(&bv_lock);
-      return false;
-    }
-    bv_share.imported = gen;
   }
-  pthread_mutex_lock(&bv_lock);
-  int slot = -1;  // of those neither on screen nor waiting, the one Direct3D last read longest ago
-  for (int i = 0; i < BENDVIZ_TEXTURES; i += 1) {
-    if (i != bv_share.shown && i != bv_share.published && (slot < 0 || bv_share.read_done[i] < bv_share.read_done[slot])) slot = i;
-  }
-  unsigned long long read = bv_share.read_done[slot];
-  bool busy = read > bv_share.completed;
+  bv_vk.busy = slot >= 0;
+  uint64_t image = slot >= 0 ? bv_vk.image[slot] : 0;
+  bool laid = slot >= 0 && bv_vk.laid[slot];
+  u64 read = slot >= 0 ? bv_vk.read_done[slot] : 0;
+  u64 dst = slot >= 0 ? bv_vk.at[slot] : 0;
   pthread_mutex_unlock(&bv_lock);
-  if (idle && busy) {
+  if (slot < 0) {
     return false;
   }
-  if (read) {  // Direct3D is done drawing it (on the GPU)
-    BvSemWait wp = { 0 };
-    wp.params.fence.value = read;
-    bv_ext_wait(&bv_share.sem_d3d, &wp, 1, NULL);
+  gpu_lock_on();
+  if (!laid) {  // preinitialized to GENERAL, once, keeping the memory as it is
+    gpu_cmd();
+    bv_vk_layout(image, 8, 1, 0, 0x20);
   }
-  BvShareCopy c = { 0 };
-  c.srcMemoryType = 2, c.srcDevice = at, c.srcPitch = (size_t)fw * 4;  // device
-  c.dstMemoryType = 3, c.dstArray = bv_share.arr[slot];                // array
-  c.WidthInBytes = (size_t)fw * 4, c.Height = (size_t)fh;
-  BvSemSignal sp = { 0 };
-  sp.params.fence.value = bv_share.cuda_value + 1;
-  if (bv_ext_copy(&c, NULL) != CUDA_SUCCESS || bv_ext_signal(&bv_share.sem_cuda, &sp, 1, NULL) != CUDA_SUCCESS) {
-    return false;
-  }
-  bv_share.cuda_value += 1;
-  bv_share.pending = slot, bv_share.pending_value = bv_share.cuda_value;
+  gpu_blit(at, dst, (u32)fw, (u32)fh, bv_vk.pitch);
+  gpu_wait_sem = bv_vk.sem, gpu_wait_at = read;  // (0: nothing to wait for)
+  gpu_flush();
+  gpu_lock_off();
+  pthread_mutex_lock(&bv_lock);
+  bv_vk.busy = false, bv_vk.pending = slot, bv_vk.pending_gen = gen, bv_vk.laid[slot] = true;
+  pthread_mutex_unlock(&bv_lock);
   return true;
 }
 #endif
@@ -5958,33 +7052,19 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
     bv_trace("drop-size", 0, 0);
     return a;
   }
-  bool on_device = false, copied = false;
+  bool copied = false;
   bool gpu_drew = bv_now_word >> 31 != 0 && io_gpu;  // else the frame is in host memory
-  bool shared = false;                                 // it went into a shared texture
-  unsigned long long at = 0;
-#if BEND_CUDA
-  // On the device the frame stays where Bend drew it: the program draws into two buffers in turn,
-  // so the player copies this one out while Bend draws the next into the other.
+  bool shared = false;                                 // it went into an image the player draws
+#if BEND_VULKAN
+  // A frame drawn on the GPU goes into an image the player draws, never crossing to the host.
   pthread_mutex_lock(&bv_lock);
   bool device = gpu_drew && bv_device_ok;
   pthread_mutex_unlock(&bv_lock);
-  if (device) {
-    on_device = copied = true;
-#ifdef _WIN32
-    unsigned long long mine = gpu_base + (unsigned long long)((char*)px - (char*)CORPUS);
-    if (bv_early.at != 0 && bv_early.at == mine && bv_early.waits == 1) {
-      at = mine, shared = true;  // (copied already, behind the kernels)
-    } else {
-      at = gpu_at(px, n * 4);
-      shared = bv_share_frame(at, fw, fh, false);
-    }
-    bv_early.shown[1] = bv_early.shown[0], bv_early.shown[0] = at, bv_early.drawing = false;
-#else
-    at = gpu_at(px, n * 4);
-#endif
+  if (device) {  // (a frame no image fits, the size just changed, comes through the host)
+    shared = copied = bv_vk_frame((unsigned long long)((char*)px - (char*)CORPUS), fw, fh);
   }
 #endif
-  if (!on_device) {
+  if (!shared) {
     pthread_mutex_lock(&bv_lock);
     bool room = n <= bv_cap || (!bv_lent && bv_room(n));
     pthread_mutex_unlock(&bv_lock);
@@ -5996,6 +7076,11 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
 #if BEND_CUDA
     if (gpu_drew && bv_pinned) {
       copied = cuMemcpyDtoH(bv_back, gpu_at(px, n * 4), n * 4) == CUDA_SUCCESS;
+    }
+#elif BEND_VULKAN
+    if (gpu_drew) {
+      gpu_fetch(bv_back, (u64)((char*)px - (char*)CORPUS), n * 4);
+      copied = true;
     }
 #endif
     if (!copied) {
@@ -6010,28 +7095,20 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
     pthread_mutex_lock(&bv_lock);
   }
   if (shared) {
-#if BEND_CUDA && defined(_WIN32)
-    if (bv_share.imported == bv_share.gen) {  // (not a set shared since)
-      bv_share.published = bv_share.pending, bv_share.pub_value = bv_share.pending_value;
-    } else {
-      shared = false;
+#if BEND_VULKAN
+    bool current = bv_vk.gen == bv_vk.pending_gen;  // (else the player made a new set since)
+    if (current) bv_vk.published = bv_vk.pending;
+    bv_vk.pending = -1;
+    if (!current) {
+      bv_n_dropped += 1;
+      pthread_mutex_unlock(&bv_lock);
+      return a;
     }
-    bv_share.pending = -1;
-#endif
-    on_device = false;
-  } else if (on_device) {
-    bv_dev_front = at;
-#if BEND_CUDA && defined(_WIN32)
-    // The frame shown before this one is in the buffer drawn into next: that drawing waits, on the
-    // GPU, for the player's copy out of it, if it took it (the player takes only the newest frame).
-    if (bv_read_front) bv_ev_wait(NULL, bv_read_front, 0);
-    bv_read_front = NULL;
 #endif
   } else {
     u32* t = bv_front;
     bv_front = bv_back, bv_back = t;
   }
-  bv_front_on_device = on_device;
   bv_front_shared = shared;
   bv_draw_ms = (double)(drawn - bv_began) / 1e6, bv_copy_ms = (double)(now - drawn) / 1e6;
   bv_wait_frame = drawn_wait - bv_wait_began;
@@ -6043,7 +7120,7 @@ Term viz_show_run(Env e, Term* f, IoWork* w) {
   bv_fresh    = true;
   bv_n_drawn += 1;
   pthread_cond_broadcast(&bv_shown);
-  bv_trace("swap", on_device, 0);
+  bv_trace("swap", shared, 0);
   pthread_mutex_unlock(&bv_lock);
   return a;
 }
@@ -6138,8 +7215,8 @@ void bendviz_discard(void) {
 const u32* bendviz_borrow(int* w, int* h, bool* gpu, double* ms) {
   pthread_mutex_lock(&bv_lock);
   const u32* frame = NULL;
-  bv_trace("borrow-try", bv_fresh, bv_front_on_device);
-  if (bv_fresh && !bv_front_on_device && !bv_front_shared && bv_front != NULL) {
+  bv_trace("borrow-try", bv_fresh, bv_front_shared);
+  if (bv_fresh && !bv_front_shared && bv_front != NULL) {
     frame = bv_front, bv_lent = true, bv_fresh = false;
     *w = bv_done_w, *h = bv_done_h, *gpu = bv_done_gpu, *ms = bv_ms;
   }
@@ -6147,7 +7224,7 @@ const u32* bendviz_borrow(int* w, int* h, bool* gpu, double* ms) {
   return frame;
 }
 
-// Whether the player takes frames drawn on the GPU on the device (bendviz_to_d3d11), from the next
+// Whether the player takes frames drawn on the GPU on the device (bendviz_vk_take), from the next
 // one on; otherwise they come to the host.
 void bendviz_device_frames(bool on) {
   pthread_mutex_lock(&bv_lock);
@@ -6155,245 +7232,160 @@ void bendviz_device_frames(bool on) {
   pthread_mutex_unlock(&bv_lock);
 }
 
-#if BEND_CUDA && defined(_WIN32)
 
-// Graphics interop, loaded from the driver the runtime opened.
-typedef struct CUgraphicsResource_st* CUgraphicsResource;
-typedef struct CUarray_st*            CUarray;
-typedef struct {
-  size_t srcXInBytes, srcY;
-  int srcMemoryType;
-  const void* srcHost;
-  CUdeviceptr srcDevice;
-  CUarray srcArray;
-  size_t srcPitch;
-  size_t dstXInBytes, dstY;
-  int dstMemoryType;
-  void* dstHost;
-  CUdeviceptr dstDevice;
-  CUarray dstArray;
-  size_t dstPitch;
-  size_t WidthInBytes, Height;
-} BvCopy2D;  // CUDA_MEMCPY2D
+#if BEND_VULKAN
 
-static CUresult (CUDAAPI* bv_register)(CUgraphicsResource*, void*, unsigned);
-static CUresult (CUDAAPI* bv_unregister)(CUgraphicsResource);
-static CUresult (CUDAAPI* bv_map_flags)(CUgraphicsResource, unsigned);
-static CUresult (CUDAAPI* bv_map)(unsigned, CUgraphicsResource*, CUstream);
-static CUresult (CUDAAPI* bv_unmap)(unsigned, CUgraphicsResource*, CUstream);
-static CUresult (CUDAAPI* bv_array)(CUarray*, CUgraphicsResource, unsigned, unsigned);
-static CUresult (CUDAAPI* bv_copy2d)(const BvCopy2D*, CUstream);
-static CUresult (CUDAAPI* bv_stream_create)(CUstream*, unsigned);
-static CUresult (CUDAAPI* bv_ev_create)(BvReadEvent*, unsigned);
-static CUresult (CUDAAPI* bv_ctx_create)(CUcontext*, unsigned, CUdevice);
-static CUresult (CUDAAPI* bv_peer_copy)(CUdeviceptr, CUcontext, CUdeviceptr, CUcontext, size_t, CUstream);
-
-// The player's copies go on a stream of their own and aren't waited for: mapping the texture waits
-// for Direct3D's queued work, which with vsync sits behind the last present until the next vertical
-// blank, and waiting on the player's thread would stall the player a whole refresh.
-//
-// With vsync they also go in a CUDA context of their own (BV_APART): on Windows a context's streams
-// share one queue on the GPU, so in Bend's context the map's wait for the blank would hold up the
-// kernels drawing the next frame as well, and every other frame would come late. That context first
-// copies the frame out of Bend's buffer into one of its own, which is all Bend then waits for, and
-// from there into the texture. Without vsync nothing waits for a blank, and the copy goes straight
-// from Bend's buffer in Bend's context (BV_SHARED), a millisecond a frame cheaper, and far less of
-// Bend's time. Each side has its stream, its registration of the texture, and two events used in
-// turn, one guarding each of Bend's buffers.
-enum { BV_SHARED, BV_APART };
-typedef struct {
-  CUcontext          ctx;
-  CUstream           stream;
-  BvReadEvent        ev[2];
-  u32                next_ev;
-  void*              registered;  // the texture registered in this context, and its handle
-  CUgraphicsResource res;
-  CUdeviceptr        buf;         // BV_APART: the frame, copied out of Bend's buffer
-  size_t             buf_cap;
-  int                ready;       // 0 not tried, 1 ready, -1 failed
-} BvSide;
-static BvSide bv_side[2];
-static bool   bv_apart;           // presents wait for the vertical blank (bendviz_interop_apart)
-
-static bool bv_interop_load(void) {
-  static int loaded;
-  if (loaded == 0) {
-    static const char* const names[] = { "nvcuda.dll", NULL };
-    void* lib = gpu_lib_open(names);
-    bv_register   = (__typeof__(bv_register))gpu_sym(lib, "cuGraphicsD3D11RegisterResource");
-    bv_unregister = (__typeof__(bv_unregister))gpu_sym(lib, "cuGraphicsUnregisterResource");
-    bv_map_flags  = (__typeof__(bv_map_flags))gpu_sym(lib, "cuGraphicsResourceSetMapFlags_v2");
-    bv_map        = (__typeof__(bv_map))gpu_sym(lib, "cuGraphicsMapResources");
-    bv_unmap      = (__typeof__(bv_unmap))gpu_sym(lib, "cuGraphicsUnmapResources");
-    bv_array      = (__typeof__(bv_array))gpu_sym(lib, "cuGraphicsSubResourceGetMappedArray");
-    bv_copy2d     = (__typeof__(bv_copy2d))gpu_sym(lib, "cuMemcpy2DAsync_v2");
-    bv_stream_create = (__typeof__(bv_stream_create))gpu_sym(lib, "cuStreamCreate");
-    bv_ev_create     = (__typeof__(bv_ev_create))gpu_sym(lib, "cuEventCreate");
-    bv_ev_mark       = (__typeof__(bv_ev_mark))gpu_sym(lib, "cuEventRecord");
-    bv_ev_wait       = (__typeof__(bv_ev_wait))gpu_sym(lib, "cuStreamWaitEvent");
-    bv_ctx_create    = (__typeof__(bv_ctx_create))gpu_sym(lib, "cuCtxCreate_v2");
-    bv_peer_copy     = (__typeof__(bv_peer_copy))gpu_sym(lib, "cuMemcpyPeerAsync");
-    loaded = bv_register && bv_unregister && bv_map_flags && bv_map && bv_unmap && bv_array && bv_copy2d
-      && bv_stream_create && bv_ev_create && bv_ev_mark && bv_ev_wait && bv_ctx_create && bv_peer_copy ? 1 : -1;
+// Opens Bend's Vulkan device for the player to draw on too, with the extensions its drawing needs
+// (an instance's to reach the window, a device's to present): the instance, physical device, device
+// and queue family (a VkInstance, VkPhysicalDevice, VkDevice and index), or false without one (Bend
+// then runs on the CPU). Before bendviz_start.
+bool bendviz_vk_open(const char* const* iexts, int niexts, const char* const* dexts, int ndexts, void** inst,
+  void** phys, void** dev, unsigned* family) {
+  gpu_iexts = iexts, gpu_niexts = (u32)niexts, gpu_dexts = dexts, gpu_ndexts = (u32)ndexts;
+  VkSemaphoreTypeCreateInfo ti = { 1000207002, NULL, 1, 0 };  // a timeline, from 0
+  VkSemaphoreCreateInfo     si = { 9, &ti, 0 };
+  if (!gpu_probe() || !bv_vk_load() || vkCreateSemaphore(gpu_dev, &si, NULL, &bv_vk.sem) != 0) {
+    return false;
   }
-  return loaded == 1;
+  vkGetDeviceQueue(gpu_dev, gpu_family, 0, &bv_vk.queue);
+  *inst = gpu_inst, *phys = gpu_phys, *dev = gpu_dev, *family = gpu_family;
+  return true;
 }
 
-// The side, set up the first time and made current on this (the player's) thread; NULL if it can't be.
-static BvSide* bv_side_ready(int which) {
-  BvSide* s = &bv_side[which];
-  if (s->ready == 0) {
-    bool ok = bv_interop_load()
-      && (which == BV_APART ? bv_ctx_create(&s->ctx, 0, gpu_dev) == CUDA_SUCCESS : (s->ctx = gpu_ctx) != NULL)
-      && cuCtxSetCurrent(s->ctx) == CUDA_SUCCESS
-      && bv_stream_create(&s->stream, 1) == CUDA_SUCCESS  // CU_STREAM_NON_BLOCKING
-      && bv_ev_create(&s->ev[0], 2) == CUDA_SUCCESS && bv_ev_create(&s->ev[1], 2) == CUDA_SUCCESS;  // no timing
-    s->ready = ok ? 1 : -1;
+// After each present, on the player's thread: marks the draws submitted so far, which cover the
+// image on screen (a signal on the player's queue, after everything submitted before it).
+void bendviz_vk_mark(void) {
+  if (gpu_qshared) {
+    return;  // (one queue runs everything in order)
   }
-  return s->ready == 1 && cuCtxSetCurrent(s->ctx) == CUDA_SUCCESS ? s : NULL;
-}
-
-static void bv_side_release(BvSide* s) {
-  if (s->registered && cuCtxSetCurrent(s->ctx) == CUDA_SUCCESS) bv_unregister(s->res);
-  s->registered = NULL;
-}
-
-// Whether the player's presents wait for the vertical blank (vsync): see BvSide.
-void bendviz_interop_apart(bool apart) {
-  bv_apart = apart;
-}
-
-// Copies the newest finished frame, if it is on the device, into a Direct3D 11 texture of its size
-// (ID3D11Texture2D*, B8G8R8A8), without the host: returns 1, with w and h the frame's size and gpu
-// and ms as for bendviz_borrow. Returns 0 when there is no such frame, with w and h the size of a
-// waiting one (so the player can make a texture that size and call again), and -1 when interop
-// fails: the player should then stop asking for device frames.
-int bendviz_to_d3d11(void* texture, int tw, int th, int* w, int* h, bool* gpu, double* ms) {
+  u64 value = bv_vk.mark + 1;
+  VkTimelineSemaphoreSubmitInfo ti = { 1000207003, NULL, 0, NULL, 1, &value };
+  VkSubmitInfo si = { 4, &ti, 0, NULL, NULL, 0, NULL, 1, &bv_vk.sem };
+  if (bv_vk_submit(bv_vk.queue, 1, &si, 0) != 0) {
+    return;
+  }
   pthread_mutex_lock(&bv_lock);
-  bool waiting = bv_fresh && bv_front_on_device;
-  *w = bv_done_w, *h = bv_done_h;
-  bool fits = waiting && bv_done_w == tw && bv_done_h == th;
-  if (fits) {
-    bv_lent = true;
-  }
-  bv_trace("take-try", bv_fresh, bv_front_on_device);
-  pthread_mutex_unlock(&bv_lock);
-  if (!fits) {
-    return 0;
-  }
-  int result = -1;
-  BvSide* s = bv_side_ready(bv_apart ? BV_APART : BV_SHARED);
-  if (s != NULL) {
-    if (s->registered != texture) {
-      bv_side_release(s);
-      if (bv_register(&s->res, texture, 0) == CUDA_SUCCESS) {
-        s->registered = texture;
-        bv_map_flags(s->res, 2);  // write-discard: the old contents are not needed
-      }
-    }
-    size_t      bytes = (size_t)tw * th * 4;
-    BvReadEvent ev    = s->ev[s->next_ev ^= 1];
-    CUdeviceptr src   = bv_dev_front;
-    bool        ok    = s->registered != NULL;
-    if (ok && s == &bv_side[BV_APART]) {
-      if (s->buf_cap < bytes) {
-        if (s->buf) cuMemFree(s->buf);
-        s->buf_cap = cuMemAlloc(&s->buf, bytes) == CUDA_SUCCESS ? bytes : 0;
-      }
-      ok = s->buf_cap >= bytes && bv_peer_copy(s->buf, s->ctx, src, gpu_ctx, bytes, s->stream) == CUDA_SUCCESS
-        && bv_ev_mark(ev, s->stream) == CUDA_SUCCESS;
-      src = s->buf;
-    }
-    CUarray arr;
-    if (ok && bv_map(1, &s->res, s->stream) == CUDA_SUCCESS) {
-      if (bv_array(&arr, s->res, 0, 0) == CUDA_SUCCESS) {
-        BvCopy2D c = { 0 };
-        c.srcMemoryType = 2, c.srcDevice = src, c.srcPitch = (size_t)tw * 4;  // device
-        c.dstMemoryType = 3, c.dstArray = arr;                                // array
-        c.WidthInBytes = (size_t)tw * 4, c.Height = (size_t)th;
-        result = bv_copy2d(&c, s->stream) == CUDA_SUCCESS ? 1 : -1;
-      }
-      if (bv_unmap(1, &s->res, s->stream) != CUDA_SUCCESS) result = -1;
-      if (s == &bv_side[BV_SHARED] && bv_ev_mark(ev, s->stream) != CUDA_SUCCESS) result = -1;  // read Bend's buffer till here
-    }
-    if (result == 1) {
-      bv_read_front = ev;  // (the buffers don't swap while the frame is lent)
-    }
-  }
-  bv_trace("take-done", result, bv_apart);
-  pthread_mutex_lock(&bv_lock);
-  if (result == 1) {
-    bv_fresh = false;
-    *gpu = bv_done_gpu, *ms = bv_ms;
-  }
-  bv_lent = false;
-  pthread_mutex_unlock(&bv_lock);
-  return result;
-}
-
-// Lets go of the texture bendviz_to_d3d11 last wrote, before the player destroys it (or Direct3D):
-// left registered, the driver would reach into Direct3D after it is gone.
-void bendviz_release_d3d11(void) {
-  bv_side_release(&bv_side[BV_SHARED]);
-  bv_side_release(&bv_side[BV_APART]);
-}
-
-// Shares textures (BENDVIZ_TEXTURES, w x h, B8G8R8A8, as NT handles) and two fences (NT handles: one CUDA
-// signals and Direct3D waits for, one the other way) for Bend to copy frames into; see bv_share.
-// Replaces any set shared before (bendviz_d3d11_unshare that first).
-void bendviz_d3d11_share(void* const tex[BENDVIZ_TEXTURES], void* fence_cuda, void* fence_d3d, int w, int h) {
-  pthread_mutex_lock(&bv_lock);
-  for (int i = 0; i < BENDVIZ_TEXTURES; i += 1) bv_share.tex[i] = tex[i], bv_share.read_done[i] = 0;
-  bv_share.fence_cuda = fence_cuda, bv_share.fence_d3d = fence_d3d;
-  bv_share.w = w, bv_share.h = h, bv_share.failed = false;
-  bv_share.gen = bv_share.gen + 1 ? bv_share.gen + 1 : 1;
-  bv_share.shown = bv_share.published = -1;
+  bv_vk.mark = value;
+  if (bv_vk.shown >= 0) bv_vk.read_done[bv_vk.shown] = value;
   pthread_mutex_unlock(&bv_lock);
 }
 
-// Stops sharing: waits until Bend isn't copying, and lets go of the imports (before the player lets
-// go of the textures and fences, or Direct3D).
-void bendviz_d3d11_unshare(void) {
-  pthread_mutex_lock(&bv_lock);
-  bv_share.gen = 0, bv_share.shown = bv_share.published = -1;
-  while (bv_share.busy) {
-    pthread_mutex_unlock(&bv_lock);
+// With vsync, on the player's thread after bendviz_vk_mark: waits until the frame before this one
+// is done on the GPU. Its queue otherwise runs frames behind (each waits for a swapchain image to
+// come free), and the marks with it, so an image Bend could copy into would come free late.
+void bendviz_vk_settle(void) {
+  u64 prev = bv_vk.mark - 1;
+  BvSemWait w = { 1000207004, NULL, 0, 1, &bv_vk.sem, &prev };
+  if (!gpu_qshared && bv_vk.mark > 1) bv_vk_sem_wait(gpu_dev, &w, 100000000ull);  // (0.1 s at most)
+}
+
+// Held by the player around its drawing (from its first draw to its present): Bend's submits wait.
+// The player lets a waiting submit go first, or at a thousand frames a second it would take the
+// lock back each time before Bend's thread woke.
+void bendviz_vk_lock(void) {
+  if (!gpu_qshared) {
+    return;
+  }
+  while (atomic_load(&gpu_qwant) != 0) {
     sched_yield();
+  }
+  pthread_mutex_lock(&gpu_qlock);
+  bv_vk.held = true;
+}
+
+void bendviz_vk_unlock(void) {
+  if (!gpu_qshared) {
+    return;
+  }
+  bv_vk.held = false;
+  pthread_mutex_unlock(&gpu_qlock);
+}
+
+// Lets go of the images (the player's textures of them gone), once the queue is done with them. A
+// copy under way finishes first (with the player's lock let go meanwhile: it waits for the queue).
+void bendviz_vk_unshare(void) {
+  bool held = bv_vk.held;
+  pthread_mutex_lock(&bv_lock);
+  bv_vk.gen = 0, bv_vk.shown = bv_vk.published = -1;
+  while (bv_vk.busy) {
+    pthread_mutex_unlock(&bv_lock);
+    if (held) bendviz_vk_unlock();
+    sched_yield();
+    if (held) bendviz_vk_lock();
     pthread_mutex_lock(&bv_lock);
   }
   pthread_mutex_unlock(&bv_lock);
-  if (bv_share.imported && cuCtxSetCurrent(gpu_ctx) == CUDA_SUCCESS) {
-    cuCtxSynchronize();  // (copies into the textures may be queued)
-    bv_share_drop();
+  if (bv_vk.image[0] != 0) {
+    if (!held) pthread_mutex_lock(&gpu_qlock);
+    bv_vk_queue_idle(gpu_queue);
+    if (!held) pthread_mutex_unlock(&gpu_qlock);
+  }
+  for (int i = 0; i < BENDVIZ_TEXTURES; i += 1) {  // (a set made in part, too)
+    if (bv_vk.image[i] != 0) bv_vk_destroy_image(gpu_dev, bv_vk.image[i], NULL);
+    if (bv_vk.buf[i] != 0) bv_vk_destroy_buf(gpu_dev, bv_vk.buf[i], NULL);
+    if (bv_vk.mem[i] != 0) bv_vk_free(gpu_dev, bv_vk.mem[i], NULL);
+    bv_vk.image[i] = 0, bv_vk.buf[i] = 0, bv_vk.mem[i] = 0, bv_vk.at[i] = 0;
+    bv_vk.laid[i] = false, bv_vk.read_done[i] = 0;
   }
 }
 
-// Whether sharing failed (the player then takes frames by mapping its texture: bendviz_to_d3d11).
-bool bendviz_d3d11_failed(void) {
+// Makes BENDVIZ_TEXTURES images of w x h (B8G8R8A8_UNORM, linear, sampled, in the GENERAL layout
+// from Bend's first frame in each, before the player takes it) for frames of that size, replacing
+// any set made before (the player's textures of those gone first): their VkImage handles, or false
+// (the device can't sample such images).
+bool bendviz_vk_images(int w, int h, unsigned long long image[BENDVIZ_TEXTURES]) {
+  bendviz_vk_unshare();
+  BvFormat fp;
+  if (!bv_vk_load()) {
+    return false;
+  }
+  bv_vk_format(gpu_phys, 44, &fp);
+  bool ok = (fp.linear & 1) != 0;  // (sampled)
+  for (int i = 0; ok && i < BENDVIZ_TEXTURES; i += 1) {
+    BvImageInfo ii = { 14, NULL, 0, 1, 44, (uint32_t)w, (uint32_t)h, 1, 1, 1, 1, 1, 0x4, 0, 0, NULL, 8 };
+    BvSubresource sr = { 1, 0, 0 };
+    BvLayout lay;
+    VkMemoryRequirements mi, mb;
+    ok = bv_vk_create_image(gpu_dev, &ii, NULL, &bv_vk.image[i]) == 0 || (bv_vk.image[i] = 0);
+    if (!ok) break;
+    bv_vk_image_needs(gpu_dev, bv_vk.image[i], &mi);
+    bv_vk_sub_layout(gpu_dev, bv_vk.image[i], &sr, &lay);
+    VkBufferCreateInfo bi = { 12, NULL, 0, mi.size, 0x20020, 0, 0, NULL };  // (storage, addressed)
+    ok = lay.off == 0 && vkCreateBuffer(gpu_dev, &bi, NULL, &bv_vk.buf[i]) == 0;
+    if (!ok) break;
+    vkGetBufferMemoryRequirements(gpu_dev, bv_vk.buf[i], &mb);
+    VkMemoryAllocateFlagsInfo fl = { 1000060000, NULL, 2, 0 };
+    VkMemoryAllocateInfo ai = { 5, &fl, mi.size > mb.size ? mi.size : mb.size, gpu_mem_pick(mi.types & mb.types, 1, 0) };
+    VkBufferDeviceAddressInfo di = { 1000244001, NULL, bv_vk.buf[i] };
+    ok = ai.type != ~0u && vkAllocateMemory(gpu_dev, &ai, NULL, &bv_vk.mem[i]) == 0
+      && bv_vk_bind_image(gpu_dev, bv_vk.image[i], bv_vk.mem[i], 0) == 0
+      && vkBindBufferMemory(gpu_dev, bv_vk.buf[i], bv_vk.mem[i], 0) == 0;
+    if (ok) bv_vk.at[i] = vkGetBufferDeviceAddress(gpu_dev, &di), bv_vk.pitch = (u32)lay.row;
+  }
   pthread_mutex_lock(&bv_lock);
-  bool failed = bv_share.failed;
+  if (ok) {
+    static u32 gens;
+    gens = gens + 1 ? gens + 1 : 1;
+    bv_vk.gen = gens, bv_vk.w = w, bv_vk.h = h;
+    for (int i = 0; i < BENDVIZ_TEXTURES; i += 1) image[i] = bv_vk.image[i];
+  }
   pthread_mutex_unlock(&bv_lock);
-  return failed;
+  if (!ok) {
+    bendviz_vk_unshare();
+  }
+  return ok;
 }
 
-// Each frame: Direct3D will reach d3d_done (the player signalled it) once done with what it drew so
-// far, which covers the texture on screen. Returns the texture (0 to 2) of a new frame, after which
-// the player makes Direct3D wait for CUDA's fence to reach *wait_value before drawing it; or -1
-// when no new frame is waiting.
-int bendviz_d3d11_take(unsigned long long d3d_done, unsigned long long d3d_completed, unsigned long long* wait_value, int* w, int* h,
-  bool* gpu, double* ms) {
+// Each frame: the image (0 to BENDVIZ_TEXTURES - 1) of a new frame to draw, or -1 when none is
+// waiting. The image drawn before stays Bend's to write once the player's draws of it are submitted.
+int bendviz_vk_take(int* w, int* h, bool* gpu, double* ms) {
   pthread_mutex_lock(&bv_lock);
-  bv_share.completed = d3d_completed;
-  if (bv_share.shown >= 0) {
-    bv_share.read_done[bv_share.shown] = d3d_done;
-  }
   int slot = -1;
-  if (bv_fresh && bv_front_shared && bv_share.published >= 0) {
-    slot = bv_share.shown = bv_share.published, bv_share.published = -1;
-    *wait_value = bv_share.pub_value, bv_fresh = false;
+  if (bv_fresh && bv_front_shared && bv_vk.published >= 0) {
+    slot = bv_vk.shown = bv_vk.published, bv_vk.published = -1, bv_fresh = false;
     *w = bv_done_w, *h = bv_done_h, *gpu = bv_done_gpu, *ms = bv_ms;
   }
-  bv_trace("share-take", slot, 0);
+  bv_trace("vk-take", slot, 0);
   pthread_mutex_unlock(&bv_lock);
   return slot;
 }
@@ -6415,7 +7407,7 @@ void bendviz_cycle(unsigned long long* drawn, unsigned long long* dropped, doubl
   unsigned long long* faults, double* fault_ms) {
   pthread_mutex_lock(&bv_lock);
   *drawn = bv_n_drawn, *dropped = bv_n_dropped, *took_ms = bv_took_ms, *began_ms = bv_began_ms;
-#if BEND_CUDA
+#if BEND_CUDA || BEND_VULKAN
   *faults = gpu_fault_count();  // (Windows: heap pages the host fetched on a fault, and the time)
   *fault_ms = (double)gpu_fault_time() / 1e6;
 #else
@@ -6518,15 +7510,16 @@ static void bv_touch(void) {}
 static u64 bv_launches;
 static double bv_wait_ms, bv_launch_ms;
 static u64 bv_first_launch, bv_last_sync;  // this frame's first launch, and the end of its last wait
+static double bv_kms[8], bv_kgap[8];  // (BENDVIZ_KERNELS, below)
+static u64 bv_kn[8];
+static u32 bv_kgrid[8];
 #if BEND_CUDA
 static __typeof__(gpu_fn_cuLaunchKernel) bv_real_launch;
 static __typeof__(gpu_fn_cuCtxSynchronize) bv_real_sync;
 // With BENDVIZ_KERNELS set, each launch is waited for, and its time kept by its place in the frame;
 // set to "events", the device's own clock times each kernel and the gap before it, without waiting.
 static int bv_ktime = -1;  // 0 off, 1 waiting, 2 events
-static double bv_kms[8], bv_kgap[8];
-static u64 bv_kn[8];
-static u32 bv_kidx, bv_kgrid[8], bv_kprev;
+static u32 bv_kidx, bv_kprev;
 typedef struct CUevent_st* BvEvent;
 static CUresult (CUDAAPI* bv_ev_create)(BvEvent*, unsigned);
 static CUresult (CUDAAPI* bv_ev_record)(BvEvent, CUstream);
@@ -6564,9 +7557,6 @@ static CUresult CUDAAPI bv_counted_launch(CUfunction f, unsigned gx, unsigned gy
   return r;
 }
 static CUresult CUDAAPI bv_timed_sync(void) {
-#ifdef _WIN32
-  bv_early_copy();
-#endif
   u64 t = io_tick();
   CUresult r = bv_real_sync();
   bv_last_sync = io_tick();
