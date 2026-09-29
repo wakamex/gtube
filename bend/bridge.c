@@ -174,7 +174,7 @@ static bool bv_room(size_t n) {
 // The player (gtube, on SDL's Vulkan renderer) draws on Bend's device (bendviz_vk_open), on the
 // family's first queue, and shows Bend's frames in images, each an SDL texture. The images are
 // linear and stay in the GENERAL layout. Where it can, an image is made over the buffer in Bend's
-// heap the frame was drawn in (the program draws into two in turn), so the player draws the frame
+// heap the frame was drawn in (the program draws into three in turn), so the player draws the frame
 // where Bend drew it and nothing is copied. Else (a row pitch the driver pads, say) the image has
 // memory of its own and a kernel of Bend's (bend_blit) copies the frame in, on Bend's queue, once
 // the player's draws of that image are done: after each present the player signals a timeline
@@ -182,11 +182,12 @@ static bool bv_room(size_t n) {
 // was last drawn. (vkCmdCopyBufferToImage into an optimally tiled image took 0.7 ms at 4K on RTX
 // 30s; bend_blit takes a sixth of that.) A frame is published once it is done on the GPU.
 //
-// Bend never draws into the buffer on screen: while a frame over one of its buffers waits to be
-// taken, Bend starts no other (the next would draw into the buffer shown), and the frame after a
-// take waits, on the GPU, for the mark after the last draw of the buffer shown before. With only
-// one queue both share it, it runs everything in order, and the player holds bendviz_vk_lock
-// whenever it may submit.
+// Bend never draws into a buffer on screen or waiting to be taken: it learns the order the program
+// goes round its buffers in (bv_vk_next), starts no frame while the next buffer is one of those,
+// and, on a queue of its own, has the frame wait, on the GPU, for the mark after that buffer's last
+// draw. With three buffers the next is neither, so Bend draws a frame while the player shows the one
+// before (3.5% more frames a second at 4K than with two). With only one queue both share it, it
+// runs everything in order, and the player holds bendviz_vk_lock whenever it may submit.
 typedef struct {
   int sType; const void* pNext; VkFlags flags; int type; int format; uint32_t w, h, d;
   uint32_t mips, layers; VkFlags samples; int tiling; VkFlags usage; int sharing;
@@ -241,10 +242,12 @@ static struct {
   bool           held;            // the player holds bendviz_vk_lock (its thread only)
   VkSemaphore    sem;             // the player's marks, and the last
   u64            mark;
-  u64            start_after;     // the next frame's work waits for this mark
   VkQueue        queue;           // the player's (the family's first)
   bool           share_q;         // Bend submits to the player's queue too (see bendviz_vk_pump)
-} bv_vk = { .shown = -1, .published = -1, .pending = -1 };
+  int            ring[BENDVIZ_TEXTURES];  // the slots over Bend's buffers, in the order drawn into
+  int            nring, last;             // and the last drawn into (-1 none)
+  bool           closed;                  // a buffer came round again: the ring holds them all
+} bv_vk = { .shown = -1, .published = -1, .pending = -1, .last = -1 };
 static pthread_mutex_t bv_q1_lock = PTHREAD_MUTEX_INITIALIZER;  // submits to Bend's own queue
 static pthread_cond_t bv_vk_taken = PTHREAD_COND_INITIALIZER;  // a frame was taken (or given up)
 
@@ -334,7 +337,7 @@ static bool bv_vk_frame(unsigned long long at, int fw, int fh) {
     if (s->image == 0) {
       if (blank < 0) blank = i;
     } else if (s->over != 0) {
-      if (s->over == at + 1 && free) over = i;
+      if (s->over == at + 1 && free) over = i, bv_vk.closed = true;
     } else {
       nown += 1;
       if (free && (own < 0 || s->read_done < bv_vk.slot[own].read_done)) own = i;
@@ -350,6 +353,9 @@ static bool bv_vk_frame(unsigned long long at, int fw, int fh) {
   if (try_over) {  // (a slot from the pool of unused ones: Bend's thread alone makes them)
     if (bv_vk_make(&bv_vk.slot[blank], fw, fh, at + 1)) {
       over = blank;
+      pthread_mutex_lock(&bv_lock);
+      bv_vk.ring[bv_vk.nring++] = blank;
+      pthread_mutex_unlock(&bv_lock);
     } else {
       bv_vk.no_over = true;
       make_own = own < 0 && nown < BV_OWN;
@@ -377,21 +383,36 @@ static bool bv_vk_frame(unsigned long long at, int fw, int fh) {
   pthread_mutex_lock(&bv_lock);
   bv_vk.busy = false;
   if (slot >= 0) bv_vk.pending = slot, bv_vk.pending_gen = gen;
+  if (over >= 0) bv_vk.last = over;
   pthread_mutex_unlock(&bv_lock);
   return slot >= 0;
 }
 
+// Under bv_lock: the slot over the buffer the next frame draws into, as far as the order the program
+// draws into its buffers shows (it goes round them): the one after the last drawn into, or once a
+// buffer has come round again, past the end, the first; -1 if unknown (until then it may be a buffer
+// not yet seen: assuming the first there would hold Bend forever while that one is on screen).
+static int bv_vk_next(void) {
+  int i = 0;
+  while (i < bv_vk.nring && bv_vk.ring[i] != bv_vk.last) i += 1;
+  return i == bv_vk.nring ? -1 : i + 1 < bv_vk.nring ? bv_vk.ring[i + 1] : bv_vk.closed ? bv_vk.ring[0] : -1;
+}
+
 // On Bend's thread as a frame starts: its work waits, on the GPU, for the player's last draw of the
-// buffer it draws into.
+// buffer it draws into (on the player's queue, the queue's order does).
 static void bv_vk_start(void) {
   pthread_mutex_lock(&bv_lock);
-  if (bv_vk.start_after != 0) gpu_wait_sem = bv_vk.sem, gpu_wait_at = bv_vk.start_after;
+  int next = bv_vk_next();
+  u64 after = next >= 0 && !bv_vk.share_q && !gpu_qshared ? bv_vk.slot[next].read_done : 0;
+  if (after != 0) gpu_wait_sem = bv_vk.sem, gpu_wait_at = after;
   pthread_mutex_unlock(&bv_lock);
 }
 
-// Under bv_lock: a frame over one of Bend's buffers waits to be taken (and Bend starts no other).
+// Under bv_lock: the buffer the next frame draws into is on screen, or waiting to be taken (and Bend
+// starts no frame till it isn't).
 static bool bv_vk_holding(void) {
-  return bv_fresh && bv_front_shared && bv_vk.published >= 0 && bv_vk.slot[bv_vk.published].over != 0;
+  int next = bv_vk_next();
+  return next >= 0 && (next == bv_vk.shown || (bv_fresh && bv_front_shared && next == bv_vk.published));
 }
 #endif
 
@@ -719,7 +740,7 @@ void bendviz_vk_unlock(void) {
 void bendviz_vk_unshare(void) {
   bool held = bv_vk.held;
   pthread_mutex_lock(&bv_lock);
-  bv_vk.gen = 0, bv_vk.shown = bv_vk.published = -1;
+  bv_vk.gen = 0, bv_vk.shown = bv_vk.published = -1, bv_vk.nring = 0, bv_vk.last = -1, bv_vk.closed = false;
   pthread_cond_broadcast(&bv_vk_taken);  // (a frame waiting to be taken never will be)
   while (bv_vk.busy) {
     pthread_mutex_unlock(&bv_lock);
@@ -761,7 +782,9 @@ bool bendviz_vk_frames(int w, int h, bool over) {
   pthread_mutex_lock(&bv_lock);
   static u32 gens;
   gens = gens + 1 ? gens + 1 : 1;
-  bv_vk.gen = gens, bv_vk.w = w, bv_vk.h = h, bv_vk.no_over = !over, bv_vk.share_q = over;
+  bv_vk.gen = gens, bv_vk.w = w, bv_vk.h = h, bv_vk.no_over = !over;
+  bv_vk.share_q = over;
+  bv_vk.nring = 0, bv_vk.last = -1, bv_vk.closed = false;
   pthread_mutex_unlock(&bv_lock);
   return true;
 }
@@ -775,9 +798,6 @@ int bendviz_vk_take(int* w, int* h, bool* gpu, double* ms, unsigned long long* i
   if (bv_fresh && bv_front_shared && bv_vk.published >= 0) {
     slot = bv_vk.shown = bv_vk.published, bv_vk.published = -1, bv_fresh = false;
     *w = bv_done_w, *h = bv_done_h, *gpu = bv_done_gpu, *ms = bv_ms, *image = bv_vk.slot[slot].image;
-    // (the last mark covers the draws of the image shown before, which, over Bend's buffer, the next
-    // frame may draw into)
-    bv_vk.start_after = gpu_qshared || bv_vk.share_q || bv_vk.slot[slot].over == 0 ? 0 : bv_vk.mark;
     pthread_cond_broadcast(&bv_vk_taken);
   }
   bv_trace("vk-take", slot, 0);

@@ -916,14 +916,15 @@ static const char* CLI_HELP =
 #define FID_MAIN 33
 #define FID_MAIN_K84 34
 #define FID_MAIN_K85 35
-#define FID_VIZ_NEXT 36
-#define FID_VIZ_PARAM 37
-#define FID_VIZ_SHOW 38
-#define FID_IO_EMIT 39
-#define FID_CLO_APPLY 40
-#define FID_EXIT 41
-#define FID_ENTER 42
-CONSTV u8 FID_T[][3] = { { 11, 0, 6 }, { 11, 0, 0 }, { 16, 1, 0 }, { 15, 1, 0 }, { 14, 1, 0 }, { 4, 1, 2 }, { 4, 0, 2 }, { 8, 0, 1 }, { 1, 1, 2 }, { 1, 0, 2 }, { 9, 0, 0 }, { 7, 0, 0 }, { 1, 1, 2 }, { 3, 0, 0 }, { 3, 0, 0 }, { 2, 1, 0 }, { 1, 0, 3 }, { 2, 0, 0 }, { 3, 0, 0 }, { 3, 0, 0 }, { 4, 0, 0 }, { 4, 0, 0 }, { 5, 0, 0 }, { 5, 0, 0 }, { 6, 0, 0 }, { 6, 0, 0 }, { 7, 0, 0 }, { 7, 0, 0 }, { 8, 0, 0 }, { 8, 0, 0 }, { 2, 1, 0 }, { 3, 0, 0 }, { 2, 0, 0 }, { 0, 0, 0 }, { 1, 1, 0 }, { 2, 1, 0 }, { 1, 0, 2 }, { 2, 0, 2 }, { 2, 0, 2 }, { 1, 0, 2 }, { 2, 0, 0 } };
+#define FID_MAIN_K86 36
+#define FID_VIZ_NEXT 37
+#define FID_VIZ_PARAM 38
+#define FID_VIZ_SHOW 39
+#define FID_IO_EMIT 40
+#define FID_CLO_APPLY 41
+#define FID_EXIT 42
+#define FID_ENTER 43
+CONSTV u8 FID_T[][3] = { { 11, 0, 6 }, { 11, 0, 0 }, { 16, 1, 0 }, { 15, 1, 0 }, { 14, 1, 0 }, { 4, 1, 2 }, { 4, 0, 2 }, { 8, 0, 1 }, { 1, 1, 2 }, { 1, 0, 2 }, { 9, 0, 0 }, { 7, 0, 0 }, { 1, 1, 2 }, { 3, 0, 0 }, { 3, 0, 0 }, { 2, 1, 0 }, { 1, 0, 3 }, { 3, 0, 0 }, { 4, 0, 0 }, { 4, 0, 0 }, { 5, 0, 0 }, { 5, 0, 0 }, { 6, 0, 0 }, { 6, 0, 0 }, { 7, 0, 0 }, { 7, 0, 0 }, { 8, 0, 0 }, { 8, 0, 0 }, { 9, 0, 0 }, { 9, 0, 0 }, { 3, 1, 0 }, { 4, 0, 0 }, { 3, 0, 0 }, { 0, 0, 0 }, { 1, 1, 0 }, { 2, 1, 0 }, { 3, 1, 0 }, { 1, 0, 2 }, { 2, 0, 2 }, { 2, 0, 2 }, { 1, 0, 2 }, { 2, 0, 0 } };
 CONSTV u8 CID_T[][2] = { { 2, 0 }, { 0, 0 }, { 2, 0 }, { 2, 1 }, { 1, 0 }, { 2, 0 }, { 1, 0 }, { 1, 0 }, { 0, 0 }, { 1, 0 }, { 0, 1 }, { 0, 1 }, { 0, 0 }, { 1, 0 }, { 7, 0 }, { 1, 0 }, { 2, 0 }, { 2, 0 } };
 #define STAT_LEN 0
 
@@ -981,7 +982,7 @@ CONSTV u8 CID_T[][2] = { { 2, 0 }, { 0, 0 }, { 2, 0 }, { 2, 1 }, { 1, 0 }, { 2, 
 
 #define WL_ALL e.mem, e.alc, sp, seq, rn, r0, r1, r2, r3, r4, r5, rp, r6, r7, r8, r9, r10
 
-#define WL_TABLE WL_X(FID_ARRAY_SPREAD_RUN_0) WL_X(FID_VIZ_FILL) WL_X(FID_VIZ_FILL_K48) WL_X(FID_VIZ_FILL_K49) WL_X(FID_VIZ_FILL_K50) WL_X(FID_VIZ_FILL_K51) WL_X(FID_VIZ_FILL_J48) WL_X(FID_VIZ_FRAME_GPU) WL_X(FID_VIZ_FRAME_GPU_K58) WL_X(FID_VIZ_FRAME_GPU_J58) WL_X(FID_VIZ_DRAW) WL_X(FID_VIZ_STEP) WL_X(FID_VIZ_STEP_K62) WL_X(FID_IO_BIND) WL_X(FID_IO_BIND_C64) WL_X(FID_IO_BIND_K65) WL_X(FID_VIZ_BLANK) WL_X(FID_VIZ_LOOP) WL_X(FID_VIZ_LOOP_C68) WL_X(FID_VIZ_LOOP_C69) WL_X(FID_VIZ_LOOP_C70) WL_X(FID_VIZ_LOOP_C71) WL_X(FID_VIZ_LOOP_C72) WL_X(FID_VIZ_LOOP_C73) WL_X(FID_VIZ_LOOP_C74) WL_X(FID_VIZ_LOOP_C75) WL_X(FID_VIZ_LOOP_C76) WL_X(FID_VIZ_LOOP_C77) WL_X(FID_VIZ_LOOP_C78) WL_X(FID_VIZ_LOOP_C79) WL_X(FID_VIZ_LOOP_K80) WL_X(FID_VIZ_LOOP_C81) WL_X(FID_VIZ_LOOP_C82) WL_X(FID_MAIN) WL_X(FID_MAIN_K84) WL_X(FID_MAIN_K85) WL_X(FID_VIZ_NEXT) WL_X(FID_VIZ_PARAM) WL_X(FID_VIZ_SHOW) WL_X(FID_IO_EMIT) WL_X(FID_CLO_APPLY) WL_X(FID_EXIT)
+#define WL_TABLE WL_X(FID_ARRAY_SPREAD_RUN_0) WL_X(FID_VIZ_FILL) WL_X(FID_VIZ_FILL_K48) WL_X(FID_VIZ_FILL_K49) WL_X(FID_VIZ_FILL_K50) WL_X(FID_VIZ_FILL_K51) WL_X(FID_VIZ_FILL_J48) WL_X(FID_VIZ_FRAME_GPU) WL_X(FID_VIZ_FRAME_GPU_K58) WL_X(FID_VIZ_FRAME_GPU_J58) WL_X(FID_VIZ_DRAW) WL_X(FID_VIZ_STEP) WL_X(FID_VIZ_STEP_K62) WL_X(FID_IO_BIND) WL_X(FID_IO_BIND_C64) WL_X(FID_IO_BIND_K65) WL_X(FID_VIZ_BLANK) WL_X(FID_VIZ_LOOP) WL_X(FID_VIZ_LOOP_C68) WL_X(FID_VIZ_LOOP_C69) WL_X(FID_VIZ_LOOP_C70) WL_X(FID_VIZ_LOOP_C71) WL_X(FID_VIZ_LOOP_C72) WL_X(FID_VIZ_LOOP_C73) WL_X(FID_VIZ_LOOP_C74) WL_X(FID_VIZ_LOOP_C75) WL_X(FID_VIZ_LOOP_C76) WL_X(FID_VIZ_LOOP_C77) WL_X(FID_VIZ_LOOP_C78) WL_X(FID_VIZ_LOOP_C79) WL_X(FID_VIZ_LOOP_K80) WL_X(FID_VIZ_LOOP_C81) WL_X(FID_VIZ_LOOP_C82) WL_X(FID_MAIN) WL_X(FID_MAIN_K84) WL_X(FID_MAIN_K85) WL_X(FID_MAIN_K86) WL_X(FID_VIZ_NEXT) WL_X(FID_VIZ_PARAM) WL_X(FID_VIZ_SHOW) WL_X(FID_IO_EMIT) WL_X(FID_CLO_APPLY) WL_X(FID_EXIT)
 #define MAIN_FID FID_MAIN
 #define MAIN_PURE 0
 #define BLK_SHR 1
@@ -3313,11 +3314,13 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
   WL_CASE(FID_VIZ_LOOP)
   {
     Term _a_0 = r0;
-    Term _other_0 = r1;
+    Term _b_0 = r1;
+    Term _c_0 = r2;
     WL_OPEN
-    u64 _nd_0 = heap_alloc(e, cls_fit(2));
+    u64 _nd_0 = heap_alloc(e, cls_fit(3));
     e.mem[_nd_0 + 0] = _a_0;
-    e.mem[_nd_0 + 1] = _other_0;
+    e.mem[_nd_0 + 1] = _b_0;
+    e.mem[_nd_0 + 2] = _c_0;
     r0 = term_clo(FID_VIZ_LOOP_C68, _nd_0);
     WL_RETN(1);
   }}
@@ -3327,12 +3330,14 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
   WL_CASE(FID_VIZ_LOOP_C68)
   {
     Term _a_1 = r0;
-    Term _other_1 = r1;
-    Term _x_0 = r2;
+    Term _b_1 = r1;
+    Term _c_1 = r2;
+    Term _x_0 = r3;
     WL_OPEN
-    u64 _nd_1 = heap_alloc(e, cls_fit(2));
+    u64 _nd_1 = heap_alloc(e, cls_fit(3));
     e.mem[_nd_1 + 0] = _a_1;
-    e.mem[_nd_1 + 1] = _other_1;
+    e.mem[_nd_1 + 1] = _b_1;
+    e.mem[_nd_1 + 2] = _c_1;
     if (!DEVICE && !seq && fid_nofk(FID_IO_BIND)) {
       u64 _t_9 = task_node(e, FID_IO_BIND, WL_CONT, WL_IDX, 0);
       e.mem[_t_9 + 0] = term_clo(FID_VIZ_NEXT, 0);
@@ -3351,13 +3356,15 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
   WL_CASE(FID_VIZ_LOOP_C69)
   {
     Term _a_2 = r0;
-    Term _other_2 = r1;
-    Term _x_1 = r2;
+    Term _b_2 = r1;
+    Term _c_2 = r2;
+    Term _x_1 = r3;
     WL_OPEN
-    u64 _nd_2 = heap_alloc(e, cls_fit(3));
+    u64 _nd_2 = heap_alloc(e, cls_fit(4));
     e.mem[_nd_2 + 0] = _a_2;
-    e.mem[_nd_2 + 1] = _other_2;
-    e.mem[_nd_2 + 2] = _x_1;
+    e.mem[_nd_2 + 1] = _b_2;
+    e.mem[_nd_2 + 2] = _c_2;
+    e.mem[_nd_2 + 3] = _x_1;
     r0 = term_clo(FID_VIZ_LOOP_C70, _nd_2);
     WL_RETN(1);
   }}
@@ -3367,16 +3374,18 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
   WL_CASE(FID_VIZ_LOOP_C70)
   {
     Term _a_3 = r0;
-    Term _other_3 = r1;
-    u32 _x_3 = r2;
-    Term _x_2 = r3;
+    Term _b_3 = r1;
+    Term _c_3 = r2;
+    u32 _x_3 = r3;
+    Term _x_2 = r4;
     WL_OPEN
     u64 _nd_3 = heap_alloc(e, cls_fit(1));
     e.mem[_nd_3 + 0] = 0ull;
-    u64 _nd_4 = heap_alloc(e, cls_fit(3));
+    u64 _nd_4 = heap_alloc(e, cls_fit(4));
     e.mem[_nd_4 + 0] = _a_3;
-    e.mem[_nd_4 + 1] = _other_3;
-    e.mem[_nd_4 + 2] = _x_3;
+    e.mem[_nd_4 + 1] = _b_3;
+    e.mem[_nd_4 + 2] = _c_3;
+    e.mem[_nd_4 + 3] = _x_3;
     if (!DEVICE && !seq && fid_nofk(FID_IO_BIND)) {
       u64 _t_8 = task_node(e, FID_IO_BIND, WL_CONT, WL_IDX, 0);
       e.mem[_t_8 + 0] = term_clo(FID_VIZ_PARAM, _nd_3);
@@ -3395,15 +3404,17 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
   WL_CASE(FID_VIZ_LOOP_C71)
   {
     Term _a_4 = r0;
-    Term _other_4 = r1;
-    u32 _x_5 = r2;
-    Term _x_4 = r3;
+    Term _b_4 = r1;
+    Term _c_4 = r2;
+    u32 _x_5 = r3;
+    Term _x_4 = r4;
     WL_OPEN
-    u64 _nd_5 = heap_alloc(e, cls_fit(4));
+    u64 _nd_5 = heap_alloc(e, cls_fit(5));
     e.mem[_nd_5 + 0] = _a_4;
-    e.mem[_nd_5 + 1] = _other_4;
-    e.mem[_nd_5 + 2] = _x_5;
-    e.mem[_nd_5 + 3] = _x_4;
+    e.mem[_nd_5 + 1] = _b_4;
+    e.mem[_nd_5 + 2] = _c_4;
+    e.mem[_nd_5 + 3] = _x_5;
+    e.mem[_nd_5 + 4] = _x_4;
     r0 = term_clo(FID_VIZ_LOOP_C72, _nd_5);
     WL_RETN(1);
   }}
@@ -3413,18 +3424,20 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
   WL_CASE(FID_VIZ_LOOP_C72)
   {
     Term _a_5 = r0;
-    Term _other_5 = r1;
-    u32 _x_7 = r2;
-    u32 _x_8 = r3;
-    Term _x_6 = r4;
+    Term _b_5 = r1;
+    Term _c_5 = r2;
+    u32 _x_7 = r3;
+    u32 _x_8 = r4;
+    Term _x_6 = r5;
     WL_OPEN
     u64 _nd_6 = heap_alloc(e, cls_fit(1));
     e.mem[_nd_6 + 0] = 1ull;
-    u64 _nd_7 = heap_alloc(e, cls_fit(4));
+    u64 _nd_7 = heap_alloc(e, cls_fit(5));
     e.mem[_nd_7 + 0] = _a_5;
-    e.mem[_nd_7 + 1] = _other_5;
-    e.mem[_nd_7 + 2] = _x_7;
-    e.mem[_nd_7 + 3] = _x_8;
+    e.mem[_nd_7 + 1] = _b_5;
+    e.mem[_nd_7 + 2] = _c_5;
+    e.mem[_nd_7 + 3] = _x_7;
+    e.mem[_nd_7 + 4] = _x_8;
     if (!DEVICE && !seq && fid_nofk(FID_IO_BIND)) {
       u64 _t_7 = task_node(e, FID_IO_BIND, WL_CONT, WL_IDX, 0);
       e.mem[_t_7 + 0] = term_clo(FID_VIZ_PARAM, _nd_6);
@@ -3443,17 +3456,19 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
   WL_CASE(FID_VIZ_LOOP_C73)
   {
     Term _a_6 = r0;
-    Term _other_6 = r1;
-    u32 _x_10 = r2;
-    u32 _x_11 = r3;
-    Term _x_9 = r4;
+    Term _b_6 = r1;
+    Term _c_6 = r2;
+    u32 _x_10 = r3;
+    u32 _x_11 = r4;
+    Term _x_9 = r5;
     WL_OPEN
-    u64 _nd_8 = heap_alloc(e, cls_fit(5));
+    u64 _nd_8 = heap_alloc(e, cls_fit(6));
     e.mem[_nd_8 + 0] = _a_6;
-    e.mem[_nd_8 + 1] = _other_6;
-    e.mem[_nd_8 + 2] = _x_10;
-    e.mem[_nd_8 + 3] = _x_11;
-    e.mem[_nd_8 + 4] = _x_9;
+    e.mem[_nd_8 + 1] = _b_6;
+    e.mem[_nd_8 + 2] = _c_6;
+    e.mem[_nd_8 + 3] = _x_10;
+    e.mem[_nd_8 + 4] = _x_11;
+    e.mem[_nd_8 + 5] = _x_9;
     r0 = term_clo(FID_VIZ_LOOP_C74, _nd_8);
     WL_RETN(1);
   }}
@@ -3463,20 +3478,22 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
   WL_CASE(FID_VIZ_LOOP_C74)
   {
     Term _a_7 = r0;
-    Term _other_7 = r1;
-    u32 _x_13 = r2;
-    u32 _x_14 = r3;
-    u32 _x_15 = r4;
-    Term _x_12 = r5;
+    Term _b_7 = r1;
+    Term _c_7 = r2;
+    u32 _x_13 = r3;
+    u32 _x_14 = r4;
+    u32 _x_15 = r5;
+    Term _x_12 = r6;
     WL_OPEN
     u64 _nd_9 = heap_alloc(e, cls_fit(1));
     e.mem[_nd_9 + 0] = 2ull;
-    u64 _nd_10 = heap_alloc(e, cls_fit(5));
+    u64 _nd_10 = heap_alloc(e, cls_fit(6));
     e.mem[_nd_10 + 0] = _a_7;
-    e.mem[_nd_10 + 1] = _other_7;
-    e.mem[_nd_10 + 2] = _x_13;
-    e.mem[_nd_10 + 3] = _x_14;
-    e.mem[_nd_10 + 4] = _x_15;
+    e.mem[_nd_10 + 1] = _b_7;
+    e.mem[_nd_10 + 2] = _c_7;
+    e.mem[_nd_10 + 3] = _x_13;
+    e.mem[_nd_10 + 4] = _x_14;
+    e.mem[_nd_10 + 5] = _x_15;
     if (!DEVICE && !seq && fid_nofk(FID_IO_BIND)) {
       u64 _t_6 = task_node(e, FID_IO_BIND, WL_CONT, WL_IDX, 0);
       e.mem[_t_6 + 0] = term_clo(FID_VIZ_PARAM, _nd_9);
@@ -3495,19 +3512,21 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
   WL_CASE(FID_VIZ_LOOP_C75)
   {
     Term _a_8 = r0;
-    Term _other_8 = r1;
-    u32 _x_17 = r2;
-    u32 _x_18 = r3;
-    u32 _x_19 = r4;
-    Term _x_16 = r5;
+    Term _b_8 = r1;
+    Term _c_8 = r2;
+    u32 _x_17 = r3;
+    u32 _x_18 = r4;
+    u32 _x_19 = r5;
+    Term _x_16 = r6;
     WL_OPEN
-    u64 _nd_11 = heap_alloc(e, cls_fit(6));
+    u64 _nd_11 = heap_alloc(e, cls_fit(7));
     e.mem[_nd_11 + 0] = _a_8;
-    e.mem[_nd_11 + 1] = _other_8;
-    e.mem[_nd_11 + 2] = _x_17;
-    e.mem[_nd_11 + 3] = _x_18;
-    e.mem[_nd_11 + 4] = _x_19;
-    e.mem[_nd_11 + 5] = _x_16;
+    e.mem[_nd_11 + 1] = _b_8;
+    e.mem[_nd_11 + 2] = _c_8;
+    e.mem[_nd_11 + 3] = _x_17;
+    e.mem[_nd_11 + 4] = _x_18;
+    e.mem[_nd_11 + 5] = _x_19;
+    e.mem[_nd_11 + 6] = _x_16;
     r0 = term_clo(FID_VIZ_LOOP_C76, _nd_11);
     WL_RETN(1);
   }}
@@ -3517,22 +3536,24 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
   WL_CASE(FID_VIZ_LOOP_C76)
   {
     Term _a_9 = r0;
-    Term _other_9 = r1;
-    u32 _x_21 = r2;
-    u32 _x_22 = r3;
-    u32 _x_23 = r4;
-    u32 _x_24 = r5;
-    Term _x_20 = r6;
+    Term _b_9 = r1;
+    Term _c_9 = r2;
+    u32 _x_21 = r3;
+    u32 _x_22 = r4;
+    u32 _x_23 = r5;
+    u32 _x_24 = r6;
+    Term _x_20 = r7;
     WL_OPEN
     u64 _nd_12 = heap_alloc(e, cls_fit(1));
     e.mem[_nd_12 + 0] = 3ull;
-    u64 _nd_13 = heap_alloc(e, cls_fit(6));
+    u64 _nd_13 = heap_alloc(e, cls_fit(7));
     e.mem[_nd_13 + 0] = _a_9;
-    e.mem[_nd_13 + 1] = _other_9;
-    e.mem[_nd_13 + 2] = _x_21;
-    e.mem[_nd_13 + 3] = _x_22;
-    e.mem[_nd_13 + 4] = _x_23;
-    e.mem[_nd_13 + 5] = _x_24;
+    e.mem[_nd_13 + 1] = _b_9;
+    e.mem[_nd_13 + 2] = _c_9;
+    e.mem[_nd_13 + 3] = _x_21;
+    e.mem[_nd_13 + 4] = _x_22;
+    e.mem[_nd_13 + 5] = _x_23;
+    e.mem[_nd_13 + 6] = _x_24;
     if (!DEVICE && !seq && fid_nofk(FID_IO_BIND)) {
       u64 _t_5 = task_node(e, FID_IO_BIND, WL_CONT, WL_IDX, 0);
       e.mem[_t_5 + 0] = term_clo(FID_VIZ_PARAM, _nd_12);
@@ -3551,21 +3572,23 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
   WL_CASE(FID_VIZ_LOOP_C77)
   {
     Term _a_10 = r0;
-    Term _other_10 = r1;
-    u32 _x_26 = r2;
-    u32 _x_27 = r3;
-    u32 _x_28 = r4;
-    u32 _x_29 = r5;
-    Term _x_25 = r6;
+    Term _b_10 = r1;
+    Term _c_10 = r2;
+    u32 _x_26 = r3;
+    u32 _x_27 = r4;
+    u32 _x_28 = r5;
+    u32 _x_29 = r6;
+    Term _x_25 = r7;
     WL_OPEN
-    u64 _nd_14 = heap_alloc(e, cls_fit(7));
+    u64 _nd_14 = heap_alloc(e, cls_fit(8));
     e.mem[_nd_14 + 0] = _a_10;
-    e.mem[_nd_14 + 1] = _other_10;
-    e.mem[_nd_14 + 2] = _x_26;
-    e.mem[_nd_14 + 3] = _x_27;
-    e.mem[_nd_14 + 4] = _x_28;
-    e.mem[_nd_14 + 5] = _x_29;
-    e.mem[_nd_14 + 6] = _x_25;
+    e.mem[_nd_14 + 1] = _b_10;
+    e.mem[_nd_14 + 2] = _c_10;
+    e.mem[_nd_14 + 3] = _x_26;
+    e.mem[_nd_14 + 4] = _x_27;
+    e.mem[_nd_14 + 5] = _x_28;
+    e.mem[_nd_14 + 6] = _x_29;
+    e.mem[_nd_14 + 7] = _x_25;
     r0 = term_clo(FID_VIZ_LOOP_C78, _nd_14);
     WL_RETN(1);
   }}
@@ -3575,24 +3598,26 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
   WL_CASE(FID_VIZ_LOOP_C78)
   {
     Term _a_11 = r0;
-    Term _other_11 = r1;
-    u32 _x_31 = r2;
-    u32 _x_32 = r3;
-    u32 _x_33 = r4;
-    u32 _x_34 = r5;
-    u32 _x_35 = r6;
-    Term _x_30 = r7;
+    Term _b_11 = r1;
+    Term _c_11 = r2;
+    u32 _x_31 = r3;
+    u32 _x_32 = r4;
+    u32 _x_33 = r5;
+    u32 _x_34 = r6;
+    u32 _x_35 = r7;
+    Term _x_30 = r8;
     WL_OPEN
     u64 _nd_15 = heap_alloc(e, cls_fit(1));
     e.mem[_nd_15 + 0] = 4ull;
-    u64 _nd_16 = heap_alloc(e, cls_fit(7));
+    u64 _nd_16 = heap_alloc(e, cls_fit(8));
     e.mem[_nd_16 + 0] = _a_11;
-    e.mem[_nd_16 + 1] = _other_11;
-    e.mem[_nd_16 + 2] = _x_31;
-    e.mem[_nd_16 + 3] = _x_32;
-    e.mem[_nd_16 + 4] = _x_33;
-    e.mem[_nd_16 + 5] = _x_34;
-    e.mem[_nd_16 + 6] = _x_35;
+    e.mem[_nd_16 + 1] = _b_11;
+    e.mem[_nd_16 + 2] = _c_11;
+    e.mem[_nd_16 + 3] = _x_31;
+    e.mem[_nd_16 + 4] = _x_32;
+    e.mem[_nd_16 + 5] = _x_33;
+    e.mem[_nd_16 + 6] = _x_34;
+    e.mem[_nd_16 + 7] = _x_35;
     if (!DEVICE && !seq && fid_nofk(FID_IO_BIND)) {
       u64 _t_4 = task_node(e, FID_IO_BIND, WL_CONT, WL_IDX, 0);
       e.mem[_t_4 + 0] = term_clo(FID_VIZ_PARAM, _nd_15);
@@ -3611,24 +3636,27 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
   WL_CASE(FID_VIZ_LOOP_C79)
   {
     Term _a_12 = r0;
-    Term _other_12 = r1;
-    u32 _x_37 = r2;
-    u32 _x_38 = r3;
-    u32 _x_39 = r4;
-    u32 _x_40 = r5;
-    u32 _x_41 = r6;
-    Term _x_36 = r7;
+    Term _b_12 = r1;
+    Term _c_12 = r2;
+    u32 _x_37 = r3;
+    u32 _x_38 = r4;
+    u32 _x_39 = r5;
+    u32 _x_40 = r6;
+    u32 _x_41 = r7;
+    Term _x_36 = r8;
     WL_OPEN
     if (seq) {
-      WL_ROOM(2);
-      STK(0) = _other_12;
-      STK(1) = FID_VIZ_LOOP_K80;
-      WL_PUSHN(2);
+      WL_ROOM(3);
+      STK(0) = _b_12;
+      STK(1) = _c_12;
+      STK(2) = FID_VIZ_LOOP_K80;
+      WL_PUSHN(3);
     } else {
       u64 _t_0 = task_node(e, FID_VIZ_LOOP_K80, WL_CONT, WL_IDX, 1);
-      e.mem[_t_0 + 0] = _other_12;
+      e.mem[_t_0 + 0] = _b_12;
+      e.mem[_t_0 + 1] = _c_12;
       WL_CONT = term_tsk(FID_VIZ_LOOP_K80, _t_0);
-      WL_IDX = 1;
+      WL_IDX = 2;
     }
     if (!DEVICE && !seq && fid_nofk(FID_VIZ_STEP)) {
       u64 _t_1 = task_node(e, FID_VIZ_STEP, WL_CONT, WL_IDX, 0);
@@ -3655,13 +3683,15 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
 #if !DEVICE
   WL_CASE(FID_VIZ_LOOP_K80)
   {
-    WL_POPN(1);
-    Term _other_13 = STK(0);
+    WL_POPN(2);
+    Term _b_13 = STK(0);
+    Term _c_13 = STK(1);
     Term _h_0 = r0;
     WL_OPEN
-    u64 _nd_17 = heap_alloc(e, cls_fit(2));
-    e.mem[_nd_17 + 0] = _other_13;
-    e.mem[_nd_17 + 1] = _h_0;
+    u64 _nd_17 = heap_alloc(e, cls_fit(3));
+    e.mem[_nd_17 + 0] = _b_13;
+    e.mem[_nd_17 + 1] = _c_13;
+    e.mem[_nd_17 + 2] = _h_0;
     r0 = term_clo(FID_VIZ_LOOP_C81, _nd_17);
     WL_RETN(1);
   }}
@@ -3670,12 +3700,14 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
 #if !DEVICE
   WL_CASE(FID_VIZ_LOOP_C81)
   {
-    Term _other_14 = r0;
-    Term _h_1 = r1;
-    Term _x_42 = r2;
+    Term _b_14 = r0;
+    Term _c_14 = r1;
+    Term _h_1 = r2;
+    Term _x_42 = r3;
     WL_OPEN
-    u64 _nd_18 = heap_alloc(e, cls_fit(1));
-    e.mem[_nd_18 + 0] = _other_14;
+    u64 _nd_18 = heap_alloc(e, cls_fit(2));
+    e.mem[_nd_18 + 0] = _b_14;
+    e.mem[_nd_18 + 1] = _c_14;
     if (!DEVICE && !seq && fid_nofk(FID_IO_BIND)) {
       u64 _t_3 = task_node(e, FID_IO_BIND, WL_CONT, WL_IDX, 0);
       e.mem[_t_3 + 0] = _h_1;
@@ -3693,17 +3725,20 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
 #if !DEVICE
   WL_CASE(FID_VIZ_LOOP_C82)
   {
-    Term _other_15 = r0;
-    Term _x_43 = r1;
+    Term _b_15 = r0;
+    Term _c_15 = r1;
+    Term _x_43 = r2;
     WL_OPEN
     if (!DEVICE && !seq && fid_nofk(FID_VIZ_LOOP)) {
       u64 _t_2 = task_node(e, FID_VIZ_LOOP, WL_CONT, WL_IDX, 0);
-      e.mem[_t_2 + 0] = _other_15;
-      e.mem[_t_2 + 1] = _x_43;
+      e.mem[_t_2 + 0] = _b_15;
+      e.mem[_t_2 + 1] = _c_15;
+      e.mem[_t_2 + 2] = _x_43;
       return term_tsk(FID_VIZ_LOOP, _t_2);
     }
-    r0 = _other_15;
-    r1 = _x_43;
+    r0 = _b_15;
+    r1 = _c_15;
+    r2 = _x_43;
     WL_JMP(FID_VIZ_LOOP);
   }}
 #endif
@@ -3764,14 +3799,47 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     Term _h_2 = STK(0);
     Term _h_1 = r0;
     WL_OPEN
-    if (!DEVICE && !seq && fid_nofk(FID_VIZ_LOOP)) {
-      u64 _t_4 = task_node(e, FID_VIZ_LOOP, WL_CONT, WL_IDX, 0);
+    if (seq) {
+      WL_ROOM(3);
+      STK(0) = _h_2;
+      STK(1) = _h_1;
+      STK(2) = FID_MAIN_K86;
+      WL_PUSHN(3);
+    } else {
+      u64 _t_4 = task_node(e, FID_MAIN_K86, WL_CONT, WL_IDX, 1);
       e.mem[_t_4 + 0] = _h_2;
       e.mem[_t_4 + 1] = _h_1;
-      return term_tsk(FID_VIZ_LOOP, _t_4);
+      WL_CONT = term_tsk(FID_MAIN_K86, _t_4);
+      WL_IDX = 2;
     }
-    r0 = _h_2;
-    r1 = _h_1;
+    if (!seq) {
+      u64 _t_5 = task_node(e, FID_VIZ_BLANK, WL_CONT, WL_IDX, 0);
+      e.mem[_t_5 + 0] = 0ull;
+      return term_tsk(FID_VIZ_BLANK, _t_5);
+    }
+    r0 = 0ull;
+    WL_JMP(FID_VIZ_BLANK);
+  }}
+#endif
+
+#if !DEVICE
+  WL_CASE(FID_MAIN_K86)
+  {
+    WL_POPN(2);
+    Term _h_4 = STK(0);
+    Term _h_5 = STK(1);
+    Term _h_3 = r0;
+    WL_OPEN
+    if (!DEVICE && !seq && fid_nofk(FID_VIZ_LOOP)) {
+      u64 _t_6 = task_node(e, FID_VIZ_LOOP, WL_CONT, WL_IDX, 0);
+      e.mem[_t_6 + 0] = _h_4;
+      e.mem[_t_6 + 1] = _h_5;
+      e.mem[_t_6 + 2] = _h_3;
+      return term_tsk(FID_VIZ_LOOP, _t_6);
+    }
+    r0 = _h_4;
+    r1 = _h_5;
+    r2 = _h_3;
     WL_JMP(FID_VIZ_LOOP);
   }}
 #endif
@@ -6940,7 +7008,7 @@ static bool bv_room(size_t n) {
 // The player (gtube, on SDL's Vulkan renderer) draws on Bend's device (bendviz_vk_open), on the
 // family's first queue, and shows Bend's frames in images, each an SDL texture. The images are
 // linear and stay in the GENERAL layout. Where it can, an image is made over the buffer in Bend's
-// heap the frame was drawn in (the program draws into two in turn), so the player draws the frame
+// heap the frame was drawn in (the program draws into three in turn), so the player draws the frame
 // where Bend drew it and nothing is copied. Else (a row pitch the driver pads, say) the image has
 // memory of its own and a kernel of Bend's (bend_blit) copies the frame in, on Bend's queue, once
 // the player's draws of that image are done: after each present the player signals a timeline
@@ -6948,11 +7016,12 @@ static bool bv_room(size_t n) {
 // was last drawn. (vkCmdCopyBufferToImage into an optimally tiled image took 0.7 ms at 4K on RTX
 // 30s; bend_blit takes a sixth of that.) A frame is published once it is done on the GPU.
 //
-// Bend never draws into the buffer on screen: while a frame over one of its buffers waits to be
-// taken, Bend starts no other (the next would draw into the buffer shown), and the frame after a
-// take waits, on the GPU, for the mark after the last draw of the buffer shown before. With only
-// one queue both share it, it runs everything in order, and the player holds bendviz_vk_lock
-// whenever it may submit.
+// Bend never draws into a buffer on screen or waiting to be taken: it learns the order the program
+// goes round its buffers in (bv_vk_next), starts no frame while the next buffer is one of those,
+// and, on a queue of its own, has the frame wait, on the GPU, for the mark after that buffer's last
+// draw. With three buffers the next is neither, so Bend draws a frame while the player shows the one
+// before (3.5% more frames a second at 4K than with two). With only one queue both share it, it
+// runs everything in order, and the player holds bendviz_vk_lock whenever it may submit.
 typedef struct {
   int sType; const void* pNext; VkFlags flags; int type; int format; uint32_t w, h, d;
   uint32_t mips, layers; VkFlags samples; int tiling; VkFlags usage; int sharing;
@@ -7007,10 +7076,12 @@ static struct {
   bool           held;            // the player holds bendviz_vk_lock (its thread only)
   VkSemaphore    sem;             // the player's marks, and the last
   u64            mark;
-  u64            start_after;     // the next frame's work waits for this mark
   VkQueue        queue;           // the player's (the family's first)
   bool           share_q;         // Bend submits to the player's queue too (see bendviz_vk_pump)
-} bv_vk = { .shown = -1, .published = -1, .pending = -1 };
+  int            ring[BENDVIZ_TEXTURES];  // the slots over Bend's buffers, in the order drawn into
+  int            nring, last;             // and the last drawn into (-1 none)
+  bool           closed;                  // a buffer came round again: the ring holds them all
+} bv_vk = { .shown = -1, .published = -1, .pending = -1, .last = -1 };
 static pthread_mutex_t bv_q1_lock = PTHREAD_MUTEX_INITIALIZER;  // submits to Bend's own queue
 static pthread_cond_t bv_vk_taken = PTHREAD_COND_INITIALIZER;  // a frame was taken (or given up)
 
@@ -7100,7 +7171,7 @@ static bool bv_vk_frame(unsigned long long at, int fw, int fh) {
     if (s->image == 0) {
       if (blank < 0) blank = i;
     } else if (s->over != 0) {
-      if (s->over == at + 1 && free) over = i;
+      if (s->over == at + 1 && free) over = i, bv_vk.closed = true;
     } else {
       nown += 1;
       if (free && (own < 0 || s->read_done < bv_vk.slot[own].read_done)) own = i;
@@ -7116,6 +7187,9 @@ static bool bv_vk_frame(unsigned long long at, int fw, int fh) {
   if (try_over) {  // (a slot from the pool of unused ones: Bend's thread alone makes them)
     if (bv_vk_make(&bv_vk.slot[blank], fw, fh, at + 1)) {
       over = blank;
+      pthread_mutex_lock(&bv_lock);
+      bv_vk.ring[bv_vk.nring++] = blank;
+      pthread_mutex_unlock(&bv_lock);
     } else {
       bv_vk.no_over = true;
       make_own = own < 0 && nown < BV_OWN;
@@ -7143,21 +7217,36 @@ static bool bv_vk_frame(unsigned long long at, int fw, int fh) {
   pthread_mutex_lock(&bv_lock);
   bv_vk.busy = false;
   if (slot >= 0) bv_vk.pending = slot, bv_vk.pending_gen = gen;
+  if (over >= 0) bv_vk.last = over;
   pthread_mutex_unlock(&bv_lock);
   return slot >= 0;
 }
 
+// Under bv_lock: the slot over the buffer the next frame draws into, as far as the order the program
+// draws into its buffers shows (it goes round them): the one after the last drawn into, or once a
+// buffer has come round again, past the end, the first; -1 if unknown (until then it may be a buffer
+// not yet seen: assuming the first there would hold Bend forever while that one is on screen).
+static int bv_vk_next(void) {
+  int i = 0;
+  while (i < bv_vk.nring && bv_vk.ring[i] != bv_vk.last) i += 1;
+  return i == bv_vk.nring ? -1 : i + 1 < bv_vk.nring ? bv_vk.ring[i + 1] : bv_vk.closed ? bv_vk.ring[0] : -1;
+}
+
 // On Bend's thread as a frame starts: its work waits, on the GPU, for the player's last draw of the
-// buffer it draws into.
+// buffer it draws into (on the player's queue, the queue's order does).
 static void bv_vk_start(void) {
   pthread_mutex_lock(&bv_lock);
-  if (bv_vk.start_after != 0) gpu_wait_sem = bv_vk.sem, gpu_wait_at = bv_vk.start_after;
+  int next = bv_vk_next();
+  u64 after = next >= 0 && !bv_vk.share_q && !gpu_qshared ? bv_vk.slot[next].read_done : 0;
+  if (after != 0) gpu_wait_sem = bv_vk.sem, gpu_wait_at = after;
   pthread_mutex_unlock(&bv_lock);
 }
 
-// Under bv_lock: a frame over one of Bend's buffers waits to be taken (and Bend starts no other).
+// Under bv_lock: the buffer the next frame draws into is on screen, or waiting to be taken (and Bend
+// starts no frame till it isn't).
 static bool bv_vk_holding(void) {
-  return bv_fresh && bv_front_shared && bv_vk.published >= 0 && bv_vk.slot[bv_vk.published].over != 0;
+  int next = bv_vk_next();
+  return next >= 0 && (next == bv_vk.shown || (bv_fresh && bv_front_shared && next == bv_vk.published));
 }
 #endif
 
@@ -7485,7 +7574,7 @@ void bendviz_vk_unlock(void) {
 void bendviz_vk_unshare(void) {
   bool held = bv_vk.held;
   pthread_mutex_lock(&bv_lock);
-  bv_vk.gen = 0, bv_vk.shown = bv_vk.published = -1;
+  bv_vk.gen = 0, bv_vk.shown = bv_vk.published = -1, bv_vk.nring = 0, bv_vk.last = -1, bv_vk.closed = false;
   pthread_cond_broadcast(&bv_vk_taken);  // (a frame waiting to be taken never will be)
   while (bv_vk.busy) {
     pthread_mutex_unlock(&bv_lock);
@@ -7527,7 +7616,9 @@ bool bendviz_vk_frames(int w, int h, bool over) {
   pthread_mutex_lock(&bv_lock);
   static u32 gens;
   gens = gens + 1 ? gens + 1 : 1;
-  bv_vk.gen = gens, bv_vk.w = w, bv_vk.h = h, bv_vk.no_over = !over, bv_vk.share_q = over;
+  bv_vk.gen = gens, bv_vk.w = w, bv_vk.h = h, bv_vk.no_over = !over;
+  bv_vk.share_q = over;
+  bv_vk.nring = 0, bv_vk.last = -1, bv_vk.closed = false;
   pthread_mutex_unlock(&bv_lock);
   return true;
 }
@@ -7541,9 +7632,6 @@ int bendviz_vk_take(int* w, int* h, bool* gpu, double* ms, unsigned long long* i
   if (bv_fresh && bv_front_shared && bv_vk.published >= 0) {
     slot = bv_vk.shown = bv_vk.published, bv_vk.published = -1, bv_fresh = false;
     *w = bv_done_w, *h = bv_done_h, *gpu = bv_done_gpu, *ms = bv_ms, *image = bv_vk.slot[slot].image;
-    // (the last mark covers the draws of the image shown before, which, over Bend's buffer, the next
-    // frame may draw into)
-    bv_vk.start_after = gpu_qshared || bv_vk.share_q || bv_vk.slot[slot].over == 0 ? 0 : bv_vk.mark;
     pthread_cond_broadcast(&bv_vk_taken);
   }
   bv_trace("vk-take", slot, 0);

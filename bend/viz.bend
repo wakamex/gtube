@@ -174,10 +174,10 @@ def Viz.step(+ask: U32, t: F32, bass: F32, mid: F32, hue: F32, beat: F32, a: Arr
   Viz.show(Viz.draw(U32.is_eq((ask >> 31n : U32), 1), k, a))
 
 @unsafe
-# Two frame buffers, drawn into in turn: the player copies the last frame out of one while the next
-# is drawn into the other, so no frame is copied aside for it (bridge.c waits for its copy before a
-# buffer is drawn into again).
-def Viz.loop(a: Array<U32>, other: Array<U32>) -> IO(Unit):
+# Three frame buffers, drawn into in turn: the player draws the last frame from one while the next
+# is drawn into another, and the third frees up meanwhile, so no frame is copied aside for it and
+# neither waits for the other (bridge.c keeps Bend from drawing into a buffer still on screen).
+def Viz.loop(a: Array<U32>, b: Array<U32>, c: Array<U32>) -> IO(Unit):
   do IO<Unit>:
     ask : U32 <- Viz.next()
     t : F32 <- Viz.param(0)
@@ -185,8 +185,8 @@ def Viz.loop(a: Array<U32>, other: Array<U32>) -> IO(Unit):
     mid : F32 <- Viz.param(2)
     hue : F32 <- Viz.param(3)
     beat : F32 <- Viz.param(4)
-    b : Array<U32> <- Viz.step(ask, t, bass, mid, hue, beat, a)
-    Viz.loop(other, b)
+    d : Array<U32> <- Viz.step(ask, t, bass, mid, hue, beat, a)
+    Viz.loop(b, c, d)
 
 # A frame buffer of 2^23 pixels (32 MB; 3840x2160 fits, and bridge.c scales down a bigger frame),
 # made on the GPU when there is one, so the host never writes it, which would then have to cross to
@@ -196,4 +196,4 @@ def Viz.blank(z: U32) -> Array<U32>:
 
 @unsafe
 def main() -> IO(Unit):
-  Viz.loop(Viz.blank!(0), Viz.blank!(0))
+  Viz.loop(Viz.blank!(0), Viz.blank!(0), Viz.blank!(0))
