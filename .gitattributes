@@ -1,0 +1,3 @@
+# The GPU program is keyed to the exact bytes of the generated C, so neither may be converted.
+bend/viz_bend.c -text
+bend/viz.gpu binary

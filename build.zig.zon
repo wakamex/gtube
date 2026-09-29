@@ -1,0 +1,10 @@
+.{
+    .name = .gtube,
+    .version = "0.0.0",
+    .fingerprint = 0x31445dc269f80118,
+    .minimum_zig_version = "0.16.0",
+    .dependencies = .{
+        .gesso = .{ .path = "../gesso" },
+    },
+    .paths = .{ "build.zig", "build.zig.zon", "README.md", "" },
+}
