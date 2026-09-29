@@ -59,6 +59,7 @@ typedef struct {
     int selected[VIEWS], scroll[VIEWS], visible;
     uint64_t wheel_until;
     bool typing;     // the search box has the keyboard
+    bool bend_tried; // the player moved to Bend's Vulkan device, or tried to (move_to_bend)
     char query[256];
     bool radio;      // the queue is a radio, extended as it plays
     int radio_gen, radio_taken;
@@ -175,6 +176,48 @@ static bool write_wav(const char *path, const float *lr, int frames) {
     return fclose(f) == 0;
 }
 
+// The window and its renderer, hidden: on Bend's Vulkan device when asked and there is one, so a Bend
+// effect's frames never leave the GPU, otherwise on SDL's default renderer.
+static bool make_window(app *a, bool bend) {
+    SDL_WindowFlags wf = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN;
+    if (!(bend && bend_vk_window("gesso gtube", a->window.w, a->window.h, wf, &a->win, &a->ren))
+        && !SDL_CreateWindowAndRenderer("gesso gtube", a->window.w, a->window.h, wf, &a->win, &a->ren))
+        return false;
+    bend_vk_hold();  // the player's drawing shares Bend's queue: held but while waiting (see bend_vulkan.h)
+    a->pace_cap = -1;  // paced for this renderer from the next frame
+    return true;
+}
+
+// Shows the window where it was last time, maximised or full screen as it was.
+static void show_window(app *a) {
+    if (on_a_display(a->window.x, a->window.y)) SDL_SetWindowPosition(a->win, a->window.x, a->window.y);
+    if (a->window.maximized) SDL_MaximizeWindow(a->win);
+    if (a->fullscreen) SDL_SetWindowFullscreen(a->win, true);
+    SDL_ShowWindow(a->win);
+}
+
+// The first Bend effect shown moves the player onto Bend's Vulkan device. Until then SDL's default
+// renderer keeps the Vulkan driver out of the process (about 55 MB on NVIDIA under Windows). It takes
+// a new window, since SDL's OpenGL renderer takes a window's Vulkan flag away. The new window is made
+// before the old one goes (made after, Bend's device faulted in 2 of 4 runs on an RTX 3080) and shown
+// after (shown full screen beside the old full-screen window, it drew 19% slower).
+static bool move_to_bend(app *a) {
+    a->bend_tried = true;
+    SDL_Window *old_win = a->win;
+    SDL_Renderer *old_ren = a->ren;
+    viz_set_renderer(a->viz, NULL);  // (textures go with their renderer)
+    gs_glyphs_free(a->glyphs);
+    if (a->typing) SDL_StopTextInput(old_win);
+    if (!make_window(a, true)) return false;
+    SDL_DestroyRenderer(old_ren);
+    SDL_DestroyWindow(old_win);
+    show_window(a);
+    viz_set_renderer(a->viz, a->ren);
+    a->glyphs = gs_glyphs_new(a->ren, 1024);
+    if (a->typing) SDL_StartTextInput(a->win);
+    return true;
+}
+
 SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
     app *a = SDL_calloc(1, sizeof *a);
     *state = a;
@@ -279,17 +322,8 @@ SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
     a->persist = !a->shot && !demo;
     a->window = (window_state){ SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 720, 560, false };
     if (a->persist) state_load_window(dir, &a->window);
-    // On Bend's Vulkan device if there is one, so the Bend effect's frames never leave the GPU.
-    SDL_WindowFlags wf = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN;
-    if ((a->shot || !bend_vk_window("gesso gtube", a->window.w, a->window.h, wf, &a->win, &a->ren))
-        && !SDL_CreateWindowAndRenderer("gesso gtube", a->window.w, a->window.h, wf, &a->win, &a->ren))
-        return SDL_Log("window: %s", SDL_GetError()), SDL_APP_FAILURE;
-    bend_vk_hold();  // the player's drawing shares Bend's queue: held but while waiting (see bend_vulkan.h)
-    if (on_a_display(a->window.x, a->window.y)) SDL_SetWindowPosition(a->win, a->window.x, a->window.y);
-    if (a->window.maximized) SDL_MaximizeWindow(a->win);
-    if (a->fullscreen) SDL_SetWindowFullscreen(a->win, true);
-    SDL_ShowWindow(a->win);
-    gs_pace_set(&a->pace, a->win, a->ren, !a->uncapped, a->pace_cap = a->uncapped ? 0 : 30);
+    if (!make_window(a, false)) return SDL_Log("window: %s", SDL_GetError()), SDL_APP_FAILURE;
+    show_window(a);
     a->viz = viz_new(a->ren, RATE);
     for (int i = 1; i < effect; i++) viz_step(a->viz, 1);
     a->audio = !a->shot && gs_mix_open(RATE);
@@ -702,6 +736,8 @@ static void viz_frame(app *a, SDL_FRect area, const track *t) {
 
 SDL_AppResult SDL_AppIterate(void *state) {
     app *a = state;
+    if (a->view == V_VIZ && viz_is_bend(a->viz) && !a->bend_tried && !a->shot && !move_to_bend(a))
+        return SDL_Log("window: %s", SDL_GetError()), SDL_APP_FAILURE;
     double cap = a->uncapped ? 0 : a->view == V_VIZ ? 60 : 30;  // smooth motion for the visualizer, less work elsewhere
     if (cap != a->pace_cap) gs_pace_set(&a->pace, a->win, a->ren, !a->uncapped, a->pace_cap = cap);
     viz_set_vsync(a->viz, a->pace.vsync != 0 && !a->pace.vsync_suspect);

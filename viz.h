@@ -12,6 +12,8 @@ typedef struct viz viz;
 
 viz *viz_new(SDL_Renderer *ren, int rate);
 void viz_free(viz *v);
+// Moves the textures to another renderer: NULL destroys them (before their renderer goes).
+void viz_set_renderer(viz *v, SDL_Renderer *ren);
 
 // The latest audio as heard (interleaved stereo), once per frame; dt is the time since the last.
 void viz_feed(viz *v, const float *lr, int frames, double dt);

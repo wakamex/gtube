@@ -635,23 +635,33 @@ static void glow(float x, float y, float out[4]) {
 
 viz *viz_new(SDL_Renderer *ren, int rate) {
     viz *v = calloc(1, sizeof *v);
-    v->ren = ren, v->rate = rate, v->seed = 12345;
+    v->rate = rate, v->seed = 12345;
     v->automatic = v->scroller = true;
     for (int i = 0; i < FFT_N; i++) v->window[i] = 0.5 - 0.5 * cos(6.283185307179586 * i / (FFT_N - 1));  // Hann
     for (int i = 0; i < STARS; i++) v->stars[i] = (vec3){ rnd(v) * 2 - 1, rnd(v) * 2 - 1, 0.05f + rnd(v) * 2 };
+    viz_set_renderer(v, ren);
+    return v;
+}
+
+void viz_set_renderer(viz *v, SDL_Renderer *ren) {
+    bend_share_free(v->bend_share), v->bend_share = NULL, v->bend_draw = NULL;
+    bend_release(v);
+    SDL_Texture *all[] = { v->pattern, v->ball, v->glow, v->feed[0], v->feed[1], v->fire.tex };
+    for (size_t i = 0; i < sizeof all / sizeof *all; i++)
+        if (all[i]) SDL_DestroyTexture(all[i]);
+    v->pattern = v->ball = v->glow = v->feed[0] = v->feed[1] = v->fire.tex = NULL;
+    v->feed_w = v->feed_h = v->fire.w = v->fire.h = v->bend_w = v->bend_h = 0;  // made again when next drawn
+    v->bend_interop = 0;  // whether frames can stay on the GPU is asked again
+    v->ren = ren;
+    if (!ren) return;
     v->pattern = make(v, 256, pattern);
     v->ball = make(v, 64, ball);
     v->glow = make(v, 64, glow);
-    return v;
 }
 
 void viz_free(viz *v) {
     if (!v) return;
-    bend_share_free(v->bend_share), v->bend_share = NULL, v->bend_draw = NULL;
-    bend_release(v);
-    SDL_Texture *all[] = { v->pattern, v->ball, v->glow, v->feed[0], v->feed[1], v->fire.tex, v->bend_tex };
-    for (size_t i = 0; i < sizeof all / sizeof *all; i++)
-        if (all[i]) SDL_DestroyTexture(all[i]);
+    viz_set_renderer(v, NULL);
     free(v->heat), free(v->fire.px), free(v->m.v), free(v->m.i);
     free(v);
 }
