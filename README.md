@@ -2,7 +2,7 @@
 
 A native YouTube Music player with a music visualizer, written in C on [gesso](https://github.com/wakamex/gesso).
 
-A music player shouldn't need a copy of a web browser. Desktop players are usually web apps shipped inside Electron or a WebView, which bring a whole Chromium along. gtube is one executable of about 4 MB for Windows or Linux, drawing with SDL and playing Opus audio directly, and it runs in about 120 to 160 MB of RAM.
+A music player shouldn't need a copy of a web browser. Desktop players are usually web apps shipped inside Electron or a WebView, which bring a whole Chromium along. gtube is one executable of about 4 MB for Windows or Linux, drawing with SDL and playing Opus audio directly, and it runs in about 50 MB of RAM (about 140 MB once a Bend effect has been shown, which brings in the Vulkan driver).
 
 Search, liked music, your playlists, radio and likes come from YouTube Music's own web API; yt-dlp streams the audio.
 
