@@ -400,6 +400,7 @@ static void sign_in(app *a) {
     if (a->signin) return;
     char why[200];
     a->signin = signin_open(a->dir, why, sizeof why);
+    if (!a->signin) SDL_Log("sign-in: %s", why);
     note(a, a->signin ? "Sign in to YouTube Music in the new window" : why);
 }
 
@@ -765,6 +766,7 @@ SDL_AppResult SDL_AppIterate(void *state) {
                 player_queue(a->player, NULL, 0, &cur);
                 if (!player_stream(a->player) && cur >= 0) player_play(a->player, cur);  // what YouTube refused, again
             }
+            if (r < 0) SDL_Log("sign-in: %s", why);
             note(a, r > 0 ? a->account.status : why);
             SDL_free(jar);
         }
