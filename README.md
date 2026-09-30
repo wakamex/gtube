@@ -100,14 +100,17 @@ The two Bend effects draw every pixel on a thread of their own. With a Vulkan GP
 | `--view 1-4`, `--effect N` | Start on a view or visualizer effect |
 | `--full` | Start full screen |
 | `--uncapped` | No vsync or frame cap, to see how fast the visualizer can go |
-| `--demo` | Fill the queue with sample titles and play a built-in test signal |
-| `--sign-in`, `--sign-out`, `--refresh` | Manage the saved session |
+| `--demo` | Fill the queue with sample titles and feed the visualizer a test signal |
+| `--sign-in` | Open the sign-in window at start (Windows) |
+| `--sign-out`, `--refresh` | Forget the saved session, or renew it once and report |
 | `--import-cookies FILE` | Sign in from a browser's cookies.txt |
 | `--data DIR` | Keep the tools and session elsewhere (default: `%APPDATA%\wakamex\gesso-gtube` on Windows, `~/.local/share/wakamex/gesso-gtube` on Linux) |
-| `--wav F.wav --seconds S URL` | Render the first track to a file |
-| `--shot F.png --at S` | Render one frame to a file |
+| `--wav F.wav [--seconds S] URL` | Render the first track to a file |
+| `--shot F.png [--at S]` | Render one frame to a file |
 | `--api search\|albums\|playlists\|browse\|radio ARG` | Print one API answer |
-| `--tools [--probe URL]` | Only get or update yt-dlp |
+| `--tools [--probe URL]` | Only get or update yt-dlp and Deno, and optionally show what yt-dlp makes of a link |
+| `--stats FILE [--quit S]` | Add the performance overlay's text to a file each second, and quit after S seconds |
+| `--help` | List the options |
 
 ## Limits
 
