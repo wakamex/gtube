@@ -58,7 +58,7 @@ View 4 draws what you're hearing (a 64-band spectrum, the waveform, bass, mids, 
 
 Up and Down change the effect, Enter turns auto mode on or off (a new effect every 40 s and with each track), and t toggles the scroller that carries the track's name.
 
-The two Bend effects (`bend/viz.bend`) run on a thread of their own and draw every pixel, up to 4096 x 4096. `g` moves the same Bend function between the GPU and the CPU's threads while it runs. On the GPU they draw straight into the player's textures through Vulkan, so at 4K on an RTX 3080 the plasma runs at over 3,000 frames a second with `--uncapped`. The generated C (`bend/viz_bend.c`) and its GPU program (`bend/viz.gpu`, installed beside the executable) are committed; regenerating them with `bend/build.sh` needs a Bend compiler with the Vulkan backend. Without a Vulkan GPU the effects draw on the CPU.
+The two Bend effects (`src/bend/viz.bend`) run on a thread of their own and draw every pixel, up to 4096 x 4096. `g` moves the same Bend function between the GPU and the CPU's threads while it runs. On the GPU they draw straight into the player's textures through Vulkan, so at 4K on an RTX 3080 the plasma runs at over 3,000 frames a second with `--uncapped`. The generated C (`src/bend/viz_bend.c`) and its GPU program (`src/bend/viz.gpu`, installed beside the executable) are committed; regenerating them with `src/bend/build.sh` needs a Bend compiler with the Vulkan backend. Without a Vulkan GPU the effects draw on the CPU.
 
 ## Sign-in
 
