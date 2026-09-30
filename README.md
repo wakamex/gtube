@@ -32,7 +32,7 @@ zig build --release=fast -Dtarget=x86_64-windows-gnu -p zig-out/windows
 
 Keep `gtube.gpu` (or `gtube.exe.gpu`) next to the executable when you move it; the visualizer's GPU effects load it from there.
 
-On Linux gtube needs `curl` and an X11 or Wayland desktop, plus `unzip` if it has to download Deno (see First run). A Vulkan driver is optional (see Visualizer).
+On Linux gtube needs `curl` and an X11 or Wayland desktop, plus `unzip` if it has to download Deno (see First run). WebKitGTK is needed for the sign-in window (see Sign-in), and a Vulkan driver is optional (see Visualizer).
 
 ## First run
 
@@ -42,15 +42,15 @@ Signed out, search, links and radio work. Your liked music, your playlists and l
 
 ## Sign-in
 
-On Windows, press s. It opens Google's sign-in page in a small WebView2 window. Once it reaches YouTube signed in, the cookies are saved encrypted for your Windows user (DPAPI), and the session is renewed over plain HTTPS at launch and every 10 minutes.
+Press s. It opens Google's sign-in page in a small window: WebView2 on Windows, WebKitGTK on Linux. Once it reaches YouTube signed in, gtube keeps only the YouTube and Google cookies, and renews the session over plain HTTPS at launch and every 10 minutes. On Windows the cookies are saved encrypted for your Windows user (DPAPI); on Linux, in a file in the data folder that only your user can read.
 
-On Linux the sign-in window isn't built yet, so gtube asks you to import a browser's cookies instead. Sign in to music.youtube.com in a browser, export the youtube.com and google.com cookies in Netscape cookies.txt format with an extension such as [Get cookies.txt LOCALLY](https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc) for Chrome or [cookies.txt](https://addons.mozilla.org/en-US/firefox/addon/cookies-txt/) for Firefox (the ones [yt-dlp suggests](https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp)), and run:
+The Linux window needs WebKitGTK 2.42 or newer for GTK 3: `webkit2gtk4.1` on Fedora, `libwebkit2gtk-4.1-0` on Debian and Ubuntu, `webkit2gtk-4.1` on Arch. Most GNOME desktops already have it. Without it, import a browser's cookies instead. Sign in to music.youtube.com in a browser, export the youtube.com and google.com cookies in Netscape cookies.txt format with an extension such as [Get cookies.txt LOCALLY](https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc) for Chrome or [cookies.txt](https://addons.mozilla.org/en-US/firefox/addon/cookies-txt/) for Firefox (the ones [yt-dlp suggests](https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp)), and run:
 
 ```sh
 zig build run --release=fast -- --import-cookies ~/Downloads/cookies.txt
 ```
 
-gtube keeps its own copy of every cookie in the file and renews the session like on Windows, so export only those two sites rather than the whole browser, and delete the exported file afterwards; it holds your Google session.
+gtube keeps its own copy of every cookie in the file and renews the session the same way, so export only those two sites rather than the whole browser, and delete the exported file afterwards; it holds your Google session.
 
 ## Keys
 
@@ -66,7 +66,7 @@ gtube keeps its own copy of every cookie in the file and renews the session like
 | l | Like or unlike the selected song |
 | Ctrl+V, or drop a link | Play a link: a track, an album or a playlist |
 | - and + | Volume |
-| s | Sign in (Windows; see Sign-in for Linux) |
+| s | Sign in |
 | F1 | Performance overlay |
 | f, Alt+Enter or F11 | Full screen |
 
@@ -101,7 +101,7 @@ The two Bend effects draw every pixel on a thread of their own. With a Vulkan GP
 | `--full` | Start full screen |
 | `--uncapped` | No vsync or frame cap, to see how fast the visualizer can go |
 | `--demo` | Fill the queue with sample titles and feed the visualizer a test signal |
-| `--sign-in` | Open the sign-in window at start (Windows) |
+| `--sign-in` | Open the sign-in window at start |
 | `--sign-out`, `--refresh` | Forget the saved session, or renew it once and report |
 | `--import-cookies FILE` | Sign in from a browser's cookies.txt |
 | `--data DIR` | Keep the tools and session elsewhere (default: `%APPDATA%\wakamex\gesso-gtube` on Windows, `~/.local/share/wakamex/gesso-gtube` on Linux) |
@@ -121,7 +121,7 @@ The two Bend effects draw every pixel on a thread of their own. With a Vulkan GP
 
 ## Limits
 
-Titles render in Latin, Cyrillic, Japanese, Chinese, Korean, Devanagari and Arabic with the system fonts, but Arabic has no joining or right-to-left order yet. First audio arrives about 4 s after a link, most of it yt-dlp's extraction. Not built yet: lyrics, cover art, seeking, editing playlists, and the sign-in window on Linux.
+Titles render in Latin, Cyrillic, Japanese, Chinese, Korean, Devanagari and Arabic with the system fonts, but Arabic has no joining or right-to-left order yet. First audio arrives about 4 s after a link, most of it yt-dlp's extraction. Not built yet: lyrics, cover art, seeking and editing playlists.
 
 ## Development
 
