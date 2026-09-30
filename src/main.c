@@ -211,7 +211,7 @@ static const char usage[] =
     "  --full                                    start in full screen\n"
     "  --uncapped                                no vsync or frame cap\n"
     "  --demo                                    sample titles, and a test signal for the visualizer\n"
-    "  --sign-in                                 open the sign-in window at start (Windows)\n"
+    "  --sign-in                                 open the sign-in window at start\n"
     "  --import-cookies FILE                     sign in with a cookies.txt exported from a browser\n"
     "  --sign-out                                forget the saved session\n"
     "  --refresh                                 renew the saved session once, report, and quit\n"
@@ -230,6 +230,9 @@ SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
     int nurls = 0, effect = 1;
     double seconds = 30;
     bool tools_only = false, demo = false, refresh = false, sign_out = false, open_signin = false;
+#ifndef _WIN32
+    if (argc == 3 && !strcmp(argv[1], "--signin-window")) exit(signin_window(argv[2]));
+#endif
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--help") || !strcmp(argv[i], "-h")) return printf("%s", usage), SDL_APP_SUCCESS;
         else if (!strcmp(argv[i], "--data") && i + 1 < argc) data = argv[++i];
@@ -750,8 +753,8 @@ SDL_AppResult SDL_AppIterate(void *state) {
     gs_stats_frame_begin(&a->stats);
     if (!a->demo) player_update(a->player);
     if (a->signin) {  // signing in: done when the page reaches YouTube signed in, or the window is closed
-        char *jar = NULL;
-        int r = signin_poll(a->signin, &jar);
+        char *jar = NULL, why[200];
+        int r = signin_poll(a->signin, &jar, why, sizeof why);
         if (r) {
             signin_close(a->signin);
             a->signin = NULL;
@@ -762,7 +765,7 @@ SDL_AppResult SDL_AppIterate(void *state) {
                 player_queue(a->player, NULL, 0, &cur);
                 if (!player_stream(a->player) && cur >= 0) player_play(a->player, cur);  // what YouTube refused, again
             }
-            note(a, r > 0 ? a->account.status : "Sign-in closed");
+            note(a, r > 0 ? a->account.status : why);
             SDL_free(jar);
         }
     }
