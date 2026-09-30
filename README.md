@@ -112,6 +112,13 @@ The two Bend effects draw every pixel on a thread of their own. With a Vulkan GP
 | `--stats FILE [--quit S]` | Add the performance overlay's text to a file each second, and quit after S seconds |
 | `--help` | List the options |
 
+## Troubleshooting
+
+- "YouTube wants a signed-in session": YouTube asked for an account before playing that track. Sign in (see Sign-in) and play it again.
+- A track won't play: YouTube changes often, and gtube updates yt-dlp at most once a day, at launch. `gtube --tools --probe URL` prints what yt-dlp makes of the link, with its errors.
+- Liked music or playlists stay empty after signing in: `gtube --refresh` renews the session once and says whether it worked. If Google ended the session, sign in again.
+- The Bend effects are slow: without a Vulkan driver they draw on the CPU. The effect says which one it is using, and g switches.
+
 ## Limits
 
 Titles render in Latin, Cyrillic, Japanese, Chinese, Korean, Devanagari and Arabic with the system fonts, but Arabic has no joining or right-to-left order yet. First audio arrives about 4 s after a link, most of it yt-dlp's extraction. Not built yet: lyrics, cover art, seeking, editing playlists, and the sign-in window on Linux.
