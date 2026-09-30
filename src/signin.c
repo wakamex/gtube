@@ -334,9 +334,10 @@ void signin_close(signin *s) {
 
 #else
 
-// WebKitGTK, loaded when the window opens like WebView2 on Windows, so nothing is needed to build
-// and a system without it only loses this window. It runs in a process of its own (signin_window),
-// which keeps GTK and its main loop out of the player's, and all of it goes when the window closes.
+// WebKitGTK, GTK 3's or GTK 4's, loaded when the window opens like WebView2 on Windows, so nothing
+// is needed to build and a system without it only loses this window. It runs in a process of its
+// own (signin_window), which keeps GTK and its main loop out of the player's, and all of it goes
+// when the window closes.
 #include <dlfcn.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -345,17 +346,12 @@ void signin_close(signin *s) {
 
 typedef struct glist { void *data; struct glist *next, *prev; } glist;
 
-// The few GTK, GLib, libsoup and WebKitGTK functions used, looked up at run time (GTK 3's WebKitGTK;
-// get_all_cookies needs 2.42 or newer).
-static int (*gtk_init_check)(int *, char ***);
-static void *(*gtk_window_new)(int);
-static void (*gtk_window_set_title)(void *, const char *);
-static void (*gtk_window_set_default_size)(void *, int, int);
-static void (*gtk_container_add)(void *, void *);
-static void (*gtk_widget_show_all)(void *);
-static void (*gtk_main)(void);
-static void (*gtk_main_quit)(void);
+// The GLib, libsoup, GTK and WebKitGTK functions used, looked up at run time. Both WebKitGTK APIs
+// have these (get_all_cookies needs 2.42 or newer):
 static unsigned long (*g_signal_connect_data)(void *, const char *, void *, void *, void *, int);
+static void *(*g_main_loop_new)(void *, int);
+static void (*g_main_loop_run)(void *);
+static void (*g_main_loop_quit)(void *);
 static void (*g_list_free_full)(glist *, void (*)(void *));
 static long long (*g_date_time_to_unix)(void *);
 static const char *(*soup_cookie_get_name)(void *);
@@ -366,28 +362,70 @@ static void *(*soup_cookie_get_expires)(void *);
 static int (*soup_cookie_get_secure)(void *);
 static int (*soup_cookie_get_http_only)(void *);
 static void (*soup_cookie_free)(void *);
-static void *(*webkit_web_context_new_ephemeral)(void);
-static void *(*webkit_web_context_get_cookie_manager)(void *);
-static void *(*webkit_web_view_new_with_context)(void *);
+static void (*gtk_window_set_title)(void *, const char *);
+static void (*gtk_window_set_default_size)(void *, int, int);
 static void (*webkit_web_view_load_uri)(void *, const char *);
 static const char *(*webkit_web_view_get_uri)(void *);
 static void (*webkit_cookie_manager_get_all_cookies)(void *, void *, void *, void *);
 static glist *(*webkit_cookie_manager_get_all_cookies_finish)(void *, void *, void **);
+// GTK 3's WebKitGTK (libwebkit2gtk-4.1) and GTK 4's (libwebkitgtk-6.0) differ in making the
+// window and its ephemeral browser session:
+static int (*gtk3_init_check)(int *, char ***);
+static void *(*gtk3_window_new)(int);
+static void (*gtk3_container_add)(void *, void *);
+static void (*gtk3_widget_show_all)(void *);
+static void *(*webkit41_web_context_new_ephemeral)(void);
+static void *(*webkit41_web_context_get_cookie_manager)(void *);
+static void *(*webkit41_web_view_new_with_context)(void *);
+static int (*gtk4_init_check)(void);
+static void *(*gtk4_window_new)(void);
+static void (*gtk4_window_set_child)(void *, void *);
+static void (*gtk4_window_present)(void *);
+static void *(*webkit60_network_session_new_ephemeral)(void);
+static void *(*webkit60_network_session_get_cookie_manager)(void *);
+static unsigned long (*webkit60_web_view_get_type)(void);
+static void *(*g_object_new)(unsigned long, const char *, ...);
 
+typedef struct { const char *name; void **fn; } symbol;
 #define FN(f) { #f, (void **)&f }
-static const struct { const char *name; void **fn; } fns[] = {
-    FN(gtk_init_check), FN(gtk_window_new), FN(gtk_window_set_title), FN(gtk_window_set_default_size),
-    FN(gtk_container_add), FN(gtk_widget_show_all), FN(gtk_main), FN(gtk_main_quit), FN(g_signal_connect_data),
-    FN(g_list_free_full), FN(g_date_time_to_unix), FN(soup_cookie_get_name), FN(soup_cookie_get_value),
-    FN(soup_cookie_get_domain), FN(soup_cookie_get_path), FN(soup_cookie_get_expires), FN(soup_cookie_get_secure),
-    FN(soup_cookie_get_http_only), FN(soup_cookie_free), FN(webkit_web_context_new_ephemeral),
-    FN(webkit_web_context_get_cookie_manager), FN(webkit_web_view_new_with_context), FN(webkit_web_view_load_uri),
+#define AS(f, name) { name, (void **)&f }
+static const symbol common[] = {
+    FN(g_signal_connect_data), FN(g_main_loop_new), FN(g_main_loop_run), FN(g_main_loop_quit), FN(g_list_free_full),
+    FN(g_date_time_to_unix), FN(soup_cookie_get_name), FN(soup_cookie_get_value), FN(soup_cookie_get_domain),
+    FN(soup_cookie_get_path), FN(soup_cookie_get_expires), FN(soup_cookie_get_secure), FN(soup_cookie_get_http_only),
+    FN(soup_cookie_free), FN(gtk_window_set_title), FN(gtk_window_set_default_size), FN(webkit_web_view_load_uri),
     FN(webkit_web_view_get_uri), FN(webkit_cookie_manager_get_all_cookies), FN(webkit_cookie_manager_get_all_cookies_finish),
 };
+static const symbol gtk3_api[] = {
+    AS(gtk3_init_check, "gtk_init_check"), AS(gtk3_window_new, "gtk_window_new"), AS(gtk3_container_add, "gtk_container_add"),
+    AS(gtk3_widget_show_all, "gtk_widget_show_all"), AS(webkit41_web_context_new_ephemeral, "webkit_web_context_new_ephemeral"),
+    AS(webkit41_web_context_get_cookie_manager, "webkit_web_context_get_cookie_manager"),
+    AS(webkit41_web_view_new_with_context, "webkit_web_view_new_with_context"),
+};
+static const symbol gtk4_api[] = {
+    AS(gtk4_init_check, "gtk_init_check"), AS(gtk4_window_new, "gtk_window_new"), AS(gtk4_window_set_child, "gtk_window_set_child"),
+    AS(gtk4_window_present, "gtk_window_present"), AS(webkit60_network_session_new_ephemeral, "webkit_network_session_new_ephemeral"),
+    AS(webkit60_network_session_get_cookie_manager, "webkit_network_session_get_cookie_manager"),
+    AS(webkit60_web_view_get_type, "webkit_web_view_get_type"), FN(g_object_new),
+};
+
+// The first one installed is used: GTK 3 and 4 cannot share a process, so once one is loaded the
+// other is not tried.
+static const struct { const char *lib; const symbol *fns; size_t n; } engines[] = {
+    { "libwebkit2gtk-4.1.so.0", gtk3_api, SDL_arraysize(gtk3_api) },
+    { "libwebkitgtk-6.0.so.4", gtk4_api, SDL_arraysize(gtk4_api) },
+};
+
+static const char *load(void *lib, const symbol *fns, size_t n) {
+    for (size_t i = 0; i < n; i++)
+        if (!(*fns[i].fn = dlsym(lib, fns[i].name))) return fns[i].name;
+    return NULL;
+}
 
 static struct {
     const char *file;
     void *cookies;  // the cookie manager
+    void *loop;
     bool asking;    // a cookie request is out
     bool done;      // the session is in the file
 } win;
@@ -408,7 +446,7 @@ static void on_cookies(void *manager, void *result, void *data) {
         int fd = open(win.file, O_WRONLY | O_CREAT | O_TRUNC, 0600);
         win.done = fd >= 0 && write(fd, j.text, j.len) == (ssize_t)j.len;
         if (fd >= 0) close(fd);
-        if (win.done) gtk_main_quit();
+        if (win.done) g_main_loop_quit(win.loop);
     }
     SDL_free(j.text);
 }
@@ -423,27 +461,42 @@ static void on_load(void *view, int event, void *data) {
     webkit_cookie_manager_get_all_cookies(win.cookies, NULL, (void *)on_cookies, NULL);
 }
 
-static void on_destroy(void *window, void *data) { (void)window, (void)data; gtk_main_quit(); }
+static void on_destroy(void *window, void *data) { (void)window, (void)data; g_main_loop_quit(win.loop); }
 
 int signin_window(const char *file) {
-    void *lib = dlopen("libwebkit2gtk-4.1.so.0", RTLD_NOW);
-    if (!lib) return printf("WebKitGTK is not installed (libwebkit2gtk-4.1); use --import-cookies FILE\n"), 2;
-    for (size_t i = 0; i < SDL_arraysize(fns); i++)
-        if (!(*fns[i].fn = dlsym(lib, fns[i].name))) return printf("this WebKitGTK is too old (no %s); use --import-cookies FILE\n", fns[i].name), 2;
-    if (!gtk_init_check(NULL, NULL)) return printf("GTK could not open a window\n"), 2;
+    size_t e = 0;
+    void *lib = NULL;
+    while (e < SDL_arraysize(engines) && !(lib = dlopen(engines[e].lib, RTLD_NOW))) e++;
+    if (!lib) return printf("WebKitGTK is not installed (libwebkit2gtk-4.1 or libwebkitgtk-6.0); use --import-cookies FILE\n"), 2;
+    const char *missing = load(lib, common, SDL_arraysize(common));
+    if (!missing) missing = load(lib, engines[e].fns, engines[e].n);
+    if (missing) return printf("this WebKitGTK is too old (no %s); use --import-cookies FILE\n", missing), 2;
+    bool gtk4 = engines[e].fns == gtk4_api;
+    if (!(gtk4 ? gtk4_init_check() : gtk3_init_check(NULL, NULL))) return printf("GTK could not open a window\n"), 2;
     win.file = file;
-    void *context = webkit_web_context_new_ephemeral();  // nothing of the browser is kept but the cookies
-    win.cookies = webkit_web_context_get_cookie_manager(context);
-    void *view = webkit_web_view_new_with_context(context);
-    void *window = gtk_window_new(0);
+    void *view, *window;
+    if (gtk4) {  // nothing of the browser is kept but the cookies
+        void *session = webkit60_network_session_new_ephemeral();
+        win.cookies = webkit60_network_session_get_cookie_manager(session);
+        view = g_object_new(webkit60_web_view_get_type(), "network-session", session, NULL);
+        window = gtk4_window_new();
+        gtk4_window_set_child(window, view);
+    } else {
+        void *context = webkit41_web_context_new_ephemeral();
+        win.cookies = webkit41_web_context_get_cookie_manager(context);
+        view = webkit41_web_view_new_with_context(context);
+        window = gtk3_window_new(0);
+        gtk3_container_add(window, view);
+    }
     gtk_window_set_title(window, "Sign in to YouTube Music");
     gtk_window_set_default_size(window, 520, 720);
-    gtk_container_add(window, view);
+    win.loop = g_main_loop_new(NULL, 0);
     g_signal_connect_data(window, "destroy", (void *)on_destroy, NULL, NULL, 0);
     g_signal_connect_data(view, "load-changed", (void *)on_load, NULL, NULL, 0);
     webkit_web_view_load_uri(view, SIGNIN_URL);
-    gtk_widget_show_all(window);
-    gtk_main();
+    if (gtk4) gtk4_window_present(window);
+    else gtk3_widget_show_all(window);
+    g_main_loop_run(win.loop);
     return win.done ? 0 : 1;
 }
 
