@@ -2,6 +2,8 @@
 
 A native YouTube Music player with a music visualizer, written in C on [gesso](https://github.com/wakamex/gesso).
 
+<img src="docs/spectrum.png" alt="gtube playing, with the Spectrum effect" width="49%"> <img src="docs/tunnel.png" alt="The Tunnel effect" width="49%">
+
 A music player shouldn't need a copy of a web browser. Desktop players are usually web apps shipped inside Electron or a WebView, which bring a whole Chromium along. gtube is one executable of about 4 MB for Windows or Linux, drawing with SDL and playing Opus audio directly, in about 50 MB of RAM.
 
 Search, liked music, your playlists, radio and likes come from YouTube Music's web API, the same one its website uses; yt-dlp streams the audio. gtube is not affiliated with Google, and a change on YouTube's side can break it until gtube catches up.
