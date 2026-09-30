@@ -44,13 +44,13 @@ Signed out, search, links and radio work. Your liked music, your playlists and l
 
 On Windows, press s. It opens Google's sign-in page in a small WebView2 window. Once it reaches YouTube signed in, the cookies are saved encrypted for your Windows user (DPAPI), and the session is renewed over plain HTTPS at launch and every 10 minutes.
 
-On Linux the sign-in window isn't built yet, so s only points you here. Instead, sign in to music.youtube.com in a browser, export its cookies with a cookies.txt extension (Netscape format, including the youtube.com and google.com cookies), and run:
+On Linux the sign-in window isn't built yet, so gtube asks you to import a browser's cookies instead. Sign in to music.youtube.com in a browser, export the youtube.com and google.com cookies in Netscape cookies.txt format with an extension such as [Get cookies.txt LOCALLY](https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc) for Chrome or [cookies.txt](https://addons.mozilla.org/en-US/firefox/addon/cookies-txt/) for Firefox (the ones [yt-dlp suggests](https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp)), and run:
 
 ```sh
 zig build run --release=fast -- --import-cookies ~/Downloads/cookies.txt
 ```
 
-gtube keeps its own copy and renews it like on Windows, so you can delete the exported file afterwards; it holds your Google session.
+gtube keeps its own copy of every cookie in the file and renews the session like on Windows, so export only those two sites rather than the whole browser, and delete the exported file afterwards; it holds your Google session.
 
 ## Keys
 
