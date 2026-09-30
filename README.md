@@ -22,7 +22,7 @@ Give it a link to start playing at once:
 zig build run --release=fast -- "https://music.youtube.com/playlist?list=..."
 ```
 
-To work on gesso alongside it, build against a local checkout with `zig build --fork=../gesso`.
+To work on gesso alongside it, build against a local checkout with `zig build --fork=../gesso`. `build.zig.zon` pins a gesso commit; `zig fetch --save=gesso git+https://github.com/wakamex/gesso#main` moves it to the latest.
 
 On first run it downloads its own copies of yt-dlp and Deno (the JavaScript runtime yt-dlp needs for YouTube) into its data folder, and keeps them current. Lists come over the system's curl.
 
