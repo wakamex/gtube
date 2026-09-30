@@ -9,5 +9,5 @@
             .hash = "gesso-0.0.0-LFvUr7PKDQCQU0uZ_82UzvkaHkUoaDk3f2wdhL69YbVO",
         },
     },
-    .paths = .{ "build.zig", "build.zig.zon", "README.md", "src" },
+    .paths = .{ "build.zig", "build.zig.zon", "README.md", "LICENSE", "src" },
 }
