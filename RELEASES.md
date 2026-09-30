@@ -20,7 +20,7 @@ release/stage.sh windows dist
 
 ## Checks
 
-`validation.yml` builds both archives, starts the Linux build and renders a frame headless (`--demo --shot`), then does the same with the Windows build on a Windows runner. Its gate job is the required check `release-eligible / validate`, produced on every push to `main` by `release-eligibility.yml`.
+`validation.yml` builds both archives, starts the Linux build and renders a frame headless (`--demo --shot`), then does the same with the Windows build on a Windows runner. Its gate job, `validate`, runs even when a build is skipped and passes only when both succeeded (`wakamex/release-actions/validate-gate`); it is the required check `release-eligible / validate`, produced on every push to `main` by `release-eligibility.yml`.
 
 ## Releasing vX.Y.Z
 
@@ -29,7 +29,15 @@ release/stage.sh windows dist
 3. Wait for `release-eligible / validate` to pass on that commit, and check that remote `main` still points to it.
 4. Tag it with an annotated `vX.Y.Z` and push only the tag.
 
-`publish.yml` then reruns validation, checks that the tag matches `build.zig.zon` and has release notes, rebuilds both archives from the tag, writes `SHA256SUMS`, attests every asset and verifies the attestations, and creates the Release from the notes file. Rerunning it on a published tag verifies the existing Release instead of replacing it. A broken release is fixed by a new version; tags and published assets are never moved or replaced.
+`publish.yml` then reruns validation, checks that the tag is annotated, matches `build.zig.zon` and has release notes (`wakamex/release-actions/verify-release-tag`), and rebuilds both archives from the tag. The shared `wakamex/release-actions` binary release workflow writes `SHA256SUMS`, attests every asset and verifies the attestations, and creates the Release from the notes file. Rerunning it on a published tag verifies the existing Release instead of replacing it. A broken release is fixed by a new version; tags and published assets are never moved or replaced.
+
+The attestations are signed by the shared workflow, so verify a downloaded asset with:
+
+```sh
+gh attestation verify ASSET --repo wakamex/gtube \
+  --signer-workflow wakamex/release-actions/.github/workflows/binary-release.yml
+gh release verify-asset vX.Y.Z ASSET --repo wakamex/gtube
+```
 
 ## One-time setup
 

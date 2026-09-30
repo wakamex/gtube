@@ -66,11 +66,14 @@ jobs:
 
   validate:
     name: validate
+    if: always()
     needs:
       - build
       - windows
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Both targets built and ran
-        run: echo ok
+      - name: Require both targets to have built and run
+        uses: wakamex/release-actions/validate-gate@v1
+        with:
+          needs: ${{ toJSON(needs) }}
