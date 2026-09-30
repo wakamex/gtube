@@ -8,10 +8,9 @@ Search, liked music, your playlists, radio and likes come from YouTube Music's o
 
 ## Build and run
 
-gtube builds with [Zig](https://ziglang.org) 0.16 and expects a gesso checkout next to it:
+gtube builds with [Zig](https://ziglang.org) 0.16, which fetches gesso and its dependencies on the first build:
 
 ```sh
-git clone https://github.com/wakamex/gesso
 git clone https://github.com/wakamex/gtube
 cd gtube
 zig build run --release=fast
@@ -22,6 +21,8 @@ Give it a link to start playing at once:
 ```sh
 zig build run --release=fast -- "https://music.youtube.com/playlist?list=..."
 ```
+
+To work on gesso alongside it, build against a local checkout with `zig build --fork=../gesso`.
 
 On first run it downloads its own copies of yt-dlp and Deno (the JavaScript runtime yt-dlp needs for YouTube) into its data folder, and keeps them current. Lists come over the system's curl.
 

@@ -1,5 +1,6 @@
-// gtube, the YouTube Music mini player on gesso. Expects the gesso repository next to this one (../gesso).
+// gtube, the YouTube Music mini player on gesso (fetched at the commit build.zig.zon pins).
 //   zig build run -- URL                   build and run
+//   zig build --fork=../gesso              build against a local gesso checkout
 //   zig build -Doptimize=ReleaseFast -Dtarget=x86_64-windows-gnu -p zig-out/windows
 const std = @import("std");
 
