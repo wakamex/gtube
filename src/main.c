@@ -1,21 +1,6 @@
 // A native YouTube Music mini player on gesso: paste or pass a link (a track, an album, a playlist)
 // and it plays, streaming the audio with its own yt-dlp.
-//   gtube [URL...]                             play
-//   gtube --wav F.wav --seconds S URL          render the first track offline (a test of decoding)
-//   gtube --tools [--probe URL]                just get or update yt-dlp and a JavaScript runtime
-//   --data DIR                                  where tools live (default: the user's app data folder)
-//   --demo                                      a queue of sample titles in many scripts, nothing played
-//   --shot F.png [--at S]                       render one frame at S seconds, headless, and quit
-//   --import-cookies FILE                       sign in with a cookies.txt exported from a browser
-//   --refresh                                   renew the saved session once, report, and quit
-//   --api search|albums|playlists|browse|radio ARG   print one YouTube Music API answer (every page for browse)
-//   --view 1-4, --search QUERY, --radio VIDEO   start on a view, with a search, or playing a radio
-//   --effect N                                  start the visualizer on its Nth effect
-//   --full                                      start in full screen
-//   --stats FILE [--quit S]                     the performance overlay on, its text added to FILE each
-//                                               second (for measuring); quit after S seconds
-//   --sign-in                                   open the sign-in window at start
-//   --sign-out                                  forget the saved session
+// Its options are in `usage` below.
 // Views: 1 queue, 2 liked music, 3 playlists, 4 visualizer (Up/Down effect, Enter auto, t scroller,
 // f full screen); / or Ctrl+F opens search with its box ready to type. Alt+Enter or F11 toggles full
 // screen in any view. Up/Down, Page
@@ -218,6 +203,26 @@ static bool move_to_bend(app *a) {
     return true;
 }
 
+static const char usage[] =
+    "gtube [URL...]                              play links: a track, an album or a playlist\n"
+    "  --search QUERY, --radio VIDEO_ID          start with a search, or playing a radio\n"
+    "  --view 1-4, --effect N                    start on a view (queue, liked, playlists, visualizer)\n"
+    "                                            or on the visualizer's Nth effect\n"
+    "  --full                                    start in full screen\n"
+    "  --uncapped                                no vsync or frame cap\n"
+    "  --demo                                    sample titles, and a test signal for the visualizer\n"
+    "  --sign-in                                 open the sign-in window at start (Windows)\n"
+    "  --import-cookies FILE                     sign in with a cookies.txt exported from a browser\n"
+    "  --sign-out                                forget the saved session\n"
+    "  --refresh                                 renew the saved session once, report, and quit\n"
+    "  --data DIR                                where the tools and session live\n"
+    "  --tools [--probe URL]                     only get or update yt-dlp and Deno\n"
+    "  --wav F.wav [--seconds S] URL             render the first track to a file\n"
+    "  --shot F.png [--at S]                     render one frame at S seconds, headless, and quit\n"
+    "  --stats FILE [--quit S]                   add the performance overlay's text to FILE each second;\n"
+    "                                            quit after S seconds\n"
+    "  --api search|albums|playlists|browse|radio ARG   print one YouTube Music API answer\n";
+
 SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
     app *a = SDL_calloc(1, sizeof *a);
     *state = a;
@@ -226,7 +231,8 @@ SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
     double seconds = 30;
     bool tools_only = false, demo = false, refresh = false, sign_out = false, open_signin = false;
     for (int i = 1; i < argc; i++) {
-        if (!strcmp(argv[i], "--data") && i + 1 < argc) data = argv[++i];
+        if (!strcmp(argv[i], "--help") || !strcmp(argv[i], "-h")) return printf("%s", usage), SDL_APP_SUCCESS;
+        else if (!strcmp(argv[i], "--data") && i + 1 < argc) data = argv[++i];
         else if (!strcmp(argv[i], "--probe") && i + 1 < argc) probe = argv[++i];
         else if (!strcmp(argv[i], "--wav") && i + 1 < argc) wav = argv[++i];
         else if (!strcmp(argv[i], "--seconds") && i + 1 < argc) seconds = SDL_atof(argv[++i]);
