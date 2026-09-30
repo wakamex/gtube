@@ -216,7 +216,7 @@ static const char usage[] =
     "  --sign-out                                forget the saved session\n"
     "  --refresh                                 renew the saved session once, report, and quit\n"
     "  --data DIR                                where the tools and session live\n"
-    "  --tools [--probe URL]                     only get or update yt-dlp and Deno\n"
+    "  --tools [--probe URL]                     only get or update yt-dlp and its JavaScript runtime\n"
     "  --wav F.wav [--seconds S] URL             render the first track to a file\n"
     "  --shot F.png [--at S]                     render one frame at S seconds, headless, and quit\n"
     "  --stats FILE [--quit S]                   add the performance overlay's text to FILE each second;\n"

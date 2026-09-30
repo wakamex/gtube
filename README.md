@@ -32,11 +32,11 @@ zig build --release=fast -Dtarget=x86_64-windows-gnu -p zig-out/windows
 
 Keep `gtube.gpu` (or `gtube.exe.gpu`) next to the executable when you move it; the visualizer's GPU effects load it from there.
 
-On Linux gtube needs `curl` and `tar` on the system and an X11 or Wayland desktop. A Vulkan driver is optional (see Visualizer).
+On Linux gtube needs `curl` and an X11 or Wayland desktop, plus `unzip` if it has to download Deno (see First run). A Vulkan driver is optional (see Visualizer).
 
 ## First run
 
-On first run gtube downloads its own copies of yt-dlp and Deno (the JavaScript runtime yt-dlp needs for YouTube) into its data folder, and keeps them current, so the first song takes a little longer. If Deno is already on your PATH, it uses that one.
+On first run gtube downloads its own copy of yt-dlp into its data folder and keeps it current, so the first song takes a little longer. yt-dlp needs a JavaScript runtime for YouTube: gtube uses Deno, Node or Bun if one is on your PATH, and otherwise downloads Deno too.
 
 Signed out, search, links and radio work. Your liked music, your playlists and liking songs need you to sign in, and YouTube sometimes asks for a signed-in session before it will play a track; the status line says so when it does.
 
@@ -108,7 +108,7 @@ The two Bend effects draw every pixel on a thread of their own. With a Vulkan GP
 | `--wav F.wav [--seconds S] URL` | Render the first track to a file |
 | `--shot F.png [--at S]` | Render one frame to a file |
 | `--api search\|albums\|playlists\|browse\|radio ARG` | Print one API answer |
-| `--tools [--probe URL]` | Only get or update yt-dlp and Deno, and optionally show what yt-dlp makes of a link |
+| `--tools [--probe URL]` | Only get or update yt-dlp and its JavaScript runtime, and optionally show what yt-dlp makes of a link |
 | `--stats FILE [--quit S]` | Add the performance overlay's text to a file each second, and quit after S seconds |
 | `--help` | List the options |
 
