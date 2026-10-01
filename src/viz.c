@@ -77,6 +77,7 @@ struct viz {
     double bend_took0, bend_began0, bend_fault_ms0;
     uint8_t *heat;
     float fuel[BANDS];      // the fire's fuel per band, following the spectrum slowly
+    double feed_due, fire_due;  // steps owed to the feedback and the fire (steps_due)
     float travel, turn;
     vec3 stars[STARS];
     float hue;              // drifts, and jumps on beats
@@ -148,6 +149,16 @@ static void draw(viz *v, SDL_Texture *tex, SDL_BlendMode blend) {
 }
 
 // Makes the canvas w by h (clearing it) if it is not already; returns whether it changed.
+// The steps an effect owes this frame, for those that change a little each step (the feedback and
+// the fire): they were made at 60 frames a second and step 60 times a second at any frame rate,
+// none in some frames at a high frame rate and several at a low one.
+static int steps_due(double *due, double dt) {
+    *due += dt * 60;
+    int n = (int)*due;
+    *due -= n;
+    return n;
+}
+
 static bool fit(viz *v, canvas *c, int w, int h) {
     if (w == c->w && h == c->h) return false;
     free(c->px);
@@ -159,8 +170,8 @@ static bool fit(viz *v, canvas *c, int w, int h) {
     return true;
 }
 
-static void show(viz *v, canvas *c, SDL_FRect a) {
-    SDL_UpdateTexture(c->tex, NULL, c->px, c->w * 4);
+static void show(viz *v, canvas *c, SDL_FRect a, bool changed) {
+    if (changed) SDL_UpdateTexture(c->tex, NULL, c->px, c->w * 4);
     SDL_SetTextureBlendMode(c->tex, SDL_BLENDMODE_NONE);
     SDL_RenderTexture(v->ren, c->tex, NULL, &a);
 }
@@ -289,24 +300,10 @@ static void fx_tunnel(viz *v, SDL_FRect a) {
     draw(v, v->glow, SDL_BLENDMODE_ADD);
 }
 
-// Milkdrop's feedback: each frame is the last one seen through a warp mesh (zoomed in, turned and
-// rippled, a little darker), with a ring scope drawn on top, so everything leaves trails.
-static void fx_feedback(viz *v, SDL_FRect a) {
-    int w = (int)a.w, h = (int)a.h;
-    if (w != v->feed_w || h != v->feed_h) {
-        for (int i = 0; i < 2; i++) {
-            if (v->feed[i]) SDL_DestroyTexture(v->feed[i]);
-            v->feed[i] = SDL_CreateTexture(v->ren, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, w, h);
-            SDL_SetRenderTarget(v->ren, v->feed[i]);
-            SDL_SetRenderDrawColor(v->ren, 0, 0, 0, 255);
-            SDL_RenderClear(v->ren);
-        }
-        SDL_SetRenderTarget(v->ren, NULL);
-        v->feed_w = w, v->feed_h = h;
-    }
+// One step of the feedback, at the size of its buffers: the last image warped into the other buffer,
+// with the scope on top.
+static void feedback_step(viz *v, int w, int h) {
     SDL_Texture *last = v->feed[0], *next = v->feed[1];
-    SDL_Rect clip;
-    bool clipped = SDL_GetRenderClipRect(v->ren, &clip) && !SDL_RectEmpty(&clip);
     SDL_SetRenderTarget(v->ren, next);
     float t = (float)v->t, zoom = 1.02f + v->beat * 0.06f + v->bass * 0.01f, rot = 0.006f + (v->mid - v->treble) * 0.02f;
     float cs = cosf(rot) / zoom, sn = sinf(rot) / zoom, cx = w / 2.0f, cy = h / 2.0f, u = h / 200.0f;
@@ -339,24 +336,38 @@ static void fx_feedback(viz *v, SDL_FRect a) {
     if (v->beat > 0.9f)  // sparks on the beat
         for (int i = 0; i < 40; i++) sprite(&v->m, rnd(v) * w, rnd(v) * h, u, gray(1, 1));
     draw(v, NULL, SDL_BLENDMODE_ADD);
+    v->feed[0] = next, v->feed[1] = last;
+}
+
+// Milkdrop's feedback: each step, 60 a second, is the last image seen through a warp mesh (zoomed
+// in, turned and rippled, a little darker), with a ring scope drawn on top, so everything leaves
+// trails.
+static void fx_feedback(viz *v, SDL_FRect a) {
+    int w = (int)a.w, h = (int)a.h;
+    if (w != v->feed_w || h != v->feed_h) {
+        for (int i = 0; i < 2; i++) {
+            if (v->feed[i]) SDL_DestroyTexture(v->feed[i]);
+            v->feed[i] = SDL_CreateTexture(v->ren, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, w, h);
+            SDL_SetRenderTarget(v->ren, v->feed[i]);
+            SDL_SetRenderDrawColor(v->ren, 0, 0, 0, 255);
+            SDL_RenderClear(v->ren);
+        }
+        SDL_SetRenderTarget(v->ren, NULL);
+        v->feed_w = w, v->feed_h = h;
+    }
+    SDL_Rect clip;
+    bool clipped = SDL_GetRenderClipRect(v->ren, &clip) && !SDL_RectEmpty(&clip);
+    for (int n = steps_due(&v->feed_due, v->dt); n > 0; n--) feedback_step(v, w, h);
     SDL_SetRenderTarget(v->ren, NULL);
     if (clipped) SDL_SetRenderClipRect(v->ren, &clip);
-    SDL_SetTextureBlendMode(next, SDL_BLENDMODE_NONE);
-    SDL_RenderTexture(v->ren, next, NULL, &a);
-    v->feed[0] = next, v->feed[1] = last;
+    SDL_SetTextureBlendMode(v->feed[0], SDL_BLENDMODE_NONE);
+    SDL_RenderTexture(v->ren, v->feed[0], NULL, &a);
 }
 
 // Fire fed by the spectrum. A cellular effect, so it is worked out on a grid a third of the height
 // and drawn smoothly scaled.
-static void fx_fire(viz *v, SDL_FRect a) {
-    int h = (int)(a.h / 3), w;
-    h = h < 120 ? 120 : h > 360 ? 360 : h;
-    w = (int)(h * a.w / a.h);
-    if (fit(v, &v->fire, w, h)) free(v->heat), v->heat = calloc((size_t)(w * (h + 2)), 1);
-    uint8_t *heat = v->heat;
-    // Fuel follows each band over about a quarter of a second, so the columns do not all flare on
-    // every kick at once (which rises as horizontal stripes).
-    for (int b = 0; b < BANDS; b++) v->fuel[b] += (v->band[b] - v->fuel[b]) * fminf(1, (float)v->dt * 4);
+// One step of the fire, at 60 a second: embers along the bottom, and the heat risen a row.
+static void fire_step(viz *v, uint8_t *heat, int w, int h) {
     for (int x = 0; x < w; x++) {
         // Embers on or off at random, more often where it is louder: flames rather than stripes.
         float s = v->fuel[x * BANDS / w], chance = 0.15f + 0.85f * s + v->beat * 0.1f;
@@ -372,12 +383,27 @@ static void fx_fire(viz *v, SDL_FRect a) {
             int k = (sum + (int)(rnd(v) * 4)) / 4 - (rnd(v) < 0.5f * cool) - (rnd(v) < 0.5f * cool);
             heat[y * w + x] = (uint8_t)(k < 0 ? 0 : k);
         }
-    for (int i = 0; i < w * h; i++) {
-        float f = heat[i] / 255.0f;  // black, red, orange, yellow, white
-        float r = fminf(1, f * 3), g = fminf(1, fmaxf(0, (f - 0.33f) * 2.2f)), b = fminf(1, fmaxf(0, (f - 0.7f) * 3.3f));
-        v->fire.px[i] = (uint32_t)(r * 255) << 16 | (uint32_t)(g * 255) << 8 | (uint32_t)(b * 255);
-    }
-    show(v, &v->fire, a);
+}
+
+static void fx_fire(viz *v, SDL_FRect a) {
+    int h = (int)(a.h / 3), w;
+    h = h < 120 ? 120 : h > 360 ? 360 : h;
+    w = (int)(h * a.w / a.h);
+    bool fresh = fit(v, &v->fire, w, h);
+    if (fresh) free(v->heat), v->heat = calloc((size_t)(w * (h + 2)), 1);
+    uint8_t *heat = v->heat;
+    // Fuel follows each band over about a quarter of a second, so the columns do not all flare on
+    // every kick at once (which rises as horizontal stripes).
+    for (int b = 0; b < BANDS; b++) v->fuel[b] += (v->band[b] - v->fuel[b]) * fminf(1, (float)v->dt * 4);
+    int n = steps_due(&v->fire_due, v->dt);
+    for (int step = 0; step < n; step++) fire_step(v, heat, w, h);
+    if (n || fresh)
+        for (int i = 0; i < w * h; i++) {
+            float f = heat[i] / 255.0f;  // black, red, orange, yellow, white
+            float r = fminf(1, f * 3), g = fminf(1, fmaxf(0, (f - 0.33f) * 2.2f)), b = fminf(1, fmaxf(0, (f - 0.7f) * 3.3f));
+            v->fire.px[i] = (uint32_t)(r * 255) << 16 | (uint32_t)(g * 255) << 8 | (uint32_t)(b * 255);
+        }
+    show(v, &v->fire, a, n || fresh);
 }
 
 // Destroys the Bend effect's texture of frames that came through the host.
