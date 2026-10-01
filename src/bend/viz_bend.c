@@ -855,7 +855,8 @@ static const char* CLI_HELP =
   "usage: %s [options] [arguments]\n"
   "  --threads N       worker threads, 1 to 128 (default: the CPU count)\n"
   "  --gpu on|off|4GB  run ! calls on the GPU, over this much of its memory\n"
-  "                    (default: on if present, over 2GB on Metal)\n"
+  "                    (a size falls back to the CPU when there is no GPU;\n"
+  "                    default: on if present, over 2GB on Metal)\n"
   "  --gpu-build       write the GPU program and exit\n"
   "  --bend-help       show this text\n"
   "  --                the rest are the program's arguments (IO.args)\n";
@@ -9646,8 +9647,11 @@ int main(int argc, char** argv) {
         : strcmp(end, "MB") == 0 ? 1ull << 20 : 0;
       if (v != NULL && strcmp(v, "off") == 0) {
         gpu = 0;
-      } else if (v != NULL && (strcmp(v, "on") == 0 || (mul != 0 && n > 0))) {
+      } else if (v != NULL && strcmp(v, "on") == 0) {
         gpu = 1;
+      } else if (mul != 0 && n > 0) {
+        gpu = 2;  // the GPU when there is one, else the CPU: an embedding app
+                  // (bendviz_start) must not exit for want of a GPU
         mem = (u64)(n * (double)mul);
       } else {
         err_fail("expected on, off or a size like 4GB after --gpu");
@@ -9660,6 +9664,9 @@ int main(int argc, char** argv) {
   bool dev = gpu != 0 && BANGS != 0 && gpu_probe();
   if (gpu == 1 && BANGS != 0 && !dev) {
     err_fail("--gpu on, but this binary found no GPU device");
+  }
+  if (gpu == 2 && BANGS != 0 && !dev) {
+    fprintf(stderr, "bend: no GPU device found; the ! calls run on the CPU\n");
   }
   io_loop(corpus_setup(dev, thr > 0 ? thr : cpu_count(), mem));
   io_sync();
