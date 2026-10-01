@@ -64,6 +64,7 @@ struct viz {
     bool bend_drawn_gpu;    // where its newest frame was drawn, and how long that took
     double bend_ms;
     bool bend_started, bend_shown;
+    bool bend_ready;         // the player's renderer is settled for Bend, so the program may start
     uint64_t bend_start_ms;  // when the program was started, for the startup log
     int bend_startup;        // what the startup log has said: 1 started, 2 first frame, 3 a frame overdue
     bool vsync;                 // presents wait for the vertical blank (viz_set_vsync)
@@ -450,10 +451,28 @@ static void bend_texture(viz *v, int w, int h) {
     v->bend_w = w, v->bend_h = h;
 }
 
+// Where the effect is drawn and how fast, or that it is starting.
+static void bend_label(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
+    char label[96];
+    const char *where = !v->bend_shown ? "starting" : v->bend_drawn_gpu ? "GPU" : v->bend_on_gpu && !bendviz_gpu() ? "CPU (no GPU found)" : "CPU";
+    if (v->bend_shown) snprintf(label, sizeof label, "Bend on %s, %.1f ms a frame (%dx%d)", where, v->bend_ms, v->bend_w, v->bend_h);
+    else snprintf(label, sizeof label, "Bend %s", where);
+    // Top left, under where the effect's name shows (the stats overlay has the top right).
+    float px = fmaxf(14, a.h * 0.045f), ly = a.y + a.h * 0.09f * 2.3f;
+    gs_fontset_draw(g, f, px, a.x + a.h * 0.054f + 2, ly + 2, label, (SDL_FColor){ 0, 0, 0, 0.7f });
+    gs_fontset_draw(g, f, px, a.x + a.h * 0.054f, ly, label, (SDL_FColor){ 1, 1, 1, 1 });
+}
+
 // A plasma or a fractal tree written in Bend (bend/viz.bend), drawing every pixel of the area, by the
 // same function on the GPU or on the CPU's threads, as g chooses. It runs beside the player and draws
 // at its own pace: each frame asks for the next and shows the newest one finished.
 static void fx_bend(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
+    // The program starts once the player has moved to Bend's Vulkan device (or knows it can't),
+    // never before: started first, it opens a device of its own that the player then shares.
+    if (!v->bend_ready) {
+        bend_label(v, a, g, f);
+        return;
+    }
     if (!v->bend_started) {
         v->bend_start_ms = SDL_GetTicks();
         v->bend_started = bendviz_start("768MB"), v->bend_on_gpu = true;
@@ -545,15 +564,9 @@ static void fx_bend(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
         SDL_SetTextureBlendMode(v->bend_draw, SDL_BLENDMODE_NONE);
         SDL_RenderTexture(v->ren, v->bend_draw, NULL, &a);
     }
-    char label[96];
-    const char *where = !v->bend_shown ? "starting" : v->bend_drawn_gpu ? "GPU" : v->bend_on_gpu && !bendviz_gpu() ? "CPU (no GPU found)" : "CPU";
-    if (v->bend_shown) snprintf(label, sizeof label, "Bend on %s, %.1f ms a frame (%dx%d)", where, v->bend_ms, v->bend_w, v->bend_h);
-    else snprintf(label, sizeof label, "Bend %s", where);
-    // Top left, under where the effect's name shows (the stats overlay has the top right).
-    float px = fmaxf(14, a.h * 0.045f), ly = a.y + a.h * 0.09f * 2.3f;
-    gs_fontset_draw(g, f, px, a.x + a.h * 0.054f + 2, ly + 2, label, (SDL_FColor){ 0, 0, 0, 0.7f });
-    gs_fontset_draw(g, f, px, a.x + a.h * 0.054f, ly, label, (SDL_FColor){ 1, 1, 1, 1 });
+    bend_label(v, a, g, f);
 }
+
 
 static int by_z(const void *a, const void *b) {
     float za = ((const vec3 *)a)->z, zb = ((const vec3 *)b)->z;
@@ -749,6 +762,7 @@ bool viz_bend_stats(const viz *v, char *out, size_t size) {
     return true;
 }
 void viz_bend_switch(viz *v) { v->bend_on_gpu = !v->bend_on_gpu; }
+void viz_bend_ready(viz *v) { v->bend_ready = true; }
 void viz_set_vsync(viz *v, bool on) { v->vsync = on; }
 int viz_index(const viz *v, int *count) { *count = FX_COUNT; return v->fx; }
 void viz_set_auto(viz *v, bool on) { v->automatic = on, v->fx_since = v->t; }

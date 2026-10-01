@@ -23,6 +23,7 @@ void viz_step(viz *v, int dir);  // the next (1) or previous (-1) effect
 bool viz_is_bend(const viz *v);     // the effect written in Bend is showing
 bool viz_bend_stats(const viz *v, char *out, size_t size);  // its last frame, for the stats overlay
 void viz_bend_switch(viz *v);       // moves that effect between the GPU and the CPU
+void viz_bend_ready(viz *v);        // the renderer is settled for that effect: its program may start
 void viz_set_vsync(viz *v, bool on);  // whether presents wait for the vertical blank
 const char *viz_name(const viz *v);
 int viz_index(const viz *v, int *count);

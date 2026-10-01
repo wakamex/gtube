@@ -203,6 +203,7 @@ static bool move_to_bend(app *a) {
     a->glyphs = gs_glyphs_new(a->ren, 1024);
     if (a->typing) SDL_StartTextInput(a->win);
     SDL_Log("bend: window moved in %llu ms", (unsigned long long)(SDL_GetTicks() - since));
+    viz_bend_ready(a->viz);
     return true;
 }
 
@@ -337,6 +338,7 @@ SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
     if (!make_window(a, false)) return SDL_Log("window: %s", SDL_GetError()), SDL_APP_FAILURE;
     show_window(a);
     a->viz = viz_new(a->ren, RATE);
+    if (a->shot) viz_bend_ready(a->viz);  // (a shot's renderer stays as it is)
     for (int i = 1; i < effect; i++) viz_step(a->viz, 1);
     a->audio = !a->shot && gs_mix_open(RATE);
     a->started = SDL_GetTicks();
