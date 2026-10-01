@@ -16,15 +16,10 @@ static jar jar_new(void) {
     return j;
 }
 
-static bool wanted_domain(const char *d) {
-    size_t n = strlen(d);
-    return (n >= 10 && !strcmp(d + n - 10, "google.com")) || (n >= 11 && !strcmp(d + n - 11, "youtube.com"));
-}
-
-// Adds a google.com or youtube.com cookie (others are left out); `expires` 0 for a session cookie.
+// Adds a cookie; `expires` 0 for a session cookie. The account keeps only the session's domains.
 static void jar_add(jar *j, const char *domain, const char *path, bool secure, bool http_only, long long expires,
                     const char *name, const char *value) {
-    if (!wanted_domain(domain) || !name[0]) return;
+    if (!name[0]) return;
     if (strstr(domain, "youtube.com") && (!strcmp(name, "SAPISID") || !strcmp(name, "__Secure-3PAPISID"))) j->youtube_session = true;
     char line[5200];
     int n = snprintf(line, sizeof line, "%s%s\t%s\t%s\t%s\t%lld\t%s\t%s\n", http_only ? "#HttpOnly_" : "", domain,

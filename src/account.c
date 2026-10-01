@@ -131,12 +131,41 @@ bool account_signed_in(account *a) {
     return in;
 }
 
+// Whether a cookie's domain is google.com, youtube.com, or one of theirs (".music.youtube.com").
+static bool session_domain(const char *d, size_t n) {
+    static const char *const sites[] = { "google.com", "youtube.com" };
+    for (size_t i = 0; i < SDL_arraysize(sites); i++) {
+        size_t m = strlen(sites[i]);
+        if (n >= m && !memcmp(d + n - m, sites[i], m) && (n == m || d[n - m - 1] == '.')) return true;
+    }
+    return false;
+}
+
+// The google.com and youtube.com cookies of a Netscape cookie file, the session's own: a browser's
+// export can hold every site's.
+static char *session_cookies(const char *jar) {
+    static const char header[] = "# Netscape HTTP Cookie File\n";
+    char *out = SDL_malloc(sizeof header + strlen(jar)), *o = out;
+    memcpy(o, header, sizeof header - 1), o += sizeof header - 1;
+    for (const char *line = jar; *line;) {
+        size_t len = strcspn(line, "\n");
+        const char *d = !strncmp(line, "#HttpOnly_", 10) ? line + 10 : line;
+        size_t n = d < line + len && *d != '#' ? strcspn(d, "\t\n") : 0;
+        size_t keep = len - (len && line[len - 1] == '\r');  // (a Windows export ends lines in CR LF)
+        if (n && d[n] == '\t' && session_domain(d, n)) memcpy(o, line, keep), o += keep, *o++ = '\n';
+        line += len + (line[len] == '\n');
+    }
+    *o = 0;
+    return out;
+}
+
 bool account_store(account *a, const char *jar) {
-    if (!has_session(jar)) return say(a, "that sign-in has no YouTube session"), false;
-    if (!save_bytes(a, jar)) return say(a, "could not save the session"), false;
+    char *kept = session_cookies(jar);
+    if (!has_session(kept)) return SDL_free(kept), say(a, "that sign-in has no YouTube session"), false;
+    if (!save_bytes(a, kept)) return SDL_free(kept), say(a, "could not save the session"), false;
     SDL_LockMutex(a->lock);
     SDL_free(a->jar);
-    a->jar = SDL_strdup(jar);
+    a->jar = kept;
     a->last_refresh = SDL_GetTicks();
     SDL_UnlockMutex(a->lock);
     say(a, "signed in");
