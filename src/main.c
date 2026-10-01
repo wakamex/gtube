@@ -188,6 +188,8 @@ static void show_window(app *a) {
 // after (shown full screen beside the old full-screen window, it drew 19% slower).
 static bool move_to_bend(app *a) {
     a->bend_tried = true;
+    uint64_t since = SDL_GetTicks();
+    SDL_Log("bend: moving the window to Bend's Vulkan device, %.1f s in", since / 1000.0);
     SDL_Window *old_win = a->win;
     SDL_Renderer *old_ren = a->ren;
     viz_set_renderer(a->viz, NULL);  // (textures go with their renderer)
@@ -200,6 +202,7 @@ static bool move_to_bend(app *a) {
     viz_set_renderer(a->viz, a->ren);
     a->glyphs = gs_glyphs_new(a->ren, 1024);
     if (a->typing) SDL_StartTextInput(a->win);
+    SDL_Log("bend: window moved in %llu ms", (unsigned long long)(SDL_GetTicks() - since));
     return true;
 }
 

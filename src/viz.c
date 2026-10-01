@@ -64,6 +64,8 @@ struct viz {
     bool bend_drawn_gpu;    // where its newest frame was drawn, and how long that took
     double bend_ms;
     bool bend_started, bend_shown;
+    uint64_t bend_start_ms;  // when the program was started, for the startup log
+    int bend_startup;        // what the startup log has said: 1 started, 2 first frame, 3 a frame overdue
     bool vsync;                 // presents wait for the vertical blank (viz_set_vsync)
     int bend_count;             // new frames since bend_count_from (ns), and their rate over the last second
     uint64_t bend_count_from;
@@ -452,10 +454,20 @@ static void bend_texture(viz *v, int w, int h) {
 // same function on the GPU or on the CPU's threads, as g chooses. It runs beside the player and draws
 // at its own pace: each frame asks for the next and shows the newest one finished.
 static void fx_bend(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
-    if (!v->bend_started) v->bend_started = bendviz_start("768MB"), v->bend_on_gpu = true;
+    if (!v->bend_started) {
+        v->bend_start_ms = SDL_GetTicks();
+        v->bend_started = bendviz_start("768MB"), v->bend_on_gpu = true;
+        SDL_Log("bend: program %s, %.1f s in", v->bend_started ? "started" : "not started (no thread)", v->bend_start_ms / 1000.0);
+        v->bend_startup = 1;
+    }
     int w = (int)a.w < BENDVIZ_MAX ? (int)a.w : BENDVIZ_MAX, h = (int)a.h < BENDVIZ_MAX ? (int)a.h : BENDVIZ_MAX;
     float params[5] = { (float)v->t, v->bass, v->mid, v->hue, v->beat };
     if (!v->bend_shown) bendviz_request(params, w, h, v->fx == FX_BEND_TREE, v->bend_on_gpu);
+    if (v->bend_startup == 1 && !v->bend_shown && SDL_GetTicks() - v->bend_start_ms > 5000) {
+        SDL_Log("bend: no frame 5 s after starting (asked for %dx%d, %s, on the %s; GPU in use: %s)", w, h,
+                v->fx == FX_BEND_TREE ? "tree" : "plasma", v->bend_on_gpu ? "GPU" : "CPU", bendviz_gpu() ? "yes" : "no");
+        v->bend_startup = 3;
+    }
     // Without vsync the player would present as fast as it can, most often the frame already on
     // screen, and each present takes the GPU from Bend: a moment's wait for Bend's next frame (drawn
     // on the GPU, a millisecond or two) lets the player show only new ones.
@@ -485,6 +497,7 @@ static void fx_bend(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
     if (!v->bend_interop) {
         v->bend_interop = bend_vk_on() ? 1 : -1;
         bendviz_device_frames(v->bend_interop == 1);
+        SDL_Log("bend: frames reach the screen %s", v->bend_interop == 1 ? "on the GPU (shared device)" : "through the host");
     }
     if (v->bend_interop == 1) {
         // Textures the size of the frames Bend draws (at most BENDVIZ_PIXELS)
@@ -522,6 +535,11 @@ static void fx_bend(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
     // The next frame is asked for once this one is taken, so Bend draws it while the player draws
     // and presents this one, rather than each waiting for the other.
     bendviz_request(params, w, h, v->fx == FX_BEND_TREE, v->bend_on_gpu);
+    if (fresh && v->bend_startup != 2) {
+        SDL_Log("bend: first frame %llu ms after starting, %dx%d, drawn on the %s, %.1f ms", (unsigned long long)(SDL_GetTicks() - v->bend_start_ms),
+                v->bend_w, v->bend_h, v->bend_drawn_gpu ? "GPU" : bendviz_gpu() ? "CPU" : "CPU (no GPU found)", v->bend_ms);
+        v->bend_startup = 2;
+    }
     bend_count_frame(v, fresh, (SDL_GetTicksNS() - take_from) / 1e6);
     if (v->bend_shown && v->bend_draw) {
         SDL_SetTextureBlendMode(v->bend_draw, SDL_BLENDMODE_NONE);

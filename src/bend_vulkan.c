@@ -19,13 +19,16 @@ static bool on_bend;  // the renderer draws on Bend's device
 
 bool bend_vk_window(const char *title, int w, int h, SDL_WindowFlags flags, SDL_Window **win, SDL_Renderer **ren) {
     *win = SDL_CreateWindow(title, w, h, flags | SDL_WINDOW_VULKAN);
-    if (!*win) return false;
+    if (!*win) return SDL_Log("bend: no Vulkan window (%s); the player draws with its own renderer", SDL_GetError()), false;
     Uint32 n = 0;
     char const *const *iexts = SDL_Vulkan_GetInstanceExtensions(&n);
     static const char *const dexts[] = { "VK_KHR_swapchain" };
     void *inst, *phys, *dev;
     unsigned family;
-    if (iexts && bendviz_vk_open(iexts, (int)n, dexts, 1, &inst, &phys, &dev, &family)) {
+    if (!iexts) SDL_Log("bend: SDL has no Vulkan instance extensions (%s); the player draws with its own renderer", SDL_GetError());
+    else if (!bendviz_vk_open(iexts, (int)n, dexts, 1, &inst, &phys, &dev, &family))
+        SDL_Log("bend: Bend opened no Vulkan device; the player draws with its own renderer");
+    else {
         SDL_PropertiesID p = SDL_CreateProperties();
         SDL_SetPointerProperty(p, SDL_PROP_RENDERER_CREATE_WINDOW_POINTER, *win);
         SDL_SetStringProperty(p, SDL_PROP_RENDERER_CREATE_NAME_STRING, "vulkan");
@@ -36,7 +39,7 @@ bool bend_vk_window(const char *title, int w, int h, SDL_WindowFlags flags, SDL_
         SDL_SetNumberProperty(p, SDL_PROP_RENDERER_CREATE_VULKAN_PRESENT_QUEUE_FAMILY_INDEX_NUMBER, family);
         *ren = SDL_CreateRendererWithProperties(p);
         SDL_DestroyProperties(p);
-        if (*ren) return on_bend = true;
+        if (*ren) return SDL_Log("bend: the player draws on Bend's Vulkan device (queue family %u)", family), on_bend = true;
         SDL_Log("bend: no renderer on Bend's Vulkan device: %s", SDL_GetError());
     }
     SDL_DestroyWindow(*win);
