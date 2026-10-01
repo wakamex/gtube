@@ -44,13 +44,13 @@ Signed out, search, links and radio work. Your liked music, your playlists and l
 
 Press s. It opens Google's sign-in page in a small window: WebView2 on Windows, WebKitGTK on Linux. Once it reaches YouTube signed in, gtube keeps only the YouTube and Google cookies, and renews the session over plain HTTPS at launch and every 10 minutes. On Windows the cookies are saved encrypted for your Windows user (DPAPI); on Linux, in a file in the data folder that only your user can read.
 
-The Linux window needs WebKitGTK 2.42 or newer, for GTK 3 or GTK 4: `webkit2gtk4.1` or `webkitgtk6.0` on Fedora, `libwebkit2gtk-4.1-0` or `libwebkitgtk-6.0-4` on Debian and Ubuntu, `webkit2gtk-4.1` or `webkitgtk-6.0` on Arch. GNOME desktops already have the GTK 4 one. Without either, import a browser's cookies instead. Sign in to music.youtube.com in a browser, export the youtube.com and google.com cookies in Netscape cookies.txt format with an extension such as [Get cookies.txt LOCALLY](https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc) for Chrome or [cookies.txt](https://addons.mozilla.org/en-US/firefox/addon/cookies-txt/) for Firefox (the ones [yt-dlp suggests](https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp)), and run:
+The Linux window needs WebKitGTK 2.42 or newer, for GTK 3 or GTK 4: `webkit2gtk4.1` or `webkitgtk6.0` on Fedora, `libwebkit2gtk-4.1-0` or `libwebkitgtk-6.0-4` on Debian and Ubuntu, `webkit2gtk-4.1` or `webkitgtk-6.0` on Arch. GNOME desktops already have the GTK 4 one. Without either, import a browser's cookies instead. Sign in to music.youtube.com in a browser, export its cookies in Netscape cookies.txt format with an extension such as [Get cookies.txt LOCALLY](https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc) for Chrome or [cookies.txt](https://addons.mozilla.org/en-US/firefox/addon/cookies-txt/) for Firefox (the ones [yt-dlp suggests](https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp)), and run:
 
 ```sh
 zig build run --release=fast -- --import-cookies ~/Downloads/cookies.txt
 ```
 
-gtube keeps its own copy of every cookie in the file and renews the session the same way, so export only those two sites rather than the whole browser, and delete the exported file afterwards; it holds your Google session.
+gtube keeps only the youtube.com and google.com cookies from the file and renews the session the same way. Delete the exported file afterwards; it holds your Google session.
 
 ## Keys
 
