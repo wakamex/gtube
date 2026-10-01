@@ -76,6 +76,8 @@ static SDL_Environment *trimmed_env(void) {
     return env;
 }
 
+// Never set SDL_PROP_PROCESS_CREATE_WORKING_DIRECTORY_STRING: the Linux release runs on glibc 2.27
+// and 2.28, which cannot start a process in another directory (see src/glibc_compat.c).
 SDL_Process *tools_spawn(SDL_PropertiesID props) {
     static SDL_SpinLock lock;
     SDL_LockSpinlock(&lock);

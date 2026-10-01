@@ -10,7 +10,7 @@ cd "$(dirname "$0")/.."
 target=${1:?linux or windows}
 out=$(mkdir -p "${2:?output directory}" && cd "$2" && pwd)
 case $target in
-    linux) zig_target=x86_64-linux-gnu.2.31 exe=gtube ext=tar.gz ;;
+    linux) zig_target=x86_64-linux-gnu.2.27 exe=gtube ext=tar.gz ;;
     windows) zig_target=x86_64-windows-gnu exe=gtube.exe ext=zip ;;
     *) echo "unknown target: $target" >&2; exit 1 ;;
 esac

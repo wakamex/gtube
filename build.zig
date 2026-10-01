@@ -22,6 +22,10 @@ pub fn build(b: *std.Build) void {
     // main renamed so it runs on a thread of the player, and its GPU program beside the executable.
     mod.addCSourceFile(.{ .file = b.path("src/bend/viz_bend.c"), .flags = &.{ "-std=c11", "-O3", "-w", "-DBEND_VULKAN=1", "-DBENDVIZ_EMBED", "-Dmain=bendviz_main" } });
     mod.linkLibrary(gesso);
+    if (target.result.isGnuLibC()) {
+        const glibc = target.result.os.versionRange().gnuLibCVersion().?;
+        if (glibc.order(.{ .major = 2, .minor = 29, .patch = 0 }) == .lt) mod.addCSourceFile(.{ .file = b.path("src/glibc_compat.c"), .flags = flags });
+    }
     const exe = b.addExecutable(.{ .name = "gtube", .root_module = mod });
     b.getInstallStep().dependOn(&b.addInstallBinFile(b.path("src/bend/viz.gpu"), if (target.result.os.tag == .windows) "gtube.exe.gpu" else "gtube.gpu").step);
     if (target.result.os.tag == .windows) {
