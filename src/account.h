@@ -1,5 +1,5 @@
 // The signed-in YouTube session: Google's cookies, captured once by signing in (signin.h) and kept
-// alive without a browser by refreshing them over plain HTTPS with the system's curl: a POST to
+// alive without a browser by refreshing them over plain HTTPS (http.h): a POST to
 // accounts.google.com/RotateCookies renews the short-lived session cookies, and a passive YouTube
 // sign-in redirect copies the renewed session to youtube.com. Stored encrypted for the user with
 // DPAPI on Windows (a plain file readable only by the user elsewhere). yt-dlp gets a throwaway

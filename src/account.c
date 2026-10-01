@@ -3,18 +3,16 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "tools.h"
+#include "http.h"
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <dpapi.h>
 #define SLASH "\\"
-#define NULL_DEVICE "NUL"
 #else
 #include <sys/stat.h>
 #define SLASH "/"
-#define NULL_DEVICE "/dev/null"
 #endif
 
 // A current desktop browser, so Google's endpoints answer as they would to one.
@@ -217,25 +215,6 @@ bool account_needed(const char *e) {
 
 // ---- Keeping it alive ----
 
-// Runs curl with a cookie jar it reads and rewrites; returns the HTTP status, or 0.
-static int curl_status(const char *const *args) {
-    SDL_PropertiesID p = SDL_CreateProperties();
-    SDL_SetPointerProperty(p, SDL_PROP_PROCESS_CREATE_ARGS_POINTER, (void *)args);
-    SDL_SetNumberProperty(p, SDL_PROP_PROCESS_CREATE_STDIN_NUMBER, SDL_PROCESS_STDIO_NULL);
-    SDL_SetNumberProperty(p, SDL_PROP_PROCESS_CREATE_STDOUT_NUMBER, SDL_PROCESS_STDIO_APP);
-    SDL_SetNumberProperty(p, SDL_PROP_PROCESS_CREATE_STDERR_NUMBER, SDL_PROCESS_STDIO_NULL);
-    SDL_Process *proc = tools_spawn(p);
-    SDL_DestroyProperties(p);
-    if (!proc) return 0;
-    size_t n;
-    int code = -1;
-    char *out = SDL_ReadProcess(proc, &n, &code);
-    SDL_DestroyProcess(proc);
-    int status = out && code == 0 ? SDL_atoi(out) : 0;
-    SDL_free(out);
-    return status;
-}
-
 // The value of a cookie in Netscape text, for noticing that a refresh renewed it.
 static void cookie_value(const char *jar, const char *domain_suffix, const char *name, char *out, size_t size) {
     out[0] = 0;
@@ -262,8 +241,7 @@ bool account_cookie(account *a, const char *name, char *out, size_t size) {
 }
 
 bool account_refresh(account *a) {
-    char jar[1200], curl[512];
-    tools_program("curl", curl, sizeof curl);
+    char jar[1200];
     if (!account_jar_file(a, jar, sizeof jar)) return false;
     char before[512], after_google[512], after_youtube[512];
     SDL_LockMutex(a->lock);
@@ -271,13 +249,13 @@ bool account_refresh(account *a) {
     SDL_UnlockMutex(a->lock);
 
     // 1. Renew the session's short-lived cookies at accounts.google.com.
-    const char *rotate[] = { curl, "-sS", "-o", NULL_DEVICE, "-w", "%{http_code}", "-b", jar, "-c", jar, "-A", USER_AGENT,
-        "-H", "Content-Type: application/json", "-H", "Origin: https://accounts.google.com",
-        "--data", "[000,\"-0000000000000000000\"]", "https://accounts.google.com/RotateCookies", NULL };
-    int status = curl_status(rotate);
+    const char *headers[] = { "Content-Type: application/json", "Origin: https://accounts.google.com", NULL };
+    http_request rotate = { .url = "https://accounts.google.com/RotateCookies", .agent = USER_AGENT, .headers = headers,
+                            .body = "[000,\"-0000000000000000000\"]", .cookies = jar, .save_cookies = true };
+    int status = http_fetch(&rotate, NULL, NULL);
     // 2. Carry the renewed session over to youtube.com (the redirect chain ends at accounts.youtube.com/SetSID).
-    const char *carry[] = { curl, "-sS", "-L", "-o", NULL_DEVICE, "-w", "%{http_code}", "-b", jar, "-c", jar, "-A", USER_AGENT, PASSIVE_SIGNIN, NULL };
-    int status2 = status == 200 ? curl_status(carry) : 0;
+    http_request carry = { .url = PASSIVE_SIGNIN, .agent = USER_AGENT, .cookies = jar, .save_cookies = true, .follow = true };
+    int status2 = status == 200 ? http_fetch(&carry, NULL, NULL) : 0;
 
     char *text = SDL_LoadFile(jar, NULL);
     account_jar_done(jar);

@@ -1,4 +1,4 @@
-// YouTube Music's own web API (the one music.youtube.com's page calls), over the system's curl:
+// YouTube Music's own web API (the one music.youtube.com's page calls), over http.h:
 // search, playlists and albums, liked music, the library, radio, and liking. Requests are signed
 // with the session when there is one. A response is read by walking its whole tree for list items
 // and the continuation token, which holds up as YouTube rearranges its page layouts.

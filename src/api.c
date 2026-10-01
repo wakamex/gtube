@@ -6,7 +6,7 @@
 #include <time.h>
 
 #include "gs_json.h"
-#include "tools.h"
+#include "http.h"
 
 #define ORIGIN "https://music.youtube.com"
 #define USER_AGENT "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36"
@@ -71,7 +71,7 @@ static void json_quote(char *out, size_t size, const char *s) {
 
 // POSTs {"context": ..., <fields>} to an API endpoint; returns the parsed response or NULL.
 static gs_json *request(account *a, const char *endpoint, const char *fields, char *error, size_t esize) {
-    char url[256], body[4096], version[32], curl[512], jar[1200], auth[200] = "", sapisid[256];
+    char url[256], body[4096], version[32], jar[1200], auth[200] = "", sapisid[256];
     time_t now = time(NULL);
     struct tm *utc = gmtime(&now);
     strftime(version, sizeof version, "1.%Y%m%d.01.00", utc);  // the page's own version string, as ytmusicapi sends
@@ -85,35 +85,17 @@ static gs_json *request(account *a, const char *endpoint, const char *fields, ch
         sha1_hex(text, hex);
         snprintf(auth, sizeof auth, "Authorization: SAPISIDHASH %lld_%s", (long long)now, hex);
     }
-    tools_program("curl", curl, sizeof curl);
-    const char *args[32];
-    int n = 0;
-    args[n++] = curl, args[n++] = "-sS", args[n++] = "--compressed", args[n++] = "-A", args[n++] = USER_AGENT;
-    args[n++] = "-H", args[n++] = "Content-Type: application/json";
-    args[n++] = "-H", args[n++] = "Origin: " ORIGIN;
-    args[n++] = "-H", args[n++] = "X-Origin: " ORIGIN;
-    if (signed_in) args[n++] = "-H", args[n++] = auth, args[n++] = "-H", args[n++] = "X-Goog-AuthUser: 0", args[n++] = "-b", args[n++] = jar;
-    args[n++] = "-w", args[n++] = "\n%{http_code}";
-    args[n++] = "--data-binary", args[n++] = body, args[n++] = url, args[n] = NULL;
-
-    SDL_PropertiesID p = SDL_CreateProperties();
-    SDL_SetPointerProperty(p, SDL_PROP_PROCESS_CREATE_ARGS_POINTER, (void *)args);
-    SDL_SetNumberProperty(p, SDL_PROP_PROCESS_CREATE_STDIN_NUMBER, SDL_PROCESS_STDIO_NULL);
-    SDL_SetNumberProperty(p, SDL_PROP_PROCESS_CREATE_STDOUT_NUMBER, SDL_PROCESS_STDIO_APP);
-    SDL_SetNumberProperty(p, SDL_PROP_PROCESS_CREATE_STDERR_NUMBER, SDL_PROCESS_STDIO_NULL);
-    SDL_Process *proc = tools_spawn(p);
-    SDL_DestroyProperties(p);
+    // (signed out, the list ends where the authorization would be)
+    const char *headers[] = { "Content-Type: application/json", "Origin: " ORIGIN, "X-Origin: " ORIGIN,
+                              signed_in ? auth : NULL, "X-Goog-AuthUser: 0", NULL };
+    http_request r = { .url = url, .agent = USER_AGENT, .headers = headers, .body = body, .cookies = signed_in ? jar : NULL, .compressed = true };
+    char *out = NULL;
     size_t len = 0;
-    int code = -1;
-    char *out = proc ? SDL_ReadProcess(proc, &len, &code) : NULL;
-    SDL_DestroyProcess(proc);
+    int status = http_fetch(&r, &out, &len);
     if (signed_in) account_jar_done(jar);
 
-    // The body, then the status on the last line.
-    char *last = out ? strrchr(out, '\n') : NULL;
-    int status = last ? atoi(last + 1) : 0;
-    gs_json *doc = status == 200 ? gs_json_parse(out, (size_t)(last - out)) : NULL;
-    if (!doc) snprintf(error, esize, !out || code ? "could not reach YouTube Music" : status != 200 ? "YouTube Music answered HTTP %d" : "YouTube Music sent something unreadable", status);
+    gs_json *doc = status == 200 ? gs_json_parse(out, len) : NULL;
+    if (!doc) snprintf(error, esize, !status ? "could not reach YouTube Music" : status != 200 ? "YouTube Music answered HTTP %d" : "YouTube Music sent something unreadable", status);
     SDL_free(out);
     return doc;
 }

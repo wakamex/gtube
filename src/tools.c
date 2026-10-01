@@ -7,6 +7,7 @@
 #endif
 
 #include "gs_sha256.h"
+#include "http.h"
 
 #ifdef _WIN32
 #define EXE ".exe"
@@ -141,8 +142,11 @@ static const char *system_program(const char *name) {
 }
 
 static bool download(const char *url, const char *to) {
-    const char *args[] = { system_program("curl"), "-fsSL", "--retry", "2", "-o", to, url, NULL };
-    return run(args, NULL);
+    http_request r = { .url = url, .follow = true, .to = to };
+    for (int attempt = 0; attempt < 3; attempt++)
+        if (http_fetch(&r, NULL, NULL) == 200) return true;
+    SDL_RemovePath(to);
+    return false;
 }
 
 // The first 64-hex-digit token in text that follows `name` on its line (or anywhere, if name is NULL).
