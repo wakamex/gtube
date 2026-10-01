@@ -8,9 +8,17 @@ A music player shouldn't need a copy of a web browser. Desktop players are usual
 
 Search, liked music, your playlists, radio and likes come from YouTube Music's web API, the same one its website uses; yt-dlp streams the audio. gtube is not affiliated with Google, and a change on YouTube's side can break it until gtube catches up.
 
-## Build and run
+## Download or build
 
-There are no prebuilt downloads yet. gtube builds from source with [Zig](https://ziglang.org) 0.16, which fetches gesso, SDL and the rest on the first build; nothing else needs installing to build it.
+Download the Linux or Windows archive from [Releases](https://github.com/wakamex/gtube/releases), unpack it, and run `gtube` (or `gtube.exe`). Give it a link to start playing at once:
+
+```sh
+./gtube "https://music.youtube.com/playlist?list=..."
+```
+
+The Linux build runs on glibc 2.31 or newer (Ubuntu 20.04, Debian 11, Fedora 32 and later). Each archive's `licenses` folder holds the licenses of the code compiled into it.
+
+To build from source instead, use [Zig](https://ziglang.org) 0.16, which fetches gesso, SDL and the rest on the first build; nothing else needs installing to build it.
 
 ```sh
 git clone https://github.com/wakamex/gtube
@@ -18,13 +26,7 @@ cd gtube
 zig build run --release=fast
 ```
 
-Give it a link to start playing at once:
-
-```sh
-zig build run --release=fast -- "https://music.youtube.com/playlist?list=..."
-```
-
-The executable lands in `zig-out/bin`. To build the Windows version, on Windows or from Linux:
+With a link to play: `zig build run --release=fast -- URL`. The executable lands in `zig-out/bin`. To build the Windows version, on Windows or from Linux:
 
 ```sh
 zig build --release=fast -Dtarget=x86_64-windows-gnu -p zig-out/windows
