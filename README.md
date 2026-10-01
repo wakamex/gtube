@@ -4,9 +4,9 @@ A native YouTube Music player with a music visualizer, written in C on [gesso](h
 
 <img src="docs/search.png" alt="Searching for songs in gtube" width="49%"> <img src="docs/spectrum.png" alt="gtube playing, with the Spectrum visualizer" width="49%">
 
-A music player shouldn't need a copy of a web browser. Desktop players are usually web apps shipped inside Electron or a WebView, which bring a whole Chromium along. gtube is one executable of about 4 MB for Windows or Linux, a 1.8 MB download, drawing with SDL and playing Opus audio directly. Playing a track, it uses about 90 MB of RAM on Windows with an NVIDIA GPU, and on Linux about 55 MB plus the graphics driver's share.
+A music player shouldn't need a copy of a web browser. Desktop players are usually web apps shipped inside Electron or a WebView, which bring a whole Chromium along. gtube is one executable of about 4 MB for Windows or Linux, a 1.8 MB download, drawing with [Simple DirectMedia Layer (SDL)](https://www.libsdl.org/) and playing [Opus](https://opus-codec.org/) audio directly. Playing a track, it uses about 90 MB of RAM on Windows with an NVIDIA GPU, and on Linux about 55 MB plus the graphics driver's share.
 
-Search, liked music, your playlists, radio and likes come from YouTube Music's web API, the same one its website uses; yt-dlp streams the audio. gtube is not affiliated with Google, and a change on YouTube's side can break it until gtube catches up.
+Search, liked music, your playlists, radio and likes come from YouTube Music's web API, the same one its website uses; [yt-dlp](https://github.com/yt-dlp/yt-dlp) streams the audio. gtube is not affiliated with Google, and a change on YouTube's side can break it until gtube catches up.
 
 ## Download or build
 
@@ -16,7 +16,7 @@ Download the Linux or Windows archive from [Releases](https://github.com/wakamex
 ./gtube "https://music.youtube.com/playlist?list=..."
 ```
 
-The Linux build runs on glibc 2.31 or newer (Ubuntu 20.04, Debian 11, Fedora 32 and later). Each archive's `licenses` folder holds the licenses of the code compiled into it.
+The Linux build runs on the [GNU C Library (glibc)](https://www.gnu.org/software/libc/) 2.31 or newer (Ubuntu 20.04, Debian 11, Fedora 32 and later). Each archive's `licenses` folder holds the licenses of the code compiled into it.
 
 To build from source instead, use [Zig](https://ziglang.org) 0.16, which fetches gesso, SDL and the rest on the first build; nothing else needs installing to build it.
 
@@ -34,7 +34,7 @@ zig build --release=fast -Dtarget=x86_64-windows-gnu -p zig-out/windows
 
 Keep `gtube.gpu` (or `gtube.exe.gpu`) next to the executable when you move it; the visualizer's GPU effects load it from there.
 
-On Linux gtube needs `curl` and an X11 or Wayland desktop, plus `unzip` if it has to download Deno (see First run). WebKitGTK is needed for the sign-in window (see Sign-in), and a Vulkan driver is optional (see Visualizer).
+On Linux gtube needs `curl` and an X11 or Wayland desktop, plus `unzip` if it has to download [Deno](https://deno.com/) (see First run). [WebKitGTK](https://webkitgtk.org/) is needed for the sign-in window (see Sign-in), and a [Vulkan](https://www.vulkan.org/) driver is optional (see Visualizer).
 
 ## First run
 
@@ -44,7 +44,7 @@ Signed out, search, links and radio work. Your liked music, your playlists and l
 
 ## Sign-in
 
-Press s. It opens Google's sign-in page in a small window: WebView2 on Windows, WebKitGTK on Linux. Once it reaches YouTube signed in, gtube keeps only the YouTube and Google cookies, and renews the session over plain HTTPS at launch and every 10 minutes. On Windows the cookies are saved encrypted for your Windows user (DPAPI); on Linux, in a file in the data folder that only your user can read.
+Press s. It opens Google's sign-in page in a small window: [WebView2](https://developer.microsoft.com/microsoft-edge/webview2/) on Windows, WebKitGTK on Linux. Once it reaches YouTube signed in, gtube keeps only the YouTube and Google cookies, and renews the session over plain HTTPS at launch and every 10 minutes. On Windows the cookies are saved encrypted for your Windows user with the Windows Data Protection API (DPAPI); on Linux, in a file in the data folder that only your user can read.
 
 The Linux window needs WebKitGTK 2.42 or newer, for GTK 3 or GTK 4: `webkit2gtk4.1` or `webkitgtk6.0` on Fedora, `libwebkit2gtk-4.1-0` or `libwebkitgtk-6.0-4` on Debian and Ubuntu, `webkit2gtk-4.1` or `webkitgtk-6.0` on Arch. GNOME desktops already have the GTK 4 one. Without either, import a browser's cookies instead. Sign in to music.youtube.com in a browser, export its cookies in Netscape cookies.txt format with an extension such as [Get cookies.txt LOCALLY](https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc) for Chrome or [cookies.txt](https://addons.mozilla.org/en-US/firefox/addon/cookies-txt/) for Firefox (the ones [yt-dlp suggests](https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp)), and run:
 
@@ -80,7 +80,7 @@ View 4 draws what you're hearing (a 64-band spectrum, the waveform, bass, mids, 
 
 - Spectrum: Winamp-style LED bars with a scope
 - Tunnel: a bending tunnel of textured rings
-- Feedback: Milkdrop-style, each frame the last one seen through a warp mesh
+- Feedback: [MilkDrop](https://en.wikipedia.org/wiki/MilkDrop)-style, each frame the last one seen through a warp mesh
 - Fire, fed by the spectrum
 - Stars and bobs: a warp starfield around a sphere of bobs pushed out by the bands
 - Bend plasma and Bend tree, written in [Bend](https://github.com/bendlang/bend)
