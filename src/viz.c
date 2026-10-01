@@ -268,10 +268,24 @@ static void fx_tunnel(viz *v, SDL_FRect a) {
         }
     }
     draw(v, v->pattern, SDL_BLENDMODE_NONE);
-    // The light at the end, where the far rings meet.
-    float zf = first + (rings - 1) * dz, wf = v->travel + zf;
-    float bx = (sinf(wf * 0.9f + t * 0.3f) - sinf(v->travel * 0.9f + t * 0.3f)) * 0.8f, by = (cosf(wf * 0.7f) - cosf(v->travel * 0.7f)) * 0.6f;
-    sprite(&v->m, cx + bx / zf * focal, cy + by / zf * focal, a.h * (0.05f + v->bass * 0.12f + v->beat * 0.05f), hsv(v->hue + 0.5f, 0.3f, 1, 1));
+    // The light at the end: as far down the middle as you can see, where it stays inside every nearer
+    // ring's opening, so it shines from round the bend instead of through the walls in front of it.
+    float lx = cx, ly = cy;
+    for (int k = 1; k < rings; k++) {
+        float z = first + k * dz, w = v->travel + z;
+        float px = cx + (sinf(w * 0.9f + t * 0.3f) - sinf(v->travel * 0.9f + t * 0.3f)) * 0.8f / z * focal;
+        float py = cy + (cosf(w * 0.7f) - cosf(v->travel * 0.7f)) * 0.6f / z * focal;
+        bool seen = true;
+        for (int j = 0; j < k && seen; j++) {
+            float zj = first + j * dz, wj = v->travel + zj;
+            float qx = cx + (sinf(wj * 0.9f + t * 0.3f) - sinf(v->travel * 0.9f + t * 0.3f)) * 0.8f / zj * focal;
+            float qy = cy + (cosf(wj * 0.7f) - cosf(v->travel * 0.7f)) * 0.6f / zj * focal;
+            seen = hypotf(px - qx, py - qy) < focal / zj * 0.9f;
+        }
+        if (!seen) break;
+        lx = px, ly = py;
+    }
+    sprite(&v->m, lx, ly, a.h * (0.05f + v->bass * 0.12f + v->beat * 0.05f), hsv(v->hue + 0.5f, 0.3f, 1, 1));
     draw(v, v->glow, SDL_BLENDMODE_ADD);
 }
 
