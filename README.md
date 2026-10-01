@@ -34,7 +34,7 @@ zig build --release=fast -Dtarget=x86_64-windows-gnu -p zig-out/windows
 
 Keep `gtube.gpu` (or `gtube.exe.gpu`) next to the executable when you move it; the visualizer's GPU effects load it from there.
 
-On Linux gtube needs `curl` and an X11 or Wayland desktop, plus `unzip` if it has to download [Deno](https://deno.com/) (see First run). [WebKitGTK](https://webkitgtk.org/) is needed for the sign-in window (see Sign-in), and a [Vulkan](https://www.vulkan.org/) driver is optional (see Visualizer).
+On Linux gtube needs [libcurl](https://curl.se/libcurl/), which Ubuntu, Debian, Fedora, Arch, openSUSE and Mint desktops all install (or else the `curl` program), and an X11 or Wayland desktop, plus `unzip` if it has to download [Deno](https://deno.com/) (see First run). [WebKitGTK](https://webkitgtk.org/) is needed for the sign-in window (see Sign-in), and a [Vulkan](https://www.vulkan.org/) driver is optional (see Visualizer).
 
 ## First run
 
