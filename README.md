@@ -4,7 +4,7 @@ A native YouTube Music player with a music visualizer, written in C on [gesso](h
 
 <img src="docs/search.png" alt="Searching for songs in gtube" width="49%"> <img src="docs/spectrum.png" alt="gtube playing, with the Spectrum visualizer" width="49%">
 
-A music player shouldn't need a copy of a web browser. Desktop players are usually web apps shipped inside Electron or a WebView, which bring a whole Chromium along. gtube is one executable of about 4 MB for Windows or Linux, drawing with SDL and playing Opus audio directly, in about 50 MB of RAM.
+A music player shouldn't need a copy of a web browser. Desktop players are usually web apps shipped inside Electron or a WebView, which bring a whole Chromium along. gtube is one executable of about 4 MB for Windows or Linux, a 1.8 MB download, drawing with SDL and playing Opus audio directly. Playing a track, it uses about 90 MB of RAM on Windows with an NVIDIA GPU, and on Linux about 55 MB plus the graphics driver's share.
 
 Search, liked music, your playlists, radio and likes come from YouTube Music's web API, the same one its website uses; yt-dlp streams the audio. gtube is not affiliated with Google, and a change on YouTube's side can break it until gtube catches up.
 
@@ -92,7 +92,7 @@ View 4 draws what you're hearing (a 64-band spectrum, the waveform, bass, mids, 
 | t | Show or hide the scroller with the track's name |
 | g | Run a Bend effect on the GPU or the CPU |
 
-The two Bend effects draw every pixel on a thread of their own. With a Vulkan GPU they draw straight into the player's textures: at 4K on an RTX 3080 the plasma runs at over 3,000 frames a second with `--uncapped`. Without one they draw on the CPU. Loading the Vulkan driver the first time a Bend effect is shown brings gtube to about 140 MB of RAM.
+The two Bend effects draw every pixel on a thread of their own. With a Vulkan GPU they draw straight into the player's textures: at 4K on an RTX 3080 the plasma runs at over 3,000 frames a second with `--uncapped`. Without one they draw on the CPU. Loading the Vulkan driver the first time a Bend effect is shown brings gtube to about 125 MB of RAM on Windows with an NVIDIA GPU.
 
 ## Options
 
