@@ -6,10 +6,10 @@ gtube is released as prebuilt archives on GitHub Releases, built and published b
 
 | Target | Zig target | Archive |
 |---|---|---|
-| Linux x86-64, glibc 2.31 or newer | `x86_64-linux-gnu.2.31` | `gtube-vX.Y.Z-x86_64-linux.tar.gz` |
+| Linux x86-64, glibc 2.27 or newer | `x86_64-linux-gnu.2.27` | `gtube-vX.Y.Z-x86_64-linux.tar.gz` |
 | Windows x86-64 | `x86_64-windows-gnu` | `gtube-vX.Y.Z-x86_64-windows.zip` |
 
-Both are built on Linux with Zig 0.16.0. glibc 2.31 is the lowest the Linux build links against: SDL3 needs a function from glibc 2.29.
+Both are built on Linux with Zig 0.16.0. The Linux floor is glibc 2.27 (Ubuntu 18.04); older glibc lacks `memfd_create`, which SDL and the generated Bend runtime use. SDL's build also links `posix_spawn_file_actions_addchdir_np`, which glibc added in 2.29, so builds for an older glibc compile `src/glibc_compat.c` in its place. It calls the running glibc's own function when there is one, so the release loses nothing on newer systems, and reports `ENOSYS` on glibc 2.27 and 2.28, where a process can only start in the current directory; gtube never asks for another. To check the floor, run the Linux archive in `docker.io/library/ubuntu:18.04`.
 
 Each archive holds the executable, its `.gpu` file, `README.md`, `LICENSE`, and a `licenses/` folder with the license texts of everything compiled in: the generated Bend runtime (Apache-2.0), gesso (MIT), stb, Opus (BSD-3-Clause), SDL3 with its REUSE license set, and on Linux SDL's Wayland protocol code, or on Windows the WebView2 headers. `release/stage.sh` builds one target and packs it:
 

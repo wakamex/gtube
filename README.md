@@ -16,7 +16,7 @@ Download the Linux or Windows archive from [Releases](https://github.com/wakamex
 ./gtube "https://music.youtube.com/playlist?list=..."
 ```
 
-The Linux build runs on the [GNU C Library (glibc)](https://www.gnu.org/software/libc/) 2.31 or newer (Ubuntu 20.04, Debian 11, Fedora 32 and later). Each archive's `licenses` folder holds the licenses of the code compiled into it.
+The Linux build runs on the [GNU C Library (glibc)](https://www.gnu.org/software/libc/) 2.27 or newer (Ubuntu 18.04, Debian 10, RHEL, Rocky and Alma Linux 8, Fedora 28 and later). Each archive's `licenses` folder holds the licenses of the code compiled into it.
 
 To build from source instead, use [Zig](https://ziglang.org) 0.16, which fetches gesso, SDL and the rest on the first build; nothing else needs installing to build it.
 
