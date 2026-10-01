@@ -732,6 +732,7 @@ typedef struct {
   u32 rd;
   u32 wr;
   u32 top;
+  u32 short_n;
 } Bank;
 
 #if DEVICE
@@ -794,13 +795,15 @@ typedef u32 __attribute__((may_alias)) u32a;
 #define H_CAP        1
 #define H_CURSOR     LINE
 #define H_ROOT_DONE  (2 * LINE)
+#define H_ROOT_TASK  (H_ROOT_DONE + 1)
 #define H_ERROR_CODE (3 * LINE)
 #define H_ROOT_WORD  (4 * LINE)
 #define H_BANK       (H_ROOT_WORD + WL_RESW)
 
 #define PAGE_UP(n) (((n) + PAGE_LEN - 1) & ~(PAGE_LEN - 1))
 #define ALC_OFF  PAGE_UP(H_BANK + 3 * NCLS_ALL)
-#define RING_OFF (ALC_OFF + CUBE * 3 * NCLS_ALL)
+#define ALC_WORDS (3 * NCLS_ALL + NCLS)
+#define RING_OFF (ALC_OFF + CUBE * ALC_WORDS)
 #define STAK_OFF (RING_OFF + CUBE * RING_WORDS)
 #define STAT_OFF (STAK_OFF + CUBE * STAK_LEN)
 #define HEAP_OFF (STAT_OFF + PAGE_UP(STAT_LEN))
@@ -814,7 +817,7 @@ typedef u32 __attribute__((may_alias)) u32a;
 #if !DEVICE
 
 static u64*    CORPUS;
-static u64    ALC[CUBE_T + 1][3 * NCLS_ALL] __attribute__((aligned(128)));
+static u64    ALC[CUBE_T + 1][ALC_WORDS] __attribute__((aligned(128)));
 static u32    KEEP_WORDS;
 static u32    CUBE_LOG = 7;
 static u32    bank_lock;
@@ -1355,12 +1358,16 @@ A32_LOOP(fadd, f32_rewrap(f32_unbox(o) + f32_unbox(v)))
 // Bank
 // ====
 
-// A stack of exact generations per class. The host pops and pushes at rd;
-// a device pass pops below rd and pushes above top, compacted after it.
+// A stack of generations per class, each a chain and its length in nodes
+// (gen_at). The host pops and pushes at rd; a device pass pops below rd and
+// pushes above top, compacted after it. A generation holds at least
+// KEEP_WORDS but for the short ones a device lane banks (dev_hot), at most
+// CUBE of them a class (short_n counts them), which corpus_lay makes room
+// for.
 
 #define bank_at(H, c) ((DEV Bank*)((H) + H_BANK) + (c))
 
-// A Bank's fields by its words (off, then rd and wr, then top), made from H:
+// A Bank's fields by its words (off, then rd and wr, then top and short_n), made from H:
 // clspv (for Vulkan) indexes the u32 fields of a struct pointer made from a
 // u64 pointer in u64s, as it does ring_word's (see ring_slot32).
 #define bank_word(c)   (H_BANK + 3 * (u64)(c))
@@ -1368,6 +1375,12 @@ A32_LOOP(fadd, f32_rewrap(f32_unbox(o) + f32_unbox(v)))
 #define bank_rd(H, c)  a32_at(H, bank_word(c) + 1)
 #define bank_wr(H, c)  (a32_at(H, bank_word(c) + 1) + 1)
 #define bank_top(H, c) a32_at(H, bank_word(c) + 2)
+#define bank_short(H, c) (a32_at(H, bank_word(c) + 2) + 1)
+
+#define GEN_BITS     42
+#define gen_at(h, n) ((h) | (u64)(n) << GEN_BITS)
+#define gen_head(g)  ((g) & ((1ull << GEN_BITS) - 1))
+#define gen_len(g)   ((u32)((g) >> GEN_BITS))
 
 INLINE u64 bank_pop(DEV u64* H, u32 c) {
   u64 got = 0;
@@ -1403,8 +1416,12 @@ INLINE void bank_push(DEV u64* H, u32 c, u64 head) {
 // quantum. A device lane also banks its COLD at the kernel end (dev_cut), so
 // it keeps less than a generation between kernels; handing generations over
 // as they fill, rather than cutting them off HOT then, spares that a walk
-// down the chain (0.02 to 0.04 ms a kernel at 32,768 lanes). The bump grows
-// only when all of these are empty.
+// down the chain (0.02 to 0.04 ms a kernel at 32,768 lanes). It keeps HOT
+// while it uses it: SEEN holds HOT at a kernel end and counts the ends
+// since that left it unchanged; past IDLE_CUTS of them, the lane banks HOT
+// (dev_hot). Kept, its nodes were stranded in lanes no longer using their
+// class, which a program looping over IO grew into, toward 64 MB a class
+// on 32,768 lanes. The bump grows only when all of these are empty.
 
 #ifdef BEND_OCL
 #define ALC_AT(e, i)   (e).mem[(e).alc + (u64)(i) * LANE_STEP]
@@ -1416,7 +1433,7 @@ INLINE void bank_push(DEV u64* H, u32 c, u64 head) {
 // the 128-bit shift LLVM makes of a 64-bit one as an invalid constant.
 #define CLS_WORDS(c)   ((u64)(1u << (c)))
 #define ALC_COLD(e, c) ALC_AT(e, 2 * NCLS_ALL + (c))
-#define KEEP(c)        (KEEP_WORDS >> (c) ? KEEP_WORDS >> (c) : 1)
+#define ALC_SEEN(e, c) ALC_AT(e, 3 * NCLS_ALL + (c))
 
 INLINE u32 cls_fit(u32 words) {
   return words > 1 ? 32 - CLZ(words - 1) : 0;
@@ -1427,7 +1444,7 @@ OUTLINE void heap_hand(Env e, u32 cls) {
   if (cold) {
     bank_push(e.mem, cls, cold);
   }
-  ALC_COLD(e, cls) = ALC_AT(e, cls);
+  ALC_COLD(e, cls) = gen_at(ALC_AT(e, cls), ALC_LEN(e, cls) >> cls);
   ALC_AT(e, cls)   = 0;
   ALC_LEN(e, cls)  = 0;
 }
@@ -1445,7 +1462,11 @@ OUTLINE u64 heap_alloc_miss(Env e, u32 cls) {
   if (!got) {
     got = bank_pop(H, cls);
   }
-  u32 n = got ? KEEP(cls) : cls < NCLS ? QUANTUM >> cls : 1;
+  u32 n = got ? gen_len(got) : cls < NCLS ? QUANTUM >> cls : 1;
+  if (got && n << cls < KEEP_WORDS) {
+    a32_sub(bank_short(H, cls), 1);
+  }
+  got = gen_head(got);
   if (!got) {
     u32 pages = (n << cls) >> PAGE_BITS;
     u32 p     = a32_add(a32_at(H, H_BUMP), pages);
@@ -5533,10 +5554,12 @@ static Term work_loop(Env e, DEV Term* sp, Term t, u32 seq) {
     } else {
       WL_LOAD(a, war)
     }
-    // A bang's root task (continued by the root) was made by the host, which
-    // frees it after the bang (corpus_eval): on the device it would leave the
-    // host's supply a node short each bang, refilled from the device's.
-    if (!DEVICE || e.mem[a + war] != TERM_HOLE) {
+    // A bang's root task was made by the host, which frees it after the bang
+    // (corpus_eval, which names it in H_ROOT_TASK): on the device it would
+    // leave the host's supply a node short each bang, refilled from the
+    // device's. The join of a fork in it continues the root too, but is the
+    // device's to free.
+    if (!DEVICE || a != e.mem[H_ROOT_TASK]) {
       heap_free(e, cls_fit(war + 2), a);
     }
     WL_DYN(f);
@@ -5775,6 +5798,37 @@ INLINE u32 monk_step(Env e, DEV Term* stk, u32 rg, u32 put0, u32 base, u32 strid
 
 #if DEVICE
 
+// An idle HOT goes to the bank, as a short generation if it is under
+// KEEP_WORDS (only in a class under NCLS) while the bank has room for one.
+// Idle over one kernel, gtube's tree runs 11% slower than with HOT kept,
+// its chains moving between lanes and the bank; over IDLE_CUTS, 3%, and its
+// heap is as flat (30,000 frames).
+#define IDLE_CUTS 4
+INLINE void dev_hot(Env e, u32 c) {
+  DEV u64* H    = e.mem;
+  u64      hot  = ALC_AT(e, c);
+  u64      len  = ALC_LEN(e, c);
+  u64      seen = ALC_SEEN(e, c);
+  if (hot != gen_head(seen)) {
+    ALC_SEEN(e, c) = hot;
+    return;
+  }
+  if (gen_len(seen) < IDLE_CUTS) {
+    ALC_SEEN(e, c) = seen + gen_at(0, 1);
+    return;
+  }
+  if (len < KEEP_WORDS) {
+    if (a32_load(bank_short(H, c)) >= CUBE) {
+      return;
+    }
+    a32_add(bank_short(H, c), 1);
+  }
+  ALC_AT(e, c)   = 0;
+  ALC_LEN(e, c)  = 0;
+  ALC_SEEN(e, c) = 0;
+  bank_push(H, c, gen_at(hot, len >> c));
+}
+
 INLINE void dev_cut(Env e) {
   if (err_seen(e.mem)) {
     return;
@@ -5789,6 +5843,11 @@ INLINE void dev_cut(Env e) {
         ALC_COLD(e, c0 + i) = 0;
         bank_push(e.mem, c0 + i, cold[i]);
       }
+    }
+  }
+  for (u32 c = 0; c < NCLS; c += 1) {
+    if (ALC_AT(e, c)) {
+      dev_hot(e, c);
     }
   }
 }
@@ -7621,7 +7680,8 @@ static void* corpus_map(u64 size) {
 
 static void corpus_lay(u64* H, u64 size) {
   u64 span = size / 8;
-  u64 cap  = span > HEAP_OFF ? (span - HEAP_OFF) / (PAGE_LEN + 10) : 0;
+  u64 room = HEAP_OFF + NCLS * 4 * CUBE;
+  u64 cap  = span > room ? (span - room) / (PAGE_LEN + 10) : 0;
   if (cap <= CUBE) {
     err_fail("the GPU span is under the rings, stacks and a page per lane");
   }
@@ -7631,7 +7691,8 @@ static void corpus_lay(u64* H, u64 size) {
     Bank* b = bank_at(H, c);
     memcpy(H + at, H + b->off, b->wr * sizeof(u64));
     b->off  = at;
-    at     += 2 * (cap >> ((c < NCLS ? NCLS : c) - PAGE_BITS));
+    at     += 2 * (cap >> ((c < NCLS ? NCLS : c) - PAGE_BITS))
+      + (c < NCLS ? 4 * CUBE : 0);
   }
   corpus_size = size;
   a32_store_rel(a32_at(H, H_CAP), (u32)cap);
@@ -7697,6 +7758,7 @@ OUTLINE Term corpus_eval(u64* H, Term t) {
         Term cont = H[tl];
         u32  idx  = (u32)(H[tl + 1] >> 32) & 0xFFFF;
         H[tl]     = TERM_HOLE;
+        H[H_ROOT_TASK] = term_loc(t);
         a32_store(a32_at(H, H_CURSOR), 1);
         // Ring 0 is empty between bangs, so it starts from its first slot
         // again: the host then writes one slot, on one page, not the next of
