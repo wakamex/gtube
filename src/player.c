@@ -22,6 +22,7 @@ typedef struct {
     gs_opus *opus;
     gs_webm *webm;
     bool bad;
+    bool started;  // its first audio has played (logged)
     int preskip;
     double duration;
     char url[256], cookies[1200];
@@ -315,6 +316,12 @@ void player_update(player *p) {
     if (!p->now && p->current < 0 && n > 0 && SDL_GetAtomicInt(&p->tools->state) == 1) {  // tracks, and yt-dlp ready: start
         player_play(p, 0);
         return;
+    }
+    if (p->now && !p->now->started && gs_stream_position(p->now->stream) > 0) {
+        p->now->started = true;
+        SDL_LockMutex(p->lock);
+        SDL_Log("player: playing \"%s\", at %.3f s", p->current >= 0 ? p->queue[p->current].title : "", gs_stream_position(p->now->stream));
+        SDL_UnlockMutex(p->lock);
     }
     if (p->now && gs_stream_finished(p->now->stream)) {
         playback *pb = p->now;
