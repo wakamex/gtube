@@ -84,7 +84,8 @@ struct viz {
     float travel, turn;
     vec3 stars[STARS];
     float hue;              // drifts, and jumps on beats
-    double t, dt, fx_since, name_until;
+    double t, dt, fx_since;
+    double name_until;  // in real seconds, so the name fades while the clock is stopped
     char last_title[256];
     bool automatic, scroller;
     uint32_t seed;
@@ -652,8 +653,9 @@ void viz_draw(viz *v, SDL_FRect a, double t, const char *title, const char *arti
     }
     SDL_SetRenderDrawBlendMode(v->ren, SDL_BLENDMODE_BLEND);
 
-    if (t < v->name_until) {  // the effect's name, big, for a moment after it changes
-        float px = a.h * 0.09f, alpha = (float)fmin(1, (v->name_until - t) / 0.6);
+    double now = SDL_GetTicks() / 1000.0;
+    if (now < v->name_until) {  // the effect's name, big, for a moment after it changes
+        float px = a.h * 0.09f, alpha = (float)fmin(1, (v->name_until - now) / 0.6);
         gs_fontset_draw(g, f, px, a.x + px * 0.6f + 3, a.y + px * 1.4f + 3, fx_names[v->fx], (SDL_FColor){ 0, 0, 0, alpha * 0.7f });
         gs_fontset_draw(g, f, px, a.x + px * 0.6f, a.y + px * 1.4f, fx_names[v->fx], (SDL_FColor){ 1, 1, 1, alpha });
     }
@@ -739,7 +741,7 @@ void viz_free(viz *v) {
 void viz_step(viz *v, int dir) {
     v->fx = (v->fx + dir + FX_COUNT) % FX_COUNT;
     v->fx_since = v->t;
-    v->name_until = v->t + 2.5;
+    v->name_until = SDL_GetTicks() / 1000.0 + 2.5;
     v->feed_w = 0;  // feedback starts from black
 }
 
