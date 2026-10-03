@@ -241,6 +241,13 @@ bool account_cookie(account *a, const char *name, char *out, size_t size) {
 }
 
 bool account_refresh(account *a) {
+    // Another gtube on this profile may have renewed the session since: renewing an older copy
+    // reuses cookies Google has replaced, and Google ends the session for that.
+    char *stored = load_bytes(a);
+    SDL_LockMutex(a->lock);
+    if (has_session(stored) && a->jar && strcmp(stored, a->jar)) SDL_free(a->jar), a->jar = stored, stored = NULL;
+    SDL_UnlockMutex(a->lock);
+    SDL_free(stored);
     char jar[1200];
     if (!account_jar_file(a, jar, sizeof jar)) return false;
     char before[512], after_google[512], after_youtube[512];
