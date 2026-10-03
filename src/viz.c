@@ -451,12 +451,11 @@ static void bend_texture(viz *v, int w, int h) {
     v->bend_w = w, v->bend_h = h;
 }
 
-// Where the effect is drawn and how fast, or that it is starting.
+// That the effect is starting, until its first frame shows; where and how fast it then draws is
+// on the stats overlay (F1).
 static void bend_label(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
-    char label[96];
-    const char *where = !v->bend_shown ? "starting" : v->bend_drawn_gpu ? "GPU" : v->bend_on_gpu && !bendviz_gpu() ? "CPU (no GPU found)" : "CPU";
-    if (v->bend_shown) snprintf(label, sizeof label, "Bend on %s, %.1f ms a frame (%dx%d)", where, v->bend_ms, v->bend_w, v->bend_h);
-    else snprintf(label, sizeof label, "Bend %s", where);
+    if (v->bend_shown) return;
+    const char *label = "Bend starting";
     // Top left, under where the effect's name shows (the stats overlay has the top right).
     float px = fmaxf(14, a.h * 0.045f), ly = a.y + a.h * 0.09f * 2.3f;
     gs_fontset_draw(g, f, px, a.x + a.h * 0.054f + 2, ly + 2, label, (SDL_FColor){ 0, 0, 0, 0.7f });
@@ -752,7 +751,8 @@ bool viz_bend_stats(const viz *v, char *out, size_t size) {
     if (!v->bend_shown) return false;  // not drawn yet
     double draw, wait, copy;
     bendviz_times(&draw, &wait, &copy);
-    int n = snprintf(out, size, "bend %s %.1f ms (copy %.1f), %.0f fps, %dx%d", v->bend_drawn_gpu ? "gpu" : "cpu", v->bend_ms, copy, v->bend_fps, v->bend_w, v->bend_h);
+    const char *where = v->bend_drawn_gpu ? "gpu" : v->bend_on_gpu && !bendviz_gpu() ? "cpu (no gpu found)" : "cpu";
+    int n = snprintf(out, size, "bend %s %.1f ms (copy %.1f), %.0f fps, %dx%d", where, v->bend_ms, copy, v->bend_fps, v->bend_w, v->bend_h);
     if (v->bend_drawn_gpu && n > 0 && (size_t)n < size) {
         double before, launch, after;
         bendviz_host_parts(&before, &launch, &after);

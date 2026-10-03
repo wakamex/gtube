@@ -119,7 +119,7 @@ The two Bend effects draw every pixel on a thread of their own. With a Vulkan GP
 - "YouTube wants a signed-in session": YouTube asked for an account before playing that track. Sign in (see Sign-in) and play it again.
 - A track won't play: YouTube changes often, and gtube updates yt-dlp at most once a day, at launch. `gtube --tools --probe URL` prints what yt-dlp makes of the link, with its errors.
 - Liked music or playlists stay empty after signing in: `gtube --refresh` renews the session once and says whether it worked. If Google ended the session, sign in again.
-- The Bend effects are slow: without a Vulkan driver they draw on the CPU. The effect says which one it is using, and g switches.
+- The Bend effects are slow: without a Vulkan driver they draw on the CPU. The performance overlay (F1) says which one an effect is using, and g switches.
 
 ## Limits
 
