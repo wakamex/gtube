@@ -57,6 +57,7 @@ typedef struct {
     float audio_buf[2048 * 2];
     long long demo_made;  // the demo's test signal: samples made up to here (the last 2,048 in audio_buf)
     double last_frame;
+    double viz_clock;  // seconds the visualizer has run, stopped while playback is paused
     account account;
     signin *signin;
     char dir[1024];
@@ -757,10 +758,13 @@ static void draw_keys(app *a, const char *const (*keys)[2], int count, float u, 
     }
 }
 
-// Feeds the visualizer what is heard now (or the test signal, in demo mode) and draws it.
+// Feeds the visualizer what is heard now (or the test signal, in demo mode) and draws it. While
+// playback is paused its clock stops: the effect holds its last frame and auto mode waits.
 static void viz_frame(app *a, SDL_FRect area, const track *t) {
     double now = SDL_GetTicks() / 1000.0, dt = a->last_frame ? now - a->last_frame : 0;
     a->last_frame = now;
+    if (!a->demo && player_paused(a->player)) dt = 0;
+    a->viz_clock += dt;
     int n = 0;
     if (a->demo) {  // only the new samples, as a stream would bring (a whole window took 0.37 ms a frame)
         long long end = (long long)(now * RATE), from = end - a->demo_made < 2048 ? a->demo_made : end - 2048;
@@ -769,8 +773,8 @@ static void viz_frame(app *a, SDL_FRect area, const track *t) {
         viz_test_signal((double)from / RATE, a->audio_buf + 2 * keep, fresh, RATE);
         a->demo_made = end, n = 2048;
     } else if (a->audio) n = gs_mix_recent(a->audio_buf, 2048);
-    viz_feed(a->viz, a->audio_buf, n, dt);
-    viz_draw(a->viz, area, now, t ? t->title : "", t ? t->artist : "", a->glyphs, a->fonts);
+    if (dt > 0) viz_feed(a->viz, a->audio_buf, n, dt);
+    viz_draw(a->viz, area, a->viz_clock, t ? t->title : "", t ? t->artist : "", a->glyphs, a->fonts);
     bend_vk_pump();  // (Bend's next frame, if posted by now, goes ahead of the rest of this one)
 }
 
@@ -778,7 +782,8 @@ SDL_AppResult SDL_AppIterate(void *state) {
     app *a = state;
     if (a->view == V_VIZ && viz_is_bend(a->viz) && !a->bend_tried && !a->shot && !move_to_bend(a))
         return SDL_Log("window: %s", SDL_GetError()), SDL_APP_FAILURE;
-    double cap = a->uncapped ? 0 : a->view == V_VIZ ? 60 : 30;  // smooth motion for the visualizer, less work elsewhere
+    bool still = a->view == V_VIZ && !a->demo && player_paused(a->player);  // a paused visualizer holds its frame
+    double cap = a->uncapped ? 0 : still ? 10 : a->view == V_VIZ ? 60 : 30;  // smooth motion for the visualizer, less work elsewhere
     if (cap != a->pace_cap) gs_pace_set(&a->pace, a->win, a->ren, !a->uncapped, a->pace_cap = cap);
     viz_set_vsync(a->viz, a->pace.vsync != 0 && !a->pace.vsync_suspect);
     gs_stats_frame_begin(&a->stats);
