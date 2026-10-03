@@ -447,7 +447,7 @@ static void bend_count_frame(viz *v, bool fresh, double take_ms) {
 // byte order (the alpha byte is unused, drawn without blending).
 static void bend_texture(viz *v, int w, int h) {
     bend_release(v);
-    v->bend_tex = SDL_CreateTexture(v->ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STATIC, w, h);
+    v->bend_tex = SDL_CreateTexture(v->ren, SDL_PIXELFORMAT_XRGB8888, SDL_TEXTUREACCESS_STATIC, w, h);
     v->bend_w = w, v->bend_h = h;
 }
 
