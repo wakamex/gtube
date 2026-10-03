@@ -517,6 +517,24 @@ static void toggle_like(app *a) {
     note(a, msg);
 }
 
+// Whether `artists` names the first artist of `other` ("A & B", "A, B", "A feat. B").
+static bool names_first_artist(const char *artists, const char *other) {
+    char first[160];
+    SDL_strlcpy(first, other, sizeof first);
+    static const char *const seps[] = { " & ", ", ", " feat", " x " };
+    for (size_t i = 0; i < SDL_arraysize(seps); i++) {
+        char *at = SDL_strcasestr(first, seps[i]);
+        if (at) *at = 0;
+    }
+    return first[0] && SDL_strcasestr(artists, first);
+}
+
+// The same song under another video: YouTube's radio offers a song's audio track and its music
+// video, or its single and album releases, as separate entries.
+static bool same_song(const track *x, const track *y) {
+    return !SDL_strcasecmp(x->title, y->title) && (names_first_artist(x->artist, y->artist) || names_first_artist(y->artist, x->artist));
+}
+
 // Moves a radio's newly loaded tracks into the queue, and asks for more near its end.
 static void follow_radio(app *a) {
     library *l = &a->library;
@@ -530,8 +548,15 @@ static void follow_radio(app *a) {
     SDL_strlcpy(error, s->gen == a->radio_gen && !s->loading ? s->error : "", sizeof error);
     SDL_UnlockMutex(l->lock);
     if (fresh) {
-        if (a->radio_replace) player_set_queue(a->player, fresh, n, 0);
-        else for (int i = 0; i < n - from; i++) player_add_track(a->player, &fresh[i]);
+        int len = a->radio_replace ? 0 : player_queue(a->player, queue_copy, 2000, &(int){ 0 }), kept = 0;
+        for (int i = 0; i < n - from; i++) {
+            bool dup = false;
+            for (int k = 0; k < len && !dup; k++) dup = same_song(&fresh[i], &queue_copy[k]);
+            for (int k = 0; k < kept && !dup; k++) dup = same_song(&fresh[i], &fresh[k]);
+            if (!dup) fresh[kept++] = fresh[i];
+        }
+        if (a->radio_replace) player_set_queue(a->player, fresh, kept, 0);
+        else for (int i = 0; i < kept; i++) player_add_track(a->player, &fresh[i]);
         a->radio_replace = false;
         a->radio_taken = n;
         SDL_free(fresh);
