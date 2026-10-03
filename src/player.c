@@ -11,6 +11,7 @@
 
 #define RATE 48000
 #define MAX_TRACKS 2000
+#define NEED_SIGNIN "YouTube wants a signed-in session: press s to sign in"
 
 // One track playing: yt-dlp writing its WebM to a pipe, a thread decoding it into the stream.
 typedef struct {
@@ -122,7 +123,7 @@ static void list_tracks(void *user) {
             p->version++;
         }
         if (added) SDL_snprintf(p->status, sizeof p->status, "added %d track%s", added, added == 1 ? "" : "s");
-        else if (account_needed(errors)) SDL_strlcpy(p->status, "YouTube wants a signed-in session: press s to sign in", sizeof p->status);
+        else if (account_needed(errors)) SDL_strlcpy(p->status, NEED_SIGNIN, sizeof p->status);
         else SDL_snprintf(p->status, sizeof p->status, "no tracks found at that link (yt-dlp exit %d)", code);
         SDL_UnlockMutex(p->lock);
         SDL_free(out);
@@ -320,13 +321,14 @@ void player_update(player *p) {
     if (p->now && !p->now->started && gs_stream_position(p->now->stream) > 0) {
         p->now->started = true;
         SDL_LockMutex(p->lock);
+        if (!strcmp(p->status, NEED_SIGNIN)) p->status[0] = 0;  // signing in worked
         SDL_Log("player: playing \"%s\", at %.3f s", p->current >= 0 ? p->queue[p->current].title : "", gs_stream_position(p->now->stream));
         SDL_UnlockMutex(p->lock);
     }
     if (p->now && gs_stream_finished(p->now->stream)) {
         playback *pb = p->now;
         if (SDL_GetAtomicInt(&pb->failed) && account_needed(pb->errors) && !account_signed_in(p->account)) {
-            set_status(p, "%s", "YouTube wants a signed-in session: press s to sign in");
+            set_status(p, "%s", NEED_SIGNIN);
             stop_playback(p);  // signing in plays it again
             return;
         }
