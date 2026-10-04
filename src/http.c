@@ -51,6 +51,59 @@ static int with_program(const http_request *r, char **body, size_t *len) {
     return status;
 }
 
+// Streaming through the program: curl writes the response headers (-D -) and then the body to its
+// output, so the status is read from the headers without needing a newer curl's %{stderr}.
+static int stream_with_program(const http_request *r, long long from, http_take take, void *user, SDL_AtomicInt *stop) {
+    char curl[512], range[32];
+    tools_program("curl", curl, sizeof curl);
+    const char *args[24];
+    int n = 0;
+    args[n++] = curl, args[n++] = "-sS", args[n++] = "-L", args[n++] = "-D", args[n++] = "-";
+    if (r->agent) args[n++] = "-A", args[n++] = r->agent;
+    if (from > 0) snprintf(range, sizeof range, "%lld-", from), args[n++] = "-r", args[n++] = range;
+    args[n++] = "-o", args[n++] = "-", args[n++] = r->url, args[n] = NULL;
+    SDL_PropertiesID p = SDL_CreateProperties();
+    SDL_SetPointerProperty(p, SDL_PROP_PROCESS_CREATE_ARGS_POINTER, (void *)args);
+    SDL_SetNumberProperty(p, SDL_PROP_PROCESS_CREATE_STDIN_NUMBER, SDL_PROCESS_STDIO_NULL);
+    SDL_SetNumberProperty(p, SDL_PROP_PROCESS_CREATE_STDOUT_NUMBER, SDL_PROCESS_STDIO_APP);
+    SDL_SetNumberProperty(p, SDL_PROP_PROCESS_CREATE_STDERR_NUMBER, SDL_PROCESS_STDIO_NULL);
+    SDL_Process *proc = tools_spawn(p);
+    SDL_DestroyProperties(p);
+    if (!proc) return 0;
+    SDL_IOStream *out = SDL_GetProcessOutput(proc);
+    char head[8192];  // the headers of each response, a redirect's then the final one's
+    size_t nhead = 0;
+    int status = 0;
+    bool body = false, more = true;
+    uint8_t buf[65536];
+    while (more && !SDL_GetAtomicInt(stop)) {
+        size_t got = SDL_ReadIO(out, buf, sizeof buf);
+        if (!got) {
+            if (SDL_GetIOStatus(out) != SDL_IO_STATUS_NOT_READY) break;
+            SDL_Delay(5);
+            continue;
+        }
+        size_t at = 0;
+        while (!body && at < got) {  // header lines up to the blank line ending the final response's
+            if (nhead < sizeof head - 1) head[nhead++] = (char)buf[at];
+            at++;
+            if (nhead >= 4 && !memcmp(head + nhead - 4, "\r\n\r\n", 4)) {
+                head[nhead] = 0;
+                const char *sp = strchr(head, ' ');
+                status = sp ? atoi(sp + 1) : 0;
+                nhead = 0;
+                if (status >= 200 && status < 300) body = true;
+                else if (status != 100 && (status < 300 || status >= 400)) more = false;  // (a redirect's response comes next)
+            }
+        }
+        if (more && body && at < got && !take(user, buf + at, got - at)) more = false;
+    }
+    SDL_KillProcess(proc, true);
+    SDL_WaitProcess(proc, true, NULL);
+    SDL_DestroyProcess(proc);
+    return status;
+}
+
 // ---- libcurl ----
 
 #ifndef _WIN32
@@ -60,7 +113,8 @@ static int with_program(const http_request *r, char **body, size_t *len) {
 enum {
     URL = 10002, HTTPHEADER = 10023, POSTFIELDS = 10015, POSTFIELDSIZE = 60, COOKIEFILE = 10031,
     COOKIEJAR = 10082, FOLLOWLOCATION = 52, ACCEPT_ENCODING = 10102, USERAGENT = 10018,
-    WRITEFUNCTION = 20011, WRITEDATA = 10001, NOSIGNAL = 99, RESPONSE_CODE = 0x200002,
+    WRITEFUNCTION = 20011, WRITEDATA = 10001, NOSIGNAL = 99, RESPONSE_CODE = 0x200002, RANGE = 10007,
+    NOPROGRESS = 43, XFERINFOFUNCTION = 20219, XFERINFODATA = 10057,
 };
 static struct {
     int (*global_init)(long);
@@ -138,6 +192,53 @@ static int with_libcurl(const http_request *r, char **body, size_t *len) {
     return (int)status;
 }
 #endif
+
+#ifndef _WIN32
+typedef struct { void *h; http_take take; void *user; SDL_AtomicInt *stop; } stream_sink;
+
+static size_t pass(const char *data, size_t size, size_t count, void *user) {
+    stream_sink *s = user;
+    long status = 0;
+    lib.easy_getinfo(s->h, RESPONSE_CODE, &status);
+    if (status < 200 || status >= 300) return 0;  // (an error's body is not the stream)
+    return s->take(s->user, (const uint8_t *)data, size * count) ? size * count : 0;
+}
+
+// Called about once a second at least, and as data moves; nonzero ends the transfer.
+static int check_stop(void *user, long long dltotal, long long dlnow, long long ultotal, long long ulnow) {
+    (void)dltotal, (void)dlnow, (void)ultotal, (void)ulnow;
+    return SDL_GetAtomicInt(((stream_sink *)user)->stop);
+}
+
+static int stream_with_libcurl(const http_request *r, long long from, http_take take, void *user, SDL_AtomicInt *stop) {
+    void *h = lib.easy_init();
+    if (!h) return 0;
+    stream_sink s = { h, take, user, stop };
+    char range[32];
+    lib.easy_setopt(h, URL, r->url);
+    lib.easy_setopt(h, NOSIGNAL, 1L);
+    lib.easy_setopt(h, FOLLOWLOCATION, 1L);
+    if (r->agent) lib.easy_setopt(h, USERAGENT, r->agent);
+    if (from > 0) snprintf(range, sizeof range, "%lld-", from), lib.easy_setopt(h, RANGE, range);
+    lib.easy_setopt(h, WRITEFUNCTION, pass);
+    lib.easy_setopt(h, WRITEDATA, &s);
+    lib.easy_setopt(h, NOPROGRESS, 0L);
+    lib.easy_setopt(h, XFERINFOFUNCTION, check_stop);
+    lib.easy_setopt(h, XFERINFODATA, &s);
+    lib.easy_perform(h);  // (a break or a stop ends it early; what arrived has gone to take)
+    long status = 0;
+    lib.easy_getinfo(h, RESPONSE_CODE, &status);
+    lib.easy_cleanup(h);
+    return (int)status;
+}
+#endif
+
+int http_stream(const http_request *r, long long from, http_take take, void *user, SDL_AtomicInt *stop) {
+#ifndef _WIN32
+    if (load_libcurl()) return stream_with_libcurl(r, from, take, user, stop);
+#endif
+    return stream_with_program(r, from, take, user, stop);
+}
 
 int http_fetch(const http_request *r, char **body, size_t *len) {
     size_t ignored;
