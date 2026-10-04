@@ -46,6 +46,7 @@ using namespace metal;
 #define POLLOUT 4
 #else
 #include <unistd.h>
+#include <fcntl.h>
 #include <signal.h>
 #include <sys/mman.h>
 #include <poll.h>
@@ -7551,7 +7552,15 @@ static u64* gpu_map(u64 bytes) {
   DWORD old;
   bool  shut  = view != NULL && VirtualProtect(view, bytes, PAGE_NOACCESS, &old);
 #else
+#ifdef __APPLE__
+  // (no memfd_create: a shared memory object, unlinked at once, is the same anonymous file)
+  char  shm[32];
+  snprintf(shm, sizeof shm, "/bend-%d", (int)getpid());
+  int   fd   = shm_open(shm, O_RDWR | O_CREAT | O_EXCL, 0600);
+  if (fd >= 0) shm_unlink(shm);
+#else
   int   fd   = memfd_create("bend", 0);
+#endif
   char* view = fd < 0 || ftruncate(fd, (off_t)bytes) != 0 ? MAP_FAILED
     : mmap(NULL, bytes, PROT_NONE, MAP_SHARED, fd, 0);
   gpu_fill   = view == MAP_FAILED ? MAP_FAILED
