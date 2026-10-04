@@ -72,7 +72,7 @@ gtube keeps only the youtube.com and google.com cookies from the file and renews
 | F1 | Performance overlay |
 | f, Alt+Enter or F11 | Full screen |
 
-Long playlists load in full, not page by page. The window's size and position and the queue are kept between runs; a restored queue waits for Space or Enter, and a restored radio keeps loading more as it plays.
+Long playlists load in full, not page by page. The window's size and position and the queue are kept between runs; a restored queue waits for Space or Enter, and a restored radio keeps loading more as it plays. With nothing queued, gtube opens on liked music.
 
 ## Visualizer
 

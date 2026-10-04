@@ -236,7 +236,7 @@ SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
     const char *data = NULL, *probe = NULL, *wav = NULL, *import = NULL, *api_kind = NULL, *api_arg = NULL, *radio = NULL, *urls[16];
     int nurls = 0, effect = 1;
     double seconds = 30;
-    bool tools_only = false, demo = false, refresh = false, sign_out = false, open_signin = false;
+    bool tools_only = false, demo = false, refresh = false, sign_out = false, open_signin = false, view_given = false;
 #ifndef _WIN32
     if (argc == 3 && !strcmp(argv[1], "--signin-window")) exit(signin_window(argv[2]));
 #endif
@@ -260,7 +260,7 @@ SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
         else if (!strcmp(argv[i], "--sign-in")) open_signin = true;
         else if (!strcmp(argv[i], "--view") && i + 1 < argc) {
             int v = SDL_atoi(argv[++i]) - 1;  // (SDL_clamp is a macro that evaluates its argument more than once)
-            a->view = SDL_clamp(v, 0, 3);
+            a->view = SDL_clamp(v, 0, 3), view_given = true;
         }
         else if (!strcmp(argv[i], "--search") && i + 1 < argc) SDL_strlcpy(a->query, argv[++i], sizeof a->query), a->view = V_SEARCH;
         else if (!strcmp(argv[i], "--radio") && i + 1 < argc) radio = argv[++i];
@@ -361,6 +361,9 @@ SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
         a->selected[V_QUEUE] = cur > 0 ? cur : 0;
     }
     a->saved_version = player_version(a->player);
+    char first[32];
+    if (!view_given && !nurls && !radio && !a->query[0] && !player_track_id(a->player, 0, first, sizeof first))
+        a->view = V_LIKED;  // nothing queued: open where a song is one key away
     for (int i = 0; i < nurls; i++) player_add(a->player, urls[i]);
     if (!a->shot && !demo && account_signed_in(&a->account)) a->next_refresh = SDL_GetTicks();  // renew at launch
     if (open_signin) sign_in(a);
