@@ -1,5 +1,6 @@
 // The queue and playback: tracks listed from any YouTube or YouTube Music link by yt-dlp, each played
-// by streaming its Opus audio from yt-dlp through gs_webm, gs_opus and a gs_stream into the mixer.
+// by streaming its Opus audio through gs_webm, gs_opus and a gs_stream into the mixer: from an
+// address fetched ahead of time (prefetch.h) when there is one, and otherwise from yt-dlp itself.
 #pragma once
 #include <SDL3/SDL.h>
 #include <stdbool.h>
@@ -7,6 +8,7 @@
 #include "account.h"
 #include "gs_jobs.h"
 #include "gs_stream.h"
+#include "prefetch.h"
 #include "tools.h"
 
 typedef struct {
@@ -29,7 +31,7 @@ void player_toggle_pause(player *p);  // or plays the current track when nothing
 // Restores a saved queue with `current` shown as the track to play, without playing it.
 void player_load(player *p, const track *tracks, int n, int current);
 int player_version(player *p);        // changes whenever the queue or the current track does
-void player_update(player *p);    // call every frame: moves on at the end of a track
+void player_update(player *p);    // call every frame: moves on at the end of a track, and prefetches
 
 // For the display. The queue is copied under the player's lock.
 int player_queue(player *p, track *out, int max, int *current);

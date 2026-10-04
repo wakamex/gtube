@@ -123,7 +123,7 @@ The two Bend effects draw every pixel on a thread of their own. With a Vulkan GP
 
 ## Limits
 
-Titles render in Latin, Cyrillic, Japanese, Chinese, Korean, Devanagari and Arabic with the system fonts, but Arabic has no joining or right-to-left order yet. First audio arrives about 4 s after a link, most of it yt-dlp's extraction. Not built yet: lyrics, cover art, seeking and editing playlists.
+Titles render in Latin, Cyrillic, Japanese, Chinese, Korean, Devanagari and Arabic with the system fonts, but Arabic has no joining or right-to-left order yet. A track gtube expects to play, the next one in the queue or the one restored at launch, starts in about 0.1 s, from a stream address it fetched ahead; any other track takes about 4 s, most of it yt-dlp's extraction. Not built yet: lyrics, cover art, seeking and editing playlists.
 
 ## Development
 
