@@ -32,6 +32,10 @@ void player_toggle_pause(player *p);  // or plays the current track when nothing
 void player_load(player *p, const track *tracks, int n, int current);
 int player_version(player *p);        // changes whenever the queue or the current track does
 void player_update(player *p);    // call every frame: moves on at the end of a track, and prefetches
+// Songs the app expects may be played besides the queue's next one (the selected song, the top of a
+// list), most likely first, to prefetch after the queue's own. Replaces the last call's.
+void player_expect(player *p, const char *const *ids, int n);
+bool player_track_id(player *p, int index, char *id, size_t size);  // the queue's track at index
 
 // For the display. The queue is copied under the player's lock.
 int player_queue(player *p, track *out, int max, int *current);

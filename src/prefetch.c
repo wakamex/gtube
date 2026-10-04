@@ -112,6 +112,8 @@ static int resolve(prefetch *pf, video_id *ids, int n, bool background, SDL_Atom
                 if (!found[i] && !strcmp(ids[i], line)) {
                     SDL_LockMutex(pf->lock);
                     keep(pf, ids[i], sp + 1);
+                    for (int b = 0; b < pf->nbusy; b++)  // (no longer busy, though the run goes on)
+                        if (!strcmp(pf->busy[b], ids[i])) memmove(pf->busy[b], pf->busy[b + 1], sizeof *pf->busy * (size_t)(--pf->nbusy - b)), b--;
                     SDL_UnlockMutex(pf->lock);
                     found[i] = true, got++;
                 }
@@ -188,8 +190,11 @@ void prefetch_free(prefetch *pf) {
 void prefetch_want(prefetch *pf, const char *const *ids, int n) {
     video_id wants[PREFETCH_WANTS];
     int m = 0;
-    for (int i = 0; i < n && m < PREFETCH_WANTS; i++)
-        if (ids[i] && ids[i][0] && strlen(ids[i]) < sizeof *wants) SDL_strlcpy(wants[m++], ids[i], sizeof *wants);
+    for (int i = 0; i < n && m < PREFETCH_WANTS; i++) {
+        bool seen = !ids[i] || !ids[i][0] || strlen(ids[i]) >= sizeof *wants;
+        for (int k = 0; k < m && !seen; k++) seen = !strcmp(wants[k], ids[i]);
+        if (!seen) SDL_strlcpy(wants[m++], ids[i], sizeof *wants);
+    }
     SDL_LockMutex(pf->lock);
     if (m != pf->nwants || memcmp(wants, pf->wants, sizeof *wants * (size_t)m)) {
         memcpy(pf->wants, wants, sizeof *wants * (size_t)m);

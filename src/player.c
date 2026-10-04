@@ -23,6 +23,7 @@ typedef struct {
     SDL_Thread *thread;
     gs_stream *stream;
     SDL_AtomicInt stop, got_audio, failed;
+    SDL_AtomicInt waiting;  // for its address, which is being fetched
     gs_opus *opus;
     gs_webm *webm;
     bool bad;
@@ -48,6 +49,8 @@ struct player {
     char status[256];
     playback *now;
     prefetch *prefetch;
+    char expected[PREFETCH_WANTS][32];  // the app's own guesses (player_expect)
+    int nexpected;
 };
 
 // ---- Listing a link ----
@@ -287,8 +290,8 @@ static int SDLCALL play_thread(void *user) {
     playback *pb = user;
     prefetch *pf = pb->p->prefetch;
     pb->webm = gs_webm_new(on_frame, pb);
-    // An address being fetched for this track is waited for: it is closer than a new yt-dlp run.
-    while (prefetch_busy(pf, pb->id) && !SDL_GetAtomicInt(&pb->stop)) SDL_Delay(20);
+    while (SDL_GetAtomicInt(&pb->waiting) && prefetch_busy(pf, pb->id) && !SDL_GetAtomicInt(&pb->stop)) SDL_Delay(20);
+    SDL_SetAtomicInt(&pb->waiting, 0);
     char *url = malloc(8192);
     bool played = false;
     if (prefetch_address(pf, pb->id, url, 8192)) {
@@ -343,6 +346,9 @@ void player_play(player *p, int index) {
     SDL_UnlockMutex(p->lock);
     pb->stream = gs_stream_new(RATE, 8, 0.4);
     pb->lock = SDL_CreateMutex();
+    // An address already being fetched is waited for, and the track stays wanted meanwhile; any
+    // other track plays through yt-dlp at once.
+    SDL_SetAtomicInt(&pb->waiting, prefetch_busy(p->prefetch, pb->id));
     pb->thread = SDL_CreateThread(play_thread, "gtube play", pb);
     p->now = pb;
     if (p->audio) gs_mix_add(gs_stream_render, pb->stream);
@@ -379,17 +385,35 @@ int player_version(player *p) {
     return v;
 }
 
-// The songs to have addresses for: the current track while it waits to be played (a restored queue),
-// and the one after it.
+// The songs to have addresses for: the current track while it waits to be played (a restored queue)
+// or waits for its address, the one after it, then the app's guesses.
 static void expect(player *p) {
-    const char *ids[2];
+    const char *ids[2 + PREFETCH_WANTS];
     int n = 0;
     SDL_LockMutex(p->lock);
-    if (!p->now && p->current >= 0 && p->current < p->n) ids[n++] = p->queue[p->current].id;
+    bool waiting = p->now && SDL_GetAtomicInt(&p->now->waiting);
+    if ((!p->now || waiting) && p->current >= 0 && p->current < p->n) ids[n++] = p->queue[p->current].id;
     int next = p->current + 1;
     if (next < p->n) ids[n++] = p->queue[next].id;
+    for (int i = 0; i < p->nexpected; i++)  // (not the track playing, which has its audio)
+        if (!p->now || p->current < 0 || strcmp(p->expected[i], p->queue[p->current].id)) ids[n++] = p->expected[i];
     prefetch_want(p->prefetch, ids, n);  // (copies the ids)
     SDL_UnlockMutex(p->lock);
+}
+
+void player_expect(player *p, const char *const *ids, int n) {
+    SDL_LockMutex(p->lock);
+    p->nexpected = 0;
+    for (int i = 0; i < n && p->nexpected < PREFETCH_WANTS; i++) SDL_strlcpy(p->expected[p->nexpected++], ids[i], sizeof p->expected[0]);
+    SDL_UnlockMutex(p->lock);
+}
+
+bool player_track_id(player *p, int index, char *id, size_t size) {
+    SDL_LockMutex(p->lock);
+    bool ok = index >= 0 && index < p->n;
+    if (ok) SDL_strlcpy(id, p->queue[index].id, size);
+    SDL_UnlockMutex(p->lock);
+    return ok;
 }
 
 void player_update(player *p) {

@@ -57,6 +57,8 @@ typedef struct {
     float audio_buf[2048 * 2];
     long long demo_made;  // the demo's test signal: samples made up to here (the last 2,048 in audio_buf)
     double last_frame;
+    int rest_view, rest_sel;  // the selection, and since when it has rested there (for prefetching)
+    uint64_t rest_since;
     double viz_clock;  // seconds the visualizer has run, stopped while playback is paused
     account account;
     signin *signin;
@@ -536,6 +538,29 @@ static bool same_song(const track *x, const track *y) {
     return !SDL_strcasecmp(x->title, y->title) && (names_first_artist(x->artist, y->artist) || names_first_artist(y->artist, x->artist));
 }
 
+// Songs likely to be played next besides the queue's own, for the player to prefetch: the selected
+// song once the selection has rested for half a second, then the first two songs of the list shown
+// (a search's top results, the top of liked music or an opened album).
+static void expect_songs(app *a) {
+    int sel = a->selected[a->view];
+    if (a->view != a->rest_view || sel != a->rest_sel) a->rest_view = a->view, a->rest_sel = sel, a->rest_since = SDL_GetTicks();
+    bool rested = SDL_GetTicks() - a->rest_since >= 500;
+    char ids[3][64];
+    const char *list[3];
+    int n = 0;
+    if (a->view == V_QUEUE && rested && player_track_id(a->player, sel, ids[n], sizeof ids[n])) list[n] = ids[n], n++;
+    if (view_shelf[a->view] >= 0) {
+        library *l = &a->library;
+        SDL_LockMutex(l->lock);
+        shelf *s = &l->shelves[view_shelf[a->view]];
+        if (rested && sel >= 0 && sel < s->n && s->items[sel].kind == ITEM_SONG) SDL_strlcpy(ids[n], s->items[sel].id, sizeof ids[n]), list[n] = ids[n], n++;
+        for (int i = 0, tops = 0; i < s->n && tops < 2; i++)
+            if (s->items[i].kind == ITEM_SONG) SDL_strlcpy(ids[n], s->items[i].id, sizeof ids[n]), list[n] = ids[n], n++, tops++;
+        SDL_UnlockMutex(l->lock);
+    }
+    player_expect(a->player, list, n);
+}
+
 // Moves a radio's newly loaded tracks into the queue, and asks for more near its end.
 static void follow_radio(app *a) {
     library *l = &a->library;
@@ -819,6 +844,7 @@ SDL_AppResult SDL_AppIterate(void *state) {
         SDL_strlcpy(a->seen, account_status, sizeof a->seen);
     }
     if (a->radio) follow_radio(a);
+    if (!a->demo) expect_songs(a);
     if (a->persist && SDL_GetTicks() >= a->next_save) {  // at most every 2 s, and only what changed
         a->next_save = SDL_GetTicks() + 2000;
         if (a->window_changed) state_save_window(a->dir, &a->window), a->window_changed = false;
