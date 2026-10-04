@@ -92,10 +92,9 @@ static SDL_EnumerationResult SDLCALL sweep_one(void *user, const char *dir, cons
     return SDL_ENUM_CONTINUE;
 }
 
-// Removes copies last written more than `age_s` ago. Each copy is deleted when its run ends, but
-// yt-dlp's release build is a launcher and a child: stopping a track ends the launcher, and the
-// child exits a moment later, saving the cookie file again after it was deleted. yt-dlp reads its
-// copy within seconds of starting, so an old copy is never still needed.
+// Removes copies last written more than `age_s` ago. Each copy is deleted when its run ends; this
+// clears the ones a crash left, or a yt-dlp that saved its cookie file again after it was deleted.
+// yt-dlp reads its copy within seconds of starting, so an old copy is never still needed.
 static void sweep(account *a, double age_s) {
     char dir[1200];
     snprintf(dir, sizeof dir, "%saccount", a->dir);

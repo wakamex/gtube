@@ -13,19 +13,22 @@
 #define EXE ".exe"
 #define SLASH "\\"
 #define PATHSEP ';'
-#define YTDLP_ASSET "yt-dlp.exe"
+#define YTDLP_ASSET "yt-dlp_win.zip"
+#define YTDLP_EXE "yt-dlp.exe"
 #define DENO_TARGET "x86_64-pc-windows-msvc"
 #elif defined(__APPLE__)
 #define EXE ""
 #define SLASH "/"
 #define PATHSEP ':'
-#define YTDLP_ASSET "yt-dlp_macos"
+#define YTDLP_ASSET "yt-dlp_macos.zip"
+#define YTDLP_EXE "yt-dlp_macos"
 #define DENO_TARGET "aarch64-apple-darwin"
 #else
 #define EXE ""
 #define SLASH "/"
 #define PATHSEP ':'
-#define YTDLP_ASSET "yt-dlp_linux"
+#define YTDLP_ASSET "yt-dlp_linux.zip"
+#define YTDLP_EXE "yt-dlp_linux"
 #define DENO_TARGET "x86_64-unknown-linux-gnu"
 #endif
 #define YTDLP_URL "https://github.com/yt-dlp/yt-dlp/releases/latest/download/"
@@ -172,25 +175,54 @@ static bool find_hash(const char *text, const char *name, char hex[65]) {
     return false;
 }
 
-// Downloads `url` to `to`, checked against the checksum in `sums_url` for `name` (NULL: the only one).
-static bool fetch_checked(tools *t, const char *url, const char *sums_url, const char *name, const char *to) {
-    char tmp[1300], sums_path[1300], want[65], got[65];
-    snprintf(tmp, sizeof tmp, "%s.download", to);
-    snprintf(sums_path, sizeof sums_path, "%s.sums", to);
-    if (!download(sums_url, sums_path)) return fail(t, "could not download the checksums (is there a connection?)");
-    char *sums = SDL_LoadFile(sums_path, NULL);
-    SDL_RemovePath(sums_path);
+// The checksum that `sums_url` publishes for `name` (NULL: the only one), or an error message.
+static const char *published_hash(const char *sums_url, const char *name, const char *scratch, char want[65]) {
+    if (!download(sums_url, scratch)) return "could not download the checksums (is there a connection?)";
+    char *sums = SDL_LoadFile(scratch, NULL);
+    SDL_RemovePath(scratch);
     bool found = sums && find_hash(sums, name, want);
     SDL_free(sums);
-    if (!found) return fail(t, "the release publishes no checksum for this file");
-    if (!download(url, tmp)) return fail(t, "download failed");
+    return found ? NULL : "the release publishes no checksum for this file";
+}
+
+// Downloads `url` to `to` if it matches the checksum `want`; NULL, or an error message.
+static const char *download_checked(const char *url, const char *want, const char *to) {
+    char tmp[1300], got[65];
+    snprintf(tmp, sizeof tmp, "%s.download", to);
+    if (!download(url, tmp)) return "download failed";
     if (!gs_sha256_file(tmp, got) || strcmp(got, want)) {
         SDL_RemovePath(tmp);
-        return fail(t, "the download does not match its published checksum; not using it");
+        return "the download does not match its published checksum; not using it";
     }
     SDL_RemovePath(to);
-    if (!SDL_RenamePath(tmp, to)) return fail(t, "could not move the download into place");
-    return true;
+    return SDL_RenamePath(tmp, to) ? NULL : "could not move the download into place";
+}
+
+// Unpacks a zip into dir, with the system's own tar (Windows 10 and later read zip with it) or unzip.
+static bool unzip(const char *zip, const char *dir) {
+    SDL_CreateDirectory(dir);
+#ifdef _WIN32
+    const char *args[] = { system_program("tar"), "-xf", zip, "-C", dir, NULL };
+#else
+    const char *args[] = { system_program("unzip"), "-o", "-q", zip, "-d", dir, NULL };
+#endif
+    return run(args, NULL);
+}
+
+static SDL_EnumerationResult SDLCALL remove_one(void *user, const char *dir, const char *name) {
+    (void)user;
+    char path[1400];
+    SDL_PathInfo info;
+    snprintf(path, sizeof path, "%s%s", dir, name);
+    if (SDL_GetPathInfo(path, &info) && info.type == SDL_PATHTYPE_DIRECTORY) SDL_EnumerateDirectory(path, remove_one, NULL);
+    SDL_RemovePath(path);
+    return SDL_ENUM_CONTINUE;
+}
+
+// Removes a file, or a folder and everything in it.
+static void remove_all(const char *path) {
+    SDL_EnumerateDirectory(path, remove_one, NULL);
+    SDL_RemovePath(path);
 }
 
 static void make_executable(const char *path) {
@@ -225,37 +257,93 @@ static double now_seconds(void) {
     return SDL_GetCurrentTime(&t) ? t / 1e9 : 0;
 }
 
+// yt-dlp is kept unpacked, in bin/yt-dlp-<the first 12 digits of its zip's SHA-256>, and
+// bin/yt-dlp.txt names the copy in use and when it was last checked ("<unix time> <SHA-256>").
+// The unpacked build starts in about 0.4 s; the single-file build takes about 1.1 s, unpacking
+// itself into a temporary folder on every run. Unpacked builds cannot update themselves (-U), so a
+// newer release goes into a folder of its own, and copies no longer in use are removed at launch.
+static void ytdlp_folder(const char *bin, const char *hash, char *out, size_t size) {
+    snprintf(out, size, "%s" SLASH "yt-dlp-%.12s", bin, hash);
+}
+
+static void use_ytdlp(tools *t, const char *bin, const char *hash) {
+    char dir[1200];
+    ytdlp_folder(bin, hash, dir, sizeof dir);
+    SDL_LockSpinlock(&t->lock);
+    snprintf(t->ytdlp, sizeof t->ytdlp, "%s" SLASH YTDLP_EXE, dir);
+    SDL_UnlockSpinlock(&t->lock);
+}
+
+static void stamp_ytdlp(const char *bin, const char *hash) {
+    char stamp[1200], text[100];
+    snprintf(stamp, sizeof stamp, "%s" SLASH "yt-dlp.txt", bin);
+    snprintf(text, sizeof text, "%.0f %s", now_seconds(), hash);
+    SDL_SaveFile(stamp, text, strlen(text));
+}
+
+// Installs the latest yt-dlp unless the copy with checksum `have` (or "") is it. NULL, or an error.
+static const char *install_ytdlp(tools *t, const char *bin, const char *have) {
+    char scratch[1200], zip[1200], dir[1200], part[1300], exe[1400], want[65];
+    snprintf(scratch, sizeof scratch, "%s" SLASH "yt-dlp.sums", bin);
+    const char *err = published_hash(YTDLP_URL "SHA2-256SUMS", YTDLP_ASSET, scratch, want);
+    if (err) return err;
+    if (!strcmp(want, have)) return stamp_ytdlp(bin, have), NULL;
+    say(t, have[0] ? "updating yt-dlp" : "downloading yt-dlp");
+    snprintf(zip, sizeof zip, "%s" SLASH "yt-dlp.zip", bin);
+    if ((err = download_checked(YTDLP_URL YTDLP_ASSET, want, zip))) return err;
+    ytdlp_folder(bin, want, dir, sizeof dir);
+    snprintf(part, sizeof part, "%s.part", dir);
+    remove_all(part);
+    bool ok = unzip(zip, part);
+    SDL_RemovePath(zip);
+    snprintf(exe, sizeof exe, "%s" SLASH YTDLP_EXE, part);
+    if (!ok || !exists(exe)) return remove_all(part), "could not unpack yt-dlp";
+    make_executable(exe);
+    remove_all(dir);
+    if (!SDL_RenamePath(part, dir)) return remove_all(part), "could not move yt-dlp into place";
+    use_ytdlp(t, bin, want);
+    stamp_ytdlp(bin, want);
+    SDL_Log("tools: yt-dlp %.12s installed", want);
+    return NULL;
+}
+
+typedef struct { const char *bin, *keep; } sweep_ctx;
+
+// Removes yt-dlp copies other than the one in use, and the single-file build used before.
+static SDL_EnumerationResult SDLCALL sweep_one(void *user, const char *dir, const char *name) {
+    sweep_ctx *c = user;
+    char path[1300];
+    snprintf(path, sizeof path, "%s%s", dir, name);
+    bool copy = !strncmp(name, "yt-dlp-", 7);
+    if ((copy && (strlen(name) != 19 || strncmp(name + 7, c->keep, 12))) || !strcmp(name, "yt-dlp" EXE) || !strcmp(name, "last-update"))
+        remove_all(path);
+    return SDL_ENUM_CONTINUE;
+}
+
 void tools_prepare(void *arg) {
     tools *t = arg;
-    char bin[1100], stamp[1200];
+    char bin[1100], stamp[1200], have[65] = "", exe[1400];
     snprintf(bin, sizeof bin, "%sbin", t->dir);
     SDL_CreateDirectory(bin);
-    snprintf(t->ytdlp, sizeof t->ytdlp, "%s" SLASH "yt-dlp%s", bin, EXE);
-    snprintf(stamp, sizeof stamp, "%s" SLASH "last-update", bin);
+    snprintf(stamp, sizeof stamp, "%s" SLASH "yt-dlp.txt", bin);
+    char *text = SDL_LoadFile(stamp, NULL);
+    double checked = text ? SDL_atof(text) : 0;
+    const char *space = text ? strchr(text, ' ') : NULL;
+    if (space && strlen(space + 1) >= 64) snprintf(have, sizeof have, "%.64s", space + 1);
+    SDL_free(text);
+    if (have[0]) {
+        use_ytdlp(t, bin, have);
+        SDL_strlcpy(exe, t->ytdlp, sizeof exe);
+        if (!exists(exe)) have[0] = 0;
+    }
+    sweep_ctx sweep = { bin, have };
+    char bin_slash[1200];
+    snprintf(bin_slash, sizeof bin_slash, "%s" SLASH, bin);
+    SDL_EnumerateDirectory(bin_slash, sweep_one, &sweep);
 
-    // yt-dlp: our own copy, checked; then kept current.
-    if (!exists(t->ytdlp)) {
-        say(t, "downloading yt-dlp");
-        if (!fetch_checked(t, YTDLP_URL YTDLP_ASSET, YTDLP_URL "SHA2-256SUMS", YTDLP_ASSET, t->ytdlp)) return;
-        make_executable(t->ytdlp);
-        char when[32];
-        snprintf(when, sizeof when, "%.0f", now_seconds());
-        SDL_SaveFile(stamp, when, strlen(when));
-    } else {
-        char *last = SDL_LoadFile(stamp, NULL);
-        double age = now_seconds() - (last ? SDL_atof(last) : 0);
-        SDL_free(last);
-        if (age > UPDATE_SECONDS) {
-            say(t, "updating yt-dlp");
-            const char *args[] = { t->ytdlp, "-U", NULL };
-            char *out = NULL;
-            bool ok = run(args, &out);
-            SDL_Log("tools: yt-dlp -U %s: %s", ok ? "ran" : "failed", out ? out : "");
-            SDL_free(out);
-            char when[32];
-            snprintf(when, sizeof when, "%.0f", now_seconds());
-            SDL_SaveFile(stamp, when, strlen(when));
-        }
+    if (!have[0]) {  // our own copy, checked
+        const char *err = install_ytdlp(t, bin, "");
+        if (err) { fail(t, err); return; }
     }
 
     // A JavaScript runtime for yt-dlp: our Deno, else one on the PATH, else download Deno.
@@ -269,13 +357,12 @@ void tools_prepare(void *arg) {
         say(t, "downloading Deno (yt-dlp's JavaScript runtime)");
         char zip[1200];
         snprintf(zip, sizeof zip, "%s" SLASH "deno.zip", bin);
-        if (!fetch_checked(t, DENO_URL, DENO_URL ".sha256sum", NULL, zip)) return;
-#ifdef _WIN32
-        const char *args[] = { system_program("tar"), "-xf", zip, "-C", bin, NULL };  // Windows 10's tar reads zip
-#else
-        const char *args[] = { system_program("unzip"), "-o", "-q", zip, "-d", bin, NULL };
-#endif
-        bool ok = run(args, NULL);
+        char scratch[1200], want[65];
+        snprintf(scratch, sizeof scratch, "%s" SLASH "deno.sums", bin);
+        const char *err = published_hash(DENO_URL ".sha256sum", NULL, scratch, want);
+        if (!err) err = download_checked(DENO_URL, want, zip);
+        if (err) { fail(t, err); return; }
+        bool ok = unzip(zip, bin);
         SDL_RemovePath(zip);
         if (!ok || !exists(deno)) {
             fail(t, "could not unpack Deno");
@@ -286,12 +373,23 @@ void tools_prepare(void *arg) {
     }
     say(t, "ready");
     SDL_SetAtomicInt(&t->state, 1);
+
+    // Kept current: checked at most once a day, after the app is ready, so playing never waits on it.
+    if (have[0] && now_seconds() - checked > UPDATE_SECONDS) {
+        const char *err = install_ytdlp(t, bin, have);
+        if (err) SDL_Log("tools: yt-dlp update: %s", err);
+        SDL_strlcpy(t->status, "ready", sizeof t->status);
+    }
 }
 
 SDL_Process *tools_ytdlp(tools *t, const char *const *args, const char *cookies) {
     const char *all[64];
     int n = 0;
-    all[n++] = t->ytdlp;
+    char exe[sizeof t->ytdlp];
+    SDL_LockSpinlock(&t->lock);
+    SDL_strlcpy(exe, t->ytdlp, sizeof exe);
+    SDL_UnlockSpinlock(&t->lock);
+    all[n++] = exe;
     all[n++] = "--js-runtimes";
     all[n++] = t->js;
     all[n++] = "--no-warnings";
