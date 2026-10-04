@@ -539,14 +539,15 @@ static bool same_song(const track *x, const track *y) {
 }
 
 // Songs likely to be played next besides the queue's own, for the player to prefetch: the selected
-// song once the selection has rested for half a second, then the first two songs of the list shown
-// (a search's top results, the top of liked music or an opened album).
+// song once the selection has rested for half a second, the first two songs of the list shown
+// (a search's top results, the top of liked music or an opened album), and in any view the first
+// liked song, where playing from liked music usually starts.
 static void expect_songs(app *a) {
     int sel = a->selected[a->view];
     if (a->view != a->rest_view || sel != a->rest_sel) a->rest_view = a->view, a->rest_sel = sel, a->rest_since = SDL_GetTicks();
     bool rested = SDL_GetTicks() - a->rest_since >= 500;
-    char ids[3][64];
-    const char *list[3];
+    char ids[4][64];
+    const char *list[4];
     int n = 0;
     if (a->view == V_QUEUE && rested && player_track_id(a->player, sel, ids[n], sizeof ids[n])) list[n] = ids[n], n++;
     if (view_shelf[a->view] >= 0) {
@@ -558,6 +559,11 @@ static void expect_songs(app *a) {
             if (s->items[i].kind == ITEM_SONG) SDL_strlcpy(ids[n], s->items[i].id, sizeof ids[n]), list[n] = ids[n], n++, tops++;
         SDL_UnlockMutex(l->lock);
     }
+    SDL_LockMutex(a->library.lock);
+    shelf *liked = &a->library.shelves[SHELF_LIKED];
+    for (int i = 0; i < liked->n; i++)
+        if (liked->items[i].kind == ITEM_SONG) { SDL_strlcpy(ids[n], liked->items[i].id, sizeof ids[n]), list[n] = ids[n], n++; break; }
+    SDL_UnlockMutex(a->library.lock);
     player_expect(a->player, list, n);
 }
 
