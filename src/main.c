@@ -166,11 +166,26 @@ static bool write_wav(const char *path, const float *lr, int frames) {
 
 // The window and its renderer, hidden: on Bend's Vulkan device when asked and there is one, so a Bend
 // effect's frames never leave the GPU, otherwise on SDL's default renderer.
+// A shot's window is drawn in memory by the software renderer, and says it brings its own graphics
+// context: otherwise SDL gives a macOS window OpenGL, which the offscreen driver there cannot load.
+static SDL_Window *new_window(app *a, SDL_WindowFlags flags) {
+    SDL_PropertiesID p = SDL_CreateProperties();
+    SDL_SetStringProperty(p, SDL_PROP_WINDOW_CREATE_TITLE_STRING, "gesso gtube");
+    SDL_SetNumberProperty(p, SDL_PROP_WINDOW_CREATE_WIDTH_NUMBER, a->window.w);
+    SDL_SetNumberProperty(p, SDL_PROP_WINDOW_CREATE_HEIGHT_NUMBER, a->window.h);
+    SDL_SetNumberProperty(p, SDL_PROP_WINDOW_CREATE_FLAGS_NUMBER, flags);
+    SDL_SetBooleanProperty(p, SDL_PROP_WINDOW_CREATE_EXTERNAL_GRAPHICS_CONTEXT_BOOLEAN, a->shot != NULL);
+    SDL_Window *w = SDL_CreateWindowWithProperties(p);
+    SDL_DestroyProperties(p);
+    return w;
+}
+
 static bool make_window(app *a, bool bend) {
     SDL_WindowFlags wf = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN;
-    if (!(bend && bend_vk_window("gesso gtube", a->window.w, a->window.h, wf, &a->win, &a->ren))
-        && !SDL_CreateWindowAndRenderer("gesso gtube", a->window.w, a->window.h, wf, &a->win, &a->ren))
-        return false;
+    if (!(bend && bend_vk_window("gesso gtube", a->window.w, a->window.h, wf, &a->win, &a->ren))) {
+        if (!(a->win = new_window(a, wf))) return false;
+        if (!(a->ren = SDL_CreateRenderer(a->win, NULL))) return SDL_DestroyWindow(a->win), a->win = NULL, false;
+    }
     bend_vk_hold();  // the player's drawing shares Bend's queue: held but while waiting (see bend_vulkan.h)
     a->pace_cap = -1;  // paced for this renderer from the next frame
     return true;
