@@ -4,31 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define SIGNIN_URL "https://accounts.google.com/ServiceLogin?service=youtube&continue=https%3A%2F%2Fmusic.youtube.com%2F"
-
-// ---- The cookies, as a Netscape file ----
-
-typedef struct { char *text; size_t len, cap; bool youtube_session; } jar;
-
-static jar jar_new(void) {
-    jar j = { SDL_malloc(65536), 0, 65536, false };
-    j.len = (size_t)snprintf(j.text, j.cap, "# Netscape HTTP Cookie File\n");
-    return j;
-}
-
-// Adds a cookie; `expires` 0 for a session cookie. The account keeps only the session's domains.
-static void jar_add(jar *j, const char *domain, const char *path, bool secure, bool http_only, long long expires,
-                    const char *name, const char *value) {
-    if (!name[0]) return;
-    if (strstr(domain, "youtube.com") && (!strcmp(name, "SAPISID") || !strcmp(name, "__Secure-3PAPISID"))) j->youtube_session = true;
-    char line[5200];
-    int n = snprintf(line, sizeof line, "%s%s\t%s\t%s\t%s\t%lld\t%s\t%s\n", http_only ? "#HttpOnly_" : "", domain,
-                     domain[0] == '.' ? "TRUE" : "FALSE", path[0] ? path : "/", secure ? "TRUE" : "FALSE", expires, name, value);
-    if (n <= 0 || n >= (int)sizeof line) return;
-    if (j->len + (size_t)n + 1 > j->cap) j->text = SDL_realloc(j->text, j->cap = (j->cap + (size_t)n) * 2);
-    memcpy(j->text + j->len, line, (size_t)n + 1);
-    j->len += (size_t)n;
-}
+#include "signin_jar.h"
 
 #ifdef _WIN32
 
@@ -327,7 +303,7 @@ void signin_close(signin *s) {
     s->closed = true;
 }
 
-#else
+#elif !defined(__APPLE__)  // (macOS: signin_mac.m)
 
 // WebKitGTK, GTK 3's or GTK 4's, loaded when the window opens like WebView2 on Windows, so nothing
 // is needed to build and a system without it only loses this window. It runs in a process of its

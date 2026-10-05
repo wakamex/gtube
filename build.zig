@@ -28,6 +28,10 @@ pub fn build(b: *std.Build) void {
     }
     const exe = b.addExecutable(.{ .name = "gtube", .root_module = mod });
     b.getInstallStep().dependOn(&b.addInstallBinFile(b.path("src/bend/viz.gpu"), if (target.result.os.tag == .windows) "gtube.exe.gpu" else "gtube.gpu").step);
+    if (target.result.os.tag == .macos) {  // the sign-in window: WebKit in AppKit
+        mod.addCSourceFile(.{ .file = b.path("src/signin_mac.m"), .flags = &.{ "-fobjc-arc", "-Wall", "-Wextra", "-Wno-unused-parameter" } });
+        for ([_][]const u8{ "WebKit", "AppKit" }) |framework| mod.linkFramework(framework, .{});
+    }
     if (target.result.os.tag == .windows) {
         exe.subsystem = .windows;
         for ([_][]const u8{ "ole32", "advapi32", "crypt32" }) |lib| mod.linkSystemLibrary(lib, .{});

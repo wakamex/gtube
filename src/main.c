@@ -252,7 +252,7 @@ SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
     int nurls = 0, effect = 1;
     double seconds = 30;
     bool tools_only = false, demo = false, refresh = false, sign_out = false, open_signin = false, view_given = false;
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(__APPLE__)
     if (argc == 3 && !strcmp(argv[1], "--signin-window")) exit(signin_window(argv[2]));
 #endif
     for (int i = 1; i < argc; i++) {
