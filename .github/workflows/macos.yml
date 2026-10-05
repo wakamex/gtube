@@ -30,6 +30,7 @@ jobs:
         run: |
           set -euo pipefail
           zig-out/bin/gtube --help | grep -q -- --import-cookies
+          otool -L zig-out/bin/gtube | grep -q WebKit.framework  # the sign-in window
           zig-out/bin/gtube --data "$RUNNER_TEMP/data" --demo --view 4 --shot "$RUNNER_TEMP/shot.png" --at 1
           file "$RUNNER_TEMP/shot.png" | grep -q 'PNG image data'
       - name: Keep the frame
