@@ -44,7 +44,7 @@ static bool save_bytes(account *a, const char *text) {
     store_path(a, path, sizeof path);
 #ifdef _WIN32
     DATA_BLOB in = { (DWORD)strlen(text), (BYTE *)text }, out = { 0 };
-    if (!CryptProtectData(&in, L"gesso gtube session", NULL, NULL, NULL, CRYPTPROTECT_UI_FORBIDDEN, &out)) return false;
+    if (!CryptProtectData(&in, L"gtube session", NULL, NULL, NULL, CRYPTPROTECT_UI_FORBIDDEN, &out)) return false;
     bool ok = SDL_SaveFile(path, out.pbData, out.cbData);
     LocalFree(out.pbData);
     return ok;

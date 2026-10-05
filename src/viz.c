@@ -661,7 +661,7 @@ void viz_draw(viz *v, SDL_FRect a, double t, const char *title, const char *arti
     }
     if (v->scroller && title[0]) {
         char text[900];
-        SDL_snprintf(text, sizeof text, "\xE2\x99\xAA %s%s%s \xE2\x99\xAA     gesso gtube     greetings to winamp, milkdrop, avs, future crew, farbrausch and the whole demoscene     ",
+        SDL_snprintf(text, sizeof text, "\xE2\x99\xAA %s%s%s \xE2\x99\xAA     gtube     greetings to winamp, milkdrop, avs, future crew, farbrausch and the whole demoscene     ",
                      title, artist[0] ? "  \xC2\xB7  " : "", artist);
         scroller(v, a, text, g, f);
     }
