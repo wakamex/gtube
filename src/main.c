@@ -142,9 +142,18 @@ static void data_dir(const char *data, char *out, size_t size) {
         size_t n = strlen(data);
         snprintf(out, size, "%s%s", data, n && (data[n - 1] == '/' || data[n - 1] == '\\') ? "" : slash);
     } else {
-        char *pref = SDL_GetPrefPath("wakamex", "gesso-gtube");
+        char *pref = SDL_GetPrefPath("wakamex", "gtube");  // (made if missing)
         snprintf(out, size, "%s", pref ? pref : "");
         SDL_free(pref);
+        // Earlier versions kept their data in wakamex/gesso-gtube: it is moved here the first time,
+        // or used where it is if it cannot be moved.
+        size_t n = strlen(out);
+        char now[1024], old[1024];
+        snprintf(now, sizeof now, "%.*s", (int)(n ? n - 1 : 0), out);  // (without the trailing slash)
+        snprintf(old, sizeof old, "%.*sgesso-gtube", (int)(strlen(now) >= 5 ? strlen(now) - 5 : 0), now);
+        SDL_PathInfo info;
+        if (n && SDL_GetPathInfo(old, &info) && info.type == SDL_PATHTYPE_DIRECTORY && SDL_RemovePath(now) && !SDL_RenamePath(old, now))
+            snprintf(out, size, "%s%s", old, slash), SDL_CreateDirectory(now);
     }
 }
 

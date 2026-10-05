@@ -106,7 +106,7 @@ The two Bend effects draw every pixel on a thread of their own. With a Vulkan GP
 | `--sign-in` | Open the sign-in window at start |
 | `--sign-out`, `--refresh` | Forget the saved session, or renew it once and report |
 | `--import-cookies FILE` | Sign in from a browser's cookies.txt |
-| `--data DIR` | Keep the tools and session elsewhere (default: `%APPDATA%\wakamex\gesso-gtube` on Windows, `~/.local/share/wakamex/gesso-gtube` on Linux) |
+| `--data DIR` | Keep the tools and session elsewhere (default: `%APPDATA%\wakamex\gtube` on Windows, `~/.local/share/wakamex/gtube` on Linux, `~/Library/Application Support/wakamex/gtube` on macOS; a `gesso-gtube` folder from earlier versions moves there at first launch) |
 | `--wav F.wav [--seconds S] URL` | Render the first track to a file |
 | `--shot F.png [--at S]` | Render one frame to a file |
 | `--api search\|albums\|playlists\|browse\|radio ARG` | Print one API answer |
