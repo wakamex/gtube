@@ -371,21 +371,24 @@ static void fx_feedback(viz *v, SDL_FRect a) {
 // Fire fed by the spectrum. A cellular effect, so it is worked out on a grid a third of the height
 // and drawn smoothly scaled.
 // One step of the fire, at 60 a second: embers along the bottom, and the heat risen a row.
+#define FIRE_LEVELS 36  // heat in steps, as in Doom's fire: the coarse steps are what make tongues
+
+// Doom's fire: each cell's heat goes to the row above, landing up to a cell to either side at random,
+// sometimes a step cooler. Cells that nothing lands on keep their last heat, so tongues form and
+// break off as they rise. Fuel at the bottom is hotter where it is louder, and on beats; cooling is
+// scaled so the flames reach about half way up at any grid size.
 static void fire_step(viz *v, uint8_t *heat, int w, int h) {
     for (int x = 0; x < w; x++) {
-        // Embers on or off at random, more often where it is louder: flames rather than stripes.
-        float s = v->fuel[x * BANDS / w], chance = 0.15f + 0.85f * s + v->beat * 0.1f;
-        heat[(h + 1) * w + x] = heat[h * w + x] = rnd(v) < chance ? 255 : 0;
+        float s = v->fuel[x * BANDS / w], f = 0.55f + 0.45f * s + v->beat * 0.2f;
+        heat[h * w + x] = (uint8_t)(FIRE_LEVELS * (f > 1 ? 1 : f));
     }
-    // Heat rises, averaged from below and sampled a step to either side at random so the flames
-    // lick, and cools a little each row (scaled so the flames reach as high at any grid size).
-    float cool = 200.0f / h;
-    for (int y = 0; y < h; y++)
-        for (int x = 0; x < w; x++) {
-            int j = x + (int)(rnd(v) * 3) - 1, l = j > 0 ? j - 1 : 0, c = j < 0 ? 0 : j >= w ? w - 1 : j, r = c < w - 1 ? c + 1 : c;
-            int sum = heat[(y + 1) * w + l] + heat[(y + 1) * w + c] + heat[(y + 1) * w + r] + heat[(y + 2) * w + c];
-            int k = (sum + (int)(rnd(v) * 4)) / 4 - (rnd(v) < 0.5f * cool) - (rnd(v) < 0.5f * cool);
-            heat[y * w + x] = (uint8_t)(k < 0 ? 0 : k);
+    float cool = FIRE_LEVELS / (0.5f * h);  // the chance a step up is a step cooler
+    for (int x = 0; x < w; x++)
+        for (int y = 1; y <= h; y++) {
+            int from = y * w + x, level = heat[from];
+            int dx = (int)(rnd(v) * 3) - 1, to = x + dx < 0 ? 0 : x + dx >= w ? w - 1 : x + dx;
+            int k = level - (level && rnd(v) < cool);
+            heat[(y - 1) * w + to] = (uint8_t)k;
         }
 }
 
@@ -403,7 +406,7 @@ static void fx_fire(viz *v, SDL_FRect a) {
     for (int step = 0; step < n; step++) fire_step(v, heat, w, h);
     if (n || fresh)
         for (int i = 0; i < w * h; i++) {
-            float f = heat[i] / 255.0f;  // black, red, orange, yellow, white
+            float f = heat[i] / (float)FIRE_LEVELS;  // black, red, orange, yellow, white
             float r = fminf(1, f * 3), g = fminf(1, fmaxf(0, (f - 0.33f) * 2.2f)), b = fminf(1, fmaxf(0, (f - 0.7f) * 3.3f));
             v->fire.px[i] = (uint32_t)(r * 255) << 16 | (uint32_t)(g * 255) << 8 | (uint32_t)(b * 255);
         }
