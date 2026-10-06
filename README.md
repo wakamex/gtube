@@ -76,14 +76,14 @@ Long playlists load in full, not page by page. The window's size and position an
 
 ## Visualizer
 
-View 4 draws what you're hearing (a 64-band spectrum, the waveform, bass, mids, treble and beats) through seven effects, at the screen's full resolution:
+View 4 draws what you're hearing (a 64-band spectrum, the waveform, bass, mids, treble and beats) through eight effects, at the screen's full resolution:
 
 - Spectrum: Winamp-style LED bars with a scope
 - Tunnel: a bending tunnel of textured rings
 - Feedback: [MilkDrop](https://en.wikipedia.org/wiki/MilkDrop)-style, each frame the last one seen through a warp mesh
 - Fire, fed by the spectrum
 - Stars and bobs: a warp starfield around a sphere of bobs pushed out by the bands
-- Bend plasma and Bend tree, written in [Bend](https://github.com/bendlang/bend)
+- Bend plasma, Bend tree and Bend voxels, written in [Bend](https://github.com/bendlang/bend); the voxels are a flight over land made of blocks, ray traced one pixel at a time, which the bass lifts and the mids ripple
 
 | Key | Action |
 |---|---|
@@ -92,7 +92,7 @@ View 4 draws what you're hearing (a 64-band spectrum, the waveform, bass, mids, 
 | t | Show or hide the scroller with the track's name |
 | g | Run a Bend effect on the GPU or the CPU |
 
-The two Bend effects draw every pixel on a thread of their own. With a Vulkan GPU they draw straight into the player's textures: at 4K on an RTX 3080 the plasma runs at over 3,000 frames a second with `--uncapped`. Without one they draw on the CPU. Loading the Vulkan driver the first time a Bend effect is shown brings gtube to about 85 MB in Task Manager on Windows with an NVIDIA GPU.
+The Bend effects draw every pixel on a thread of their own. With a Vulkan GPU they draw straight into the player's textures: at 4K on an RTX 3080 the plasma runs at over 3,000 frames a second with `--uncapped`. Without one they draw on the CPU. Loading the Vulkan driver the first time a Bend effect is shown brings gtube to about 85 MB in Task Manager on Windows with an NVIDIA GPU.
 
 ## Options
 

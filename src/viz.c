@@ -15,8 +15,8 @@
 #define BOBS 180
 #define AUTO_SECONDS 40
 
-enum { FX_SPECTRUM, FX_TUNNEL, FX_FEEDBACK, FX_FIRE, FX_BOBS, FX_BEND, FX_BEND_TREE, FX_COUNT };
-static const char *const fx_names[FX_COUNT] = { "Spectrum", "Tunnel", "Feedback", "Fire", "Stars & bobs", "Bend plasma", "Bend tree" };
+enum { FX_SPECTRUM, FX_TUNNEL, FX_FEEDBACK, FX_FIRE, FX_BOBS, FX_BEND, FX_BEND_TREE, FX_BEND_VOXELS, FX_COUNT };
+static const char *const fx_names[FX_COUNT] = { "Spectrum", "Tunnel", "Feedback", "Fire", "Stars & bobs", "Bend plasma", "Bend tree", "Bend voxels" };
 
 typedef struct { float x, y, z; } vec3;
 
@@ -484,10 +484,10 @@ static void fx_bend(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
     }
     int w = (int)a.w < BENDVIZ_MAX ? (int)a.w : BENDVIZ_MAX, h = (int)a.h < BENDVIZ_MAX ? (int)a.h : BENDVIZ_MAX;
     float params[5] = { (float)v->t, v->bass, v->mid, v->hue, v->beat };
-    if (!v->bend_shown) bendviz_request(params, w, h, v->fx == FX_BEND_TREE, v->bend_on_gpu);
+    if (!v->bend_shown) bendviz_request(params, w, h, v->fx - FX_BEND, v->bend_on_gpu);
     if (v->bend_startup == 1 && !v->bend_shown && SDL_GetTicks() - v->bend_start_ms > 5000) {
         SDL_Log("bend: no frame 5 s after starting (asked for %dx%d, %s, on the %s; GPU in use: %s)", w, h,
-                v->fx == FX_BEND_TREE ? "tree" : "plasma", v->bend_on_gpu ? "GPU" : "CPU", bendviz_gpu() ? "yes" : "no");
+                v->fx == FX_BEND_TREE ? "tree" : v->fx == FX_BEND_VOXELS ? "voxels" : "plasma", v->bend_on_gpu ? "GPU" : "CPU", bendviz_gpu() ? "yes" : "no");
         v->bend_startup = 3;
     }
     // Without vsync the player would present as fast as it can, most often the frame already on
@@ -556,7 +556,7 @@ static void fx_bend(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
     }
     // The next frame is asked for once this one is taken, so Bend draws it while the player draws
     // and presents this one, rather than each waiting for the other.
-    bendviz_request(params, w, h, v->fx == FX_BEND_TREE, v->bend_on_gpu);
+    bendviz_request(params, w, h, v->fx - FX_BEND, v->bend_on_gpu);
     if (fresh && v->bend_startup != 2) {
         SDL_Log("bend: first frame %llu ms after starting, %dx%d, drawn on the %s, %.1f ms", (unsigned long long)(SDL_GetTicks() - v->bend_start_ms),
                 v->bend_w, v->bend_h, v->bend_drawn_gpu ? "GPU" : bendviz_gpu() ? "CPU" : "CPU (no GPU found)", v->bend_ms);

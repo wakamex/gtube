@@ -577,7 +577,7 @@ bool bendviz_start(const char* gpu_heap) {
 }
 
 // Asks for a frame of w x h (each at most BENDVIZ_MAX), replacing any request not yet started.
-// params: time, bass, mids, hue, beat; fx: 0 the plasma, 1 the tree.
+// params: time, bass, mids, hue, beat; fx: 0 the plasma, 1 the tree, 2 the voxels.
 void bendviz_request(const float params[5], int w, int h, int fx, bool gpu) {
   w = w < 1 ? 1 : w > BENDVIZ_MAX ? BENDVIZ_MAX : w;
   h = h < 1 ? 1 : h > BENDVIZ_MAX ? BENDVIZ_MAX : h;
