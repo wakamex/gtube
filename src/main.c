@@ -894,6 +894,7 @@ SDL_AppResult SDL_AppIterate(void *state) {
     float u = oh / 560.0f;  // scale everything with the window
     if (u < 0.8f) u = 0.8f;
     const SDL_FColor ink = rgb(238, 232, 222), dim = rgb(150, 142, 130), accent = rgb(255, 92, 70), faint = rgb(95, 90, 84);
+    gs_glyphs_begin_frame(a->glyphs);  // (text new in the last frame, uploaded before anything is drawn)
     SDL_SetRenderDrawColor(a->ren, 20, 19, 18, 255);
     SDL_RenderClear(a->ren);
     SDL_SetRenderDrawBlendMode(a->ren, SDL_BLENDMODE_BLEND);
