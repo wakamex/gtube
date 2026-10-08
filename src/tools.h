@@ -1,5 +1,5 @@
 // The player's own yt-dlp and JavaScript runtime, as YTubic manages them: downloaded on first run
-// from their GitHub releases (http.h) and checked against the published SHA-256 checksums, yt-dlp
+// from their GitHub releases (gs_http.h) and checked against the published SHA-256 checksums, yt-dlp
 // as its unpacked build (which starts faster), updated at most once a day. A JavaScript runtime
 // already on the PATH (Deno, Node or Bun) is used when there is one; otherwise Deno is downloaded
 // the same way. yt-dlp always runs with a PATH of system folders only, so no stray PATH entry can

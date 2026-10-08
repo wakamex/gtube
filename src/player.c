@@ -6,7 +6,7 @@
 
 #include "account.h"
 #include "gs_mix.h"
-#include "http.h"
+#include "gs_http.h"
 #include "gs_opus.h"
 #include "gs_webm.h"
 
@@ -238,11 +238,11 @@ static long long address_length(const char *url) {
 // Plays the track from its address. A connection that breaks picks up where it left off, on a new
 // address if that one has expired (a track paused for hours). False if no audio came at all.
 static bool play_address(playback *pb, char *url, size_t size) {
-    http_request r = { .url = url, .agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36" };
+    gs_http_request r = { .url = url, .agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36" };
     long long total = address_length(url);
     for (int tries = 0; tries < 3 && !SDL_GetAtomicInt(&pb->stop) && !pb->bad;) {
         long long before = pb->received;
-        int status = http_stream(&r, pb->received, feed, pb, &pb->stop);
+        int status = gs_http_stream(&r, pb->received, feed, pb, &pb->stop);
         if (SDL_GetAtomicInt(&pb->stop) || pb->bad || (total && pb->received >= total)) break;
         if (status >= 200 && status < 300 && !total) break;  // the end, as far as can be told
         if (!SDL_GetAtomicInt(&pb->got_audio)) return false;

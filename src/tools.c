@@ -7,7 +7,7 @@
 #endif
 
 #include "gs_sha256.h"
-#include "http.h"
+#include "gs_http.h"
 
 #ifdef _WIN32
 #define EXE ".exe"
@@ -82,13 +82,8 @@ static SDL_Environment *trimmed_env(void) {
 
 // Never set SDL_PROP_PROCESS_CREATE_WORKING_DIRECTORY_STRING: the Linux release runs on glibc 2.27
 // and 2.28, which cannot start a process in another directory (see src/glibc_compat.c).
-SDL_Process *tools_spawn(SDL_PropertiesID props) {
-    static SDL_SpinLock lock;
-    SDL_LockSpinlock(&lock);
-    SDL_Process *proc = SDL_CreateProcessWithProperties(props);
-    SDL_UnlockSpinlock(&lock);
-    return proc;
-}
+// Started one at a time with gs_http's own curl processes (gs_http_spawn), so none inherits another's pipes.
+SDL_Process *tools_spawn(SDL_PropertiesID props) { return gs_http_spawn(props); }
 
 static SDL_Process *start(const char *const *args, bool pipe, bool errors) {
     SDL_Environment *env = trimmed_env();
@@ -145,9 +140,9 @@ static const char *system_program(const char *name) {
 }
 
 static bool download(const char *url, const char *to) {
-    http_request r = { .url = url, .follow = true, .to = to };
+    gs_http_request r = { .url = url, .follow = true, .to = to };
     for (int attempt = 0; attempt < 3; attempt++)
-        if (http_fetch(&r, NULL, NULL) == 200) return true;
+        if (gs_http_fetch(&r, NULL, NULL) == 200) return true;
     SDL_RemovePath(to);
     return false;
 }

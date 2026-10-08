@@ -6,7 +6,7 @@
 #include <time.h>
 
 #include "gs_json.h"
-#include "http.h"
+#include "gs_http.h"
 
 #define ORIGIN "https://music.youtube.com"
 #define USER_AGENT "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36"
@@ -88,10 +88,10 @@ static gs_json *request(account *a, const char *endpoint, const char *fields, ch
     // (signed out, the list ends where the authorization would be)
     const char *headers[] = { "Content-Type: application/json", "Origin: " ORIGIN, "X-Origin: " ORIGIN,
                               signed_in ? auth : NULL, "X-Goog-AuthUser: 0", NULL };
-    http_request r = { .url = url, .agent = USER_AGENT, .headers = headers, .body = body, .cookies = signed_in ? jar : NULL, .compressed = true };
+    gs_http_request r = { .url = url, .agent = USER_AGENT, .headers = headers, .body = body, .cookies = signed_in ? jar : NULL, .compressed = true };
     char *out = NULL;
     size_t len = 0;
-    int status = http_fetch(&r, &out, &len);
+    int status = gs_http_fetch(&r, &out, &len);
     if (signed_in) account_jar_done(jar);
 
     gs_json *doc = status == 200 ? gs_json_parse(out, len) : NULL;

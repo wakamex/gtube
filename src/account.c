@@ -3,15 +3,12 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "http.h"
+#include "gs_http.h"
+#include "gs_secret.h"
 
 #ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#include <dpapi.h>
 #define SLASH "\\"
 #else
-#include <sys/stat.h>
 #define SLASH "/"
 #endif
 
@@ -35,46 +32,20 @@ static void say(account *a, const char *msg) {
     SDL_Log("account: %s", msg);
 }
 
-// ---- At rest: DPAPI on Windows ----
+// ---- At rest: gs_secret (DPAPI on Windows, an owner-only file elsewhere) ----
 
 static bool save_bytes(account *a, const char *text) {
     char dir[1200], path[1200];
     snprintf(dir, sizeof dir, "%saccount", a->dir);
     SDL_CreateDirectory(dir);
     store_path(a, path, sizeof path);
-#ifdef _WIN32
-    DATA_BLOB in = { (DWORD)strlen(text), (BYTE *)text }, out = { 0 };
-    if (!CryptProtectData(&in, L"gtube session", NULL, NULL, NULL, CRYPTPROTECT_UI_FORBIDDEN, &out)) return false;
-    bool ok = SDL_SaveFile(path, out.pbData, out.cbData);
-    LocalFree(out.pbData);
-    return ok;
-#else
-    bool ok = SDL_SaveFile(path, text, strlen(text));
-    chmod(path, 0600);
-    return ok;
-#endif
+    return gs_secret_save(path, text, strlen(text));
 }
 
 static char *load_bytes(account *a) {
     char path[1200];
     store_path(a, path, sizeof path);
-    size_t n;
-    void *data = SDL_LoadFile(path, &n);
-    if (!data) return NULL;
-#ifdef _WIN32
-    DATA_BLOB in = { (DWORD)n, data }, out = { 0 };
-    bool ok = CryptUnprotectData(&in, NULL, NULL, NULL, NULL, CRYPTPROTECT_UI_FORBIDDEN, &out);
-    SDL_free(data);
-    if (!ok) return NULL;
-    char *text = SDL_malloc(out.cbData + 1);
-    memcpy(text, out.pbData, out.cbData);
-    text[out.cbData] = 0;
-    SecureZeroMemory(out.pbData, out.cbData);
-    LocalFree(out.pbData);
-    return text;
-#else
-    return data;  // SDL_LoadFile adds a terminating zero
-#endif
+    return gs_secret_load(path, NULL);
 }
 
 // ---- Throwaway copies for yt-dlp and curl ----
@@ -197,10 +168,7 @@ bool account_jar_file(account *a, char *path, size_t size) {
         snprintf(dir, sizeof dir, "%saccount", a->dir);
         SDL_CreateDirectory(dir);
         snprintf(path, size, "%s" SLASH "run-%d-%d.txt", dir, (int)(SDL_GetTicks() % 100000), SDL_AddAtomicInt(&counter, 1));
-        ok = SDL_SaveFile(path, a->jar, strlen(a->jar));
-#ifndef _WIN32
-        chmod(path, 0600);
-#endif
+        ok = gs_secret_write_private(path, a->jar, strlen(a->jar));
     }
     SDL_UnlockMutex(a->lock);
     return ok;
@@ -256,12 +224,12 @@ bool account_refresh(account *a) {
 
     // 1. Renew the session's short-lived cookies at accounts.google.com.
     const char *headers[] = { "Content-Type: application/json", "Origin: https://accounts.google.com", NULL };
-    http_request rotate = { .url = "https://accounts.google.com/RotateCookies", .agent = USER_AGENT, .headers = headers,
+    gs_http_request rotate = { .url = "https://accounts.google.com/RotateCookies", .agent = USER_AGENT, .headers = headers,
                             .body = "[000,\"-0000000000000000000\"]", .cookies = jar, .save_cookies = true };
-    int status = http_fetch(&rotate, NULL, NULL);
+    int status = gs_http_fetch(&rotate, NULL, NULL);
     // 2. Carry the renewed session over to youtube.com (the redirect chain ends at accounts.youtube.com/SetSID).
-    http_request carry = { .url = PASSIVE_SIGNIN, .agent = USER_AGENT, .cookies = jar, .save_cookies = true, .follow = true };
-    int status2 = status == 200 ? http_fetch(&carry, NULL, NULL) : 0;
+    gs_http_request carry = { .url = PASSIVE_SIGNIN, .agent = USER_AGENT, .cookies = jar, .save_cookies = true, .follow = true };
+    int status2 = status == 200 ? gs_http_fetch(&carry, NULL, NULL) : 0;
 
     char *text = SDL_LoadFile(jar, NULL);
     account_jar_done(jar);

@@ -1,5 +1,5 @@
 // Stream addresses fetched ahead of playing. yt-dlp takes about 4 s to find a song's audio address,
-// and the address then plays through curl in a fraction of a second (http_stream). The app names
+// and the address then plays through curl in a fraction of a second (gs_http_stream). The app names
 // the songs it expects to play, most likely first; one yt-dlp at a time finds addresses for the
 // first of them that have none, several in one run (each after the first takes about 2.8 s
 // instead of 4). A run is stopped when the song it is working on is no longer the first one wanted.
