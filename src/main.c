@@ -21,6 +21,7 @@
 #include "gs_pace.h"
 #include "gs_stats.h"
 #include "gs_text.h"
+#include "gs_ui.h"
 #include "stb_image_write.h"
 #include "account.h"
 #include "api.h"
@@ -85,7 +86,7 @@ typedef struct {
     SDL_FRect rows[64];
     int row_index[64], nrows;
     bool persist;         // remembers the window and queue (not in test modes)
-    window_state window;
+    gs_window_state window;  // full screen is not kept: --full or F11 give it
     bool window_changed;
     int saved_version;    // the queue as last saved
     uint64_t next_save;
@@ -94,18 +95,6 @@ typedef struct {
 static void sign_in(app *a);
 
 // Whether a saved window position is still on a connected display (monitors come and go).
-static bool on_a_display(int x, int y) {
-    if (x == (int)SDL_WINDOWPOS_CENTERED) return false;
-    int n;
-    SDL_DisplayID *ids = SDL_GetDisplays(&n);
-    bool ok = false;
-    for (int i = 0; i < n && !ok; i++) {
-        SDL_Rect r;
-        ok = SDL_GetDisplayBounds(ids[i], &r) && x + 40 >= r.x && x + 40 < r.x + r.w && y + 10 >= r.y && y + 10 < r.y + r.h;
-    }
-    SDL_free(ids);
-    return ok;
-}
 static void start_radio(app *a);
 
 static bool api_test(account *acc, const char *kind, const char *arg) {
@@ -200,10 +189,28 @@ static bool make_window(app *a, bool bend) {
     return true;
 }
 
+// The window's state between runs, in window.txt in the data folder.
+static void window_path(const app *a, char *out, size_t size) { snprintf(out, size, "%swindow.txt", a->dir); }
+
+static void load_window(app *a) {
+    char path[1200];
+    window_path(a, path, sizeof path);
+    gs_window_state_load(path, &a->window);
+}
+
+static void save_window(app *a) {
+    char path[1200];
+    window_path(a, path, sizeof path);
+    gs_window_state ws = a->window;
+    ws.fullscreen = false;
+    gs_window_state_save(path, &ws);
+}
+
 // Shows the window where it was last time, maximised or full screen as it was.
 static void show_window(app *a) {
-    if (on_a_display(a->window.x, a->window.y)) SDL_SetWindowPosition(a->win, a->window.x, a->window.y);
-    if (a->window.maximized) SDL_MaximizeWindow(a->win);
+    gs_window_state ws = a->window;
+    ws.fullscreen = false;  // (set below, as asked for this run)
+    gs_window_state_apply(&ws, a->win);
     if (a->fullscreen) SDL_SetWindowFullscreen(a->win, true);
     SDL_ShowWindow(a->win);
 }
@@ -360,8 +367,8 @@ SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
     if (a->shot) SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "offscreen"), SDL_SetHint(SDL_HINT_RENDER_DRIVER, "software");
     if (!SDL_Init(SDL_INIT_VIDEO | (a->shot ? 0 : SDL_INIT_AUDIO))) return SDL_Log("SDL_Init: %s", SDL_GetError()), SDL_APP_FAILURE;
     a->persist = !a->shot && !demo;
-    a->window = (window_state){ SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 720, 560, false };
-    if (a->persist) state_load_window(dir, &a->window);
+    a->window = (gs_window_state){ SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 720, 560, false, false };
+    if (a->persist) load_window(a);
     if (!make_window(a, false)) return SDL_Log("window: %s", SDL_GetError()), SDL_APP_FAILURE;
     show_window(a);
     a->viz = viz_new(a->ren, RATE);
@@ -668,15 +675,7 @@ SDL_AppResult SDL_AppEvent(void *state, SDL_Event *e) {
     if ((e->type == SDL_EVENT_KEY_DOWN || e->type == SDL_EVENT_MOUSE_BUTTON_DOWN) && e->key.windowID != SDL_GetWindowID(a->win)) return SDL_APP_CONTINUE;
     SDL_ConvertEventToRenderCoordinates(a->ren, e);
     if (e->type == SDL_EVENT_QUIT || e->type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) return SDL_APP_SUCCESS;
-    if (e->type == SDL_EVENT_WINDOW_MOVED || e->type == SDL_EVENT_WINDOW_RESIZED || e->type == SDL_EVENT_WINDOW_MAXIMIZED || e->type == SDL_EVENT_WINDOW_RESTORED) {
-        bool max = SDL_GetWindowFlags(a->win) & SDL_WINDOW_MAXIMIZED;
-        if (!max && !(SDL_GetWindowFlags(a->win) & (SDL_WINDOW_MINIMIZED | SDL_WINDOW_FULLSCREEN))) {  // the size to come back to
-            SDL_GetWindowPosition(a->win, &a->window.x, &a->window.y);
-            SDL_GetWindowSize(a->win, &a->window.w, &a->window.h);
-        }
-        a->window.maximized = max;
-        a->window_changed = true;
-    }
+    if (gs_window_state_track(&a->window, a->win, e)) a->window_changed = true;
     if (e->type == SDL_EVENT_DROP_TEXT) paste(a, e->drop.data);
     int *sel = &a->selected[a->view];
     if (e->type == SDL_EVENT_KEY_DOWN && ((e->key.key == SDLK_RETURN && (e->key.mod & SDL_KMOD_ALT)) || e->key.key == SDLK_F11)) {
@@ -880,7 +879,7 @@ SDL_AppResult SDL_AppIterate(void *state) {
     if (!a->demo) expect_songs(a);
     if (a->persist && SDL_GetTicks() >= a->next_save) {  // at most every 2 s, and only what changed
         a->next_save = SDL_GetTicks() + 2000;
-        if (a->window_changed) state_save_window(a->dir, &a->window), a->window_changed = false;
+        if (a->window_changed) save_window(a), a->window_changed = false;
         int v = player_version(a->player);
         if (v != a->saved_version) save_queue(a), a->saved_version = v;
     }
@@ -1087,7 +1086,7 @@ void SDL_AppQuit(void *state, SDL_AppResult result) {
     app *a = state;
     (void)result;
     if (!a) return;
-    if (a->persist && a->win) state_save_window(a->dir, &a->window);
+    if (a->persist && a->win) save_window(a);
     if (a->persist && a->player) save_queue(a);
     gs_mix_close();
     signin_close(a->signin);

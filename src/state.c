@@ -15,23 +15,6 @@ static void save(const char *dir, const char *name, const char *text, size_t len
     if (SDL_SaveFile(tmp, text, len)) SDL_RenamePath(tmp, final);
 }
 
-bool state_load_window(const char *dir, window_state *out) {
-    char file[1200];
-    path(dir, "window.txt", file, sizeof file);
-    char *text = SDL_LoadFile(file, NULL);
-    int max = 0;
-    bool ok = text && sscanf(text, "%d %d %d %d %d", &out->x, &out->y, &out->w, &out->h, &max) == 5 && out->w >= 200 && out->h >= 150;
-    out->maximized = max != 0;
-    SDL_free(text);
-    return ok;
-}
-
-void state_save_window(const char *dir, const window_state *ws) {
-    char text[100];
-    int n = snprintf(text, sizeof text, "%d %d %d %d %d\n", ws->x, ws->y, ws->w, ws->h, ws->maximized);
-    save(dir, "window.txt", text, (size_t)n);
-}
-
 // Tabs and line breaks would split a line; a title with one keeps a space instead.
 static void field(char *out, size_t *n, size_t cap, const char *s) {
     for (; *s && *n + 2 < cap; s++) out[(*n)++] = *s == '\t' || *s == '\n' || *s == '\r' ? ' ' : *s;
