@@ -12,7 +12,7 @@ import Base
 
 # What the player asks for: bit 31 set for the GPU, the width in bits 0-12 and the height in
 # bits 13-25 (each at most 4096), and the effect in bits 26-29 (0 the plasma, 1 the tree, 2 the
-# voxels, 3 the flames).
+# canyon, 3 the flames).
 def Viz.next() -> IO(U32):
   import "./bridge.c"
 
@@ -253,151 +253,144 @@ def Viz.tree(+k: Viz.K, a: Array<U32>) -> Array<U32>:
   Viz.branch(Viz.depth(), (U32.to_f32(w) * 0.5 : F32), U32.to_f32(h), 1.5708, (U32.to_f32(h) * 0.24 : F32), k,
     Array.spread(~U32, ~Viz.K, ~Viz.zleaf, a, 32768, k))
 
-# The voxels: a flight over land made of blocks, ray traced. Each pixel's ray steps from cell to
-# cell of the grid (the cell it is in, then whichever cell boundary it crosses next) until it
-# enters a solid block, up to Viz.reach() cells: no pixel depends on another, and every one runs
-# the same short loop, the shape the GPU's lanes run best. A block is solid below the land's height
-# at its column, waves the bass lifts and the mids ripple; it is coloured by its height and lit by
-# the face the ray entered, its edges drawn dark, and fades into the sky with distance.
+def Viz.glow(+r: F32, +g: F32, +b: F32) -> U32:
+  (F32.to_u32(F32.min(255.0, (r * 255.0 : F32))) << 16n .|. F32.to_u32(F32.min(255.0, (g * 255.0 : F32))) << 8n .|. F32.to_u32(F32.min(255.0, (b * 255.0 : F32))) : U32)
 
-def Viz.reach() -> Nat:
-  120n
+# The canyon: a low, fast flight down a winding canyon, drawn as NovaLogic's Comanche (1992) drew
+# its land. The land is a heightmap, not stored but worked out where it is needed; each pixel's ray
+# runs out over it, its height rising in a straight line with distance (the projection sheared,
+# not tilted, as in 1992), in steps that lengthen as it goes, until it passes below the land.
+# The pixels are as big as 1992's (the screen about 200 of them tall) and ordered-dithered to 16
+# levels a channel. No pixel depends on another, and every one runs the same short loop.
 
-# The land's height at column (X, Z), in whole blocks.
-def Viz.land(+X: F32, +Z: F32, +k: Viz.K) -> F32:
-  K{t, zoom, mid, hue, beat, w, h, fx} = k
-  +a = F32.sin((X * 0.19 + t * 0.35 : F32))
-  +b = F32.cos((Z * 0.13 - t * 0.15 : F32))
-  +c = F32.sin(((X + Z) * 0.09 + mid * 3.0 : F32))
-  +lift = ((zoom - 0.045) * 100.0 : F32)
-  F32.floor((6.0 + 2.5 * a + 2.5 * b + 2.0 * c + lift : F32))
+# The flight path's sideways offset at z: where the canyon runs.
+def Viz.path(+z: F32) -> F32:
+  (60.0 * F32.sin((z * 0.004 : F32)) + 25.0 * F32.sin((z * 0.011 + 1.0 : F32)) : F32)
 
-def Viz.sgn(neg: Bool) -> F32:
-  match neg:
-    case True{}:
-      (0.0 - 1.0 : F32)
-    case False{}:
-      1.0
+# The land's height at (x, z): warped hills and ridges, stepped into terraces (flat ledges, sheer
+# cliffs) as mesa country is, and along the path a flat-floored canyon with steep
+# walls, its floor below the river's level.
+def Viz.mesa(+x: F32, +z: F32) -> F32:
+  +wx = (x + 25.0 * F32.sin((z * 0.013 : F32)) : F32)
+  +wz = (z + 25.0 * F32.sin((x * 0.011 + 1.3 : F32)) : F32)
+  +r1 = (1.0 - F32.abs(F32.sin((wx * 0.021 + wz * 0.013 + 0.7 : F32))) : F32)
+  +r2 = (1.0 - F32.abs(F32.sin((wz * 0.037 - wx * 0.029 + 2.9 : F32))) : F32)
+  +hill = (26.0 + 14.0 * F32.sin((wx * 0.0071 + wz * 0.0049 : F32)) + 9.0 * F32.sin((wz * 0.0118 - wx * 0.0083 + 2.1 : F32))
+    + 10.0 * r1 * r1 + 4.0 * r2 * r2 : F32)
+  +carve = F32.min(1.0, F32.max(0.0, ((1.3 - F32.abs(((x - Viz.path(z)) / 38.0 : F32))) * 2.5 : F32)))
+  +raw = (hill * (1.0 - carve) - 6.0 * carve : F32)
+  +ledge = (raw / 7.0 - F32.floor((raw / 7.0 : F32)) : F32)
+  (F32.floor((raw / 7.0 : F32)) * 7.0 + 7.0 * ledge * ledge * ledge : F32)
 
-def Viz.abs(+x: F32) -> F32:
-  F32.max(x, (0.0 - x : F32))
-
-# A colour's channels scaled by s, then mixed toward the sky colour c2 by f.
-def Viz.mix(+c: U32, +s: F32, +c2: U32, +f: F32) -> U32:
-  +r = (U32.to_f32((c >> 16n .&. 255 : U32)) * s * (1.0 - f) + U32.to_f32((c2 >> 16n .&. 255 : U32)) * f : F32)
-  +g = (U32.to_f32((c >> 8n .&. 255 : U32)) * s * (1.0 - f) + U32.to_f32((c2 >> 8n .&. 255 : U32)) * f : F32)
-  +b = (U32.to_f32((c .&. 255 : U32)) * s * (1.0 - f) + U32.to_f32((c2 .&. 255 : U32)) * f : F32)
-  (F32.to_u32(F32.min(255.0, r)) << 16n .|. F32.to_u32(F32.min(255.0, g)) << 8n .|. F32.to_u32(F32.min(255.0, b)) : U32)
-
-# The sky toward the ray's height dy: the palette, darkened toward the zenith.
-def Viz.sky(+dy: F32, +k: Viz.K) -> U32:
-  K{t, zoom, mid, hue, beat, w, h, fx} = k
-  Viz.mix(Viz.color((0.55 + dy * 0.3 : F32), t, hue, (beat * 0.3 : F32)), F32.clamp((0.75 - dy * 0.6 : F32), 0.15, 1.0), 0, 0.0)
-
-# How far a point at p is from the nearest whole number: the closer to a block's edge, the smaller.
-def Viz.edge(+p: F32) -> F32:
-  +f = (p - F32.floor(p) : F32)
-  F32.min(f, (1.0 - f : F32))
-
-def Viz.vpick(a: Bool, +x: F32, +y: F32) -> F32:
-  match a:
-    case True{}:
-      x
-    case False{}:
-      y
-
-def Viz.vlight.side(side: Bool) -> F32:
-  match side:
-    case True{}:
-      0.72
-    case False{}:
-      0.5
-
-# Light by face: tops brightest, and on the beat, sides facing x half lit, those facing z darker.
-def Viz.vlight(top: Bool, side: Bool, +flash: F32) -> F32:
-  match top:
-    case True{}:
-      (1.0 + flash : F32)
-    case False{}:
-      Viz.vlight.side(side)
-
-# A hit: the block at height Y, entered through face 0 (a side facing x), 1 (the top or bottom)
-# or 2 (a side facing z) at distance d along the ray from (ox, oy, oz) in direction (dx, dy, dz).
-def Viz.vshade(+face: U32, +Y: F32, +d: F32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +k: Viz.K) -> U32:
-  K{t, zoom, mid, hue, beat, w, h, fx} = k
-  +px = (ox + dx * d : F32)
-  +py = (oy + dy * d : F32)
-  +pz = (oz + dz * d : F32)
-  +e1 = Viz.edge(Viz.vpick(U32.is_eq(face, 0), pz, px))
-  +e2 = Viz.edge(Viz.vpick(U32.is_eq(face, 1), pz, py))
-  +line = F32.clamp((F32.min(e1, e2) * 14.0 : F32), 0.35, 1.0)
-  +lit = Viz.vlight(U32.is_eq(face, 1), U32.is_eq(face, 0), (beat * 0.35 : F32))
-  +fog = F32.clamp(((d - 18.0) / 70.0 : F32), 0.0, 1.0)
-  Viz.mix(Viz.color((Y * 0.07 + t * 0.03 : F32), t, hue, beat), (lit * line : F32), Viz.sky(0.0, k), fog)
-
-# 1 where a < b, else 0, with no branch. (With the land's height and Bool helpers called from the
-# march's body instead, the GPU ran out of its lanes' stacks at 120 steps, though not at 24.)
-def Viz.below(+a: F32, +b: F32) -> F32:
-  F32.min(1.0, F32.max(0.0, ((b - a) * 1000000000.0 : F32)))
-
-# The ray in cell (X, Y, Z), solid or not: mx, my and mz are the distances along it to the next
-# boundary on each axis, ex, ey and ez the distance between boundaries, and sx, sy and sz the step on
-# each (1 or -1). It is one def calling only itself, matched on the steps left and the cell first,
-# so it runs as a loop; the next cell, across whichever boundary is nearest, is picked with
-# arithmetic (bx, by and bz: 1 for the axis crossed, else 0), and the land's height (as Viz.land)
-# is worked out in place.
-def Viz.march(n: Nat, solid: Bool, +X: F32, +Y: F32, +Z: F32, +mx: F32, +my: F32, +mz: F32, +ex: F32, +ey: F32, +ez: F32,
-              +sx: F32, +sy: F32, +sz: F32, +face: U32, +d: F32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +k: Viz.K) -> U32:
-  match n solid:
+# The ray from (ox, oy, oz) along (dx, dz) a unit of depth, rising slope a unit: at depth d, gap
+# above the land there. It returns the depth of the first step below the land, or 100000 for the
+# sky. One def calling only itself, so it runs as a loop.
+def Viz.scan(n: Nat, under: Bool, +d: F32, +gap: F32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dz: F32, +slope: F32) -> F32:
+  match n under:
     case 0n False{}:
-      Viz.sky(dy, k)
+      100000.0
     case 0n True{}:
-      Viz.vshade(face, Y, d, ox, oy, oz, dx, dy, dz, k)
-    case 1n++r True{}:
-      Viz.vshade(face, Y, d, ox, oy, oz, dx, dy, dz, k)
-    case 1n++r False{}:
-      K{t, zoom, mid, hue, beat, w, h, fx} = k
-      +bx = F32.min(Viz.below(mx, my), Viz.below(mx, mz))
-      +by = ((1.0 - bx) * Viz.below(my, mz) : F32)
-      +bz = (1.0 - bx - by : F32)
-      +X2 = (X + sx * bx : F32)
-      +Y2 = (Y + sy * by : F32)
-      +Z2 = (Z + sz * bz : F32)
-      +land = F32.floor((6.0 + 2.5 * F32.sin((X2 * 0.19 + t * 0.35 : F32)) + 2.5 * F32.cos((Z2 * 0.13 - t * 0.15 : F32))
-        + 2.0 * F32.sin(((X2 + Z2) * 0.09 + mid * 3.0 : F32)) + (zoom - 0.045) * 100.0 : F32))
-      Viz.march(r, F32.is_lt(Y2, land), X2, Y2, Z2, (mx + ex * bx : F32), (my + ey * by : F32), (mz + ez * bz : F32),
-        ex, ey, ez, sx, sy, sz, F32.to_u32((by + 2.0 * bz : F32)), (mx * bx + my * by + mz * bz : F32), ox, oy, oz, dx, dy, dz, k)
+      d
+    case 1n++m True{}:
+      d
+    case 1n++m False{}:
+      +d2 = (d + 0.4 + d * 0.02 : F32)
+      +gap2 = (oy + slope * d2 - F32.max(Viz.mesa((ox + dx * d2 : F32), (oz + dz * d2 : F32)), (0.0 - 4.0 : F32)) : F32)
+      Viz.scan(m, F32.is_lt(gap2, 0.0), d2, gap2, ox, oy, oz, dx, dz, slope)
 
-# The distance along the ray to the first boundary past o on an axis, stepping s, at e per cell.
-def Viz.first(+c: F32, +o: F32, +s: F32, +e: F32) -> F32:
-  (((c - o) * s + (s + 1.0) * 0.5) * e : F32)
+# Where between depths lo (above the land) and hi (below it) the ray meets the land, halving the
+# gap n times, so a sheer cliff's edge lands in the right place instead of between two steps.
+def Viz.refine(n: Nat, +lo: F32, +hi: F32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dz: F32, +slope: F32) -> F32:
+  match n:
+    case 0n:
+      ((lo + hi) * 0.5 : F32)
+    case 1n+r:
+      +mid = ((lo + hi) * 0.5 : F32)
+      +gap = (oy + slope * mid - F32.max(Viz.mesa((ox + dx * mid : F32), (oz + dz * mid : F32)), (0.0 - 4.0 : F32)) : F32)
+      +below = F32.min(1.0, F32.max(0.0, ((0.0 - gap) * 1000000000.0 : F32)))
+      Viz.refine(r, (lo + (mid - lo) * (1.0 - below) : F32), (hi - (hi - mid) * below : F32), ox, oy, oz, dx, dz, slope)
 
-def Viz.ray(+ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +k: Viz.K) -> U32:
-  +X = F32.floor(ox)
-  +Y = F32.floor(oy)
-  +Z = F32.floor(oz)
-  +sx = Viz.sgn(F32.is_lt(dx, 0.0))
-  +sy = Viz.sgn(F32.is_lt(dy, 0.0))
-  +sz = Viz.sgn(F32.is_lt(dz, 0.0))
-  +ex = (1.0 / F32.max(Viz.abs(dx), 0.0001) : F32)
-  +ey = (1.0 / F32.max(Viz.abs(dy), 0.0001) : F32)
-  +ez = (1.0 / F32.max(Viz.abs(dz), 0.0001) : F32)
-  Viz.march(Viz.reach(), F32.is_lt(Y, Viz.land(X, Z, k)), X, Y, Z, Viz.first(X, ox, sx, ex), Viz.first(Y, oy, sy, ey), Viz.first(Z, oz, sz, ez),
-    ex, ey, ez, sx, sy, sz, 1, 0.0, ox, oy, oz, dx, dy, dz, k)
+# One channel quantized to 16 levels, dithered by thr (0 to 1).
+def Viz.vga(+c: F32, +thr: F32) -> F32:
+  (F32.floor((F32.min(1.0, F32.max(0.0, c)) * 15.0 + thr : F32)) / 15.0 : F32)
 
-# One pixel of the voxels: the camera flies forward over the land, swaying, looking a little down.
-def Viz.vox(+x: U32, +y: U32, +k: Viz.K) -> U32:
+# A 4x4 Bayer threshold for pixel block (bx, by): 0 to 15.
+def Viz.bayer(+bx: U32, +by: U32) -> U32:
+  +a = (bx .&. 1 : U32)
+  +b = (by .&. 1 : U32)
+  +c = (bx >> 1n .&. 1 : U32)
+  +e = (by >> 1n .&. 1 : U32)
+  (4 * (2 * ((a + b) % 2) + b) + 2 * ((c + e) % 2) + e : U32)
+
+# One pixel of the canyon. The jet flies along the path at 55 a second, 7 above the river, its nose
+# turned toward where the path goes a little ahead, banked into the turn as far as the curve and
+# the speed call for (up to about 22 degrees); the bass lifts it a little. What the ray meets is lit
+# by a low sun: water blue and glinting, rock banded red, orange and tan by height and streaked
+# down its faces, flat tops
+# scrubby, all hazing toward the horizon; past the land, the sky, pale and warm low down.
+def Viz.canyon(+x: U32, +y: U32, +k: Viz.K) -> U32:
   K{t, zoom, mid, hue, beat, w, h, fx} = k
-  +u = ((U32.to_f32(x) - U32.to_f32(w) * 0.5) / U32.to_f32(h) : F32)
-  +v = ((U32.to_f32(h) * 0.5 - U32.to_f32(y)) / U32.to_f32(h) : F32)
-  +yaw = (0.35 * F32.sin((t * 0.11 : F32)) : F32)
+  +blk = U32.max(1, (h / 200 : U32))
+  +bx = (x / blk : U32)
+  +by = (y / blk : U32)
+  +u = ((U32.to_f32((bx * blk + blk / 2 : U32)) - U32.to_f32(w) * 0.5) / U32.to_f32(h) : F32)
+  +v = ((U32.to_f32(h) * 0.5 - U32.to_f32((by * blk + blk / 2 : U32))) / U32.to_f32(h) : F32)
+  +bass = F32.min(1.0, F32.max(0.0, ((zoom - 0.045) * 44.4 : F32)))
+  +oz = (t * 55.0 : F32)
+  +ox = Viz.path(oz)
+  +oy = (3.0 + bass * 1.5 : F32)
+  +za = (oz + 40.0 : F32)
+  +yaw = F32.atan(((Viz.path(za) - ox) / 40.0 : F32))
+  +bend = ((0.0 - 60.0) * 0.000016 * F32.sin((za * 0.004 : F32)) - 25.0 * 0.000121 * F32.sin((za * 0.011 + 1.0 : F32)) : F32)
+  +bank = F32.atan((bend * 3025.0 / 30.0 : F32))
+  +cb = F32.cos(bank)
+  +sb = F32.sin(bank)
+  +ur = (u * cb + v * sb : F32)
+  +vr = (v * cb - u * sb - 0.04 : F32)
   +fx = F32.sin(yaw)
   +fz = F32.cos(yaw)
-  +rx = (fx + u * fz : F32)
-  +ry = (v - 0.32 : F32)
-  +rz = (fz - u * fx : F32)
-  +len = F32.sqrt((rx * rx + ry * ry + rz * rz : F32))
-  Viz.ray((7.0 * F32.sin((t * 0.17 : F32)) : F32), 17.5, (t * 5.0 : F32), (rx / len : F32), (ry / len : F32), (rz / len : F32), k)
+  +dx = (fx + ur * 1.1 * fz : F32)
+  +dz = (fz - ur * 1.1 * fx : F32)
+  +slope = (vr * 1.1 : F32)
+  +hit = Viz.scan(220n, False{}, 0.5, 1.0, ox, oy, oz, dx, dz, slope)
+  +sky = F32.min(1.0, F32.max(0.0, ((hit - 99999.0) * 1000000000.0 : F32)))
+  +d = (sky * hit + (1.0 - sky) * Viz.refine(7n, ((hit - 0.4) / 1.02 : F32), hit, ox, oy, oz, dx, dz, slope) : F32)
+  +px = (ox + dx * d : F32)
+  +pz = (oz + dz * d : F32)
+  +land = Viz.mesa(px, pz)
+  +wet = F32.min(1.0, F32.max(0.0, (((0.0 - 4.0) - land) * 1000000000.0 : F32)))
+  +hx = (Viz.mesa((px + 0.6 : F32), pz) - Viz.mesa((px - 0.6 : F32), pz) : F32)
+  +hz = (Viz.mesa(px, (pz + 0.6 : F32)) - Viz.mesa(px, (pz - 0.6 : F32)) : F32)
+  +nl = F32.sqrt((hx * hx + 1.44 + hz * hz : F32))
+  +ny = (1.2 / nl : F32)
+  +sun = F32.max(0.0, (((0.0 - hx) * 0.55 + 1.2 * 0.62 + (0.0 - hz) * 0.56) / nl : F32))
+  +lit = (0.32 + 0.85 * sun : F32)
+  +band = (0.5 + 0.5 * F32.sin((land * 0.55 : F32)) : F32)
+  +fine = ((0.9 + 0.1 * F32.sin((land * 2.3 : F32))) * (0.82 + 0.18 * F32.sin((px * 0.7 + pz * 0.5 : F32)) * F32.sin((pz * 0.31 - px * 0.23 : F32))) : F32)
+  +top = F32.min(1.0, F32.max(0.0, ((ny - 0.9) * 12.0 : F32)))
+  +rr = ((0.62 + 0.22 * band) * fine * (1.0 - top) + 0.5 * top : F32)
+  +rg = ((0.27 + 0.3 * band) * fine * (1.0 - top) + 0.43 * top : F32)
+  +rb = ((0.14 + 0.24 * band) * fine * (1.0 - top) + 0.22 * top : F32)
+  +qx = (px + 2.5 * F32.sin((pz * 0.21 : F32)) : F32)
+  +qz = (pz + 2.5 * F32.sin((px * 0.17 + 0.8 : F32)) : F32)
+  +ripple = (F32.sin((qx * 1.3 + qz * 0.4 + t * 4.0 : F32)) + F32.sin((qz * 1.9 - qx * 0.7 - t * 3.1 : F32))
+    + F32.sin((qx * 2.9 - qz * 2.3 + t * 5.3 : F32)) : F32)
+  +near = F32.min(1.0, F32.max(0.0, (1.0 - d / 90.0 : F32)))
+  +glint = ((F32.max(0.0, (ripple - 2.55 : F32)) * (1.6 + mid * 2.0) + 0.03 * ripple) * near : F32)
+  +sheen = F32.min(0.75, (d / 160.0 : F32))
+  +gr = ((wet * (0.1 * (1.0 - sheen) + 0.8 * sheen + glint) + (1.0 - wet) * rr * lit) : F32)
+  +gg = ((wet * (0.27 * (1.0 - sheen) + 0.66 * sheen + glint) + (1.0 - wet) * rg * lit) : F32)
+  +gb = ((wet * (0.36 * (1.0 - sheen) + 0.62 * sheen + glint) + (1.0 - wet) * rb * lit) : F32)
+  +haze = F32.min(1.0, F32.max(0.0, ((d - 60.0) / 420.0 : F32)))
+  +up = F32.min(1.0, F32.max(0.0, ((vr + 0.05) * 2.2 : F32)))
+  +sr = (0.93 - 0.68 * up : F32)
+  +sg = (0.74 - 0.3 * up : F32)
+  +sbl = (0.56 + 0.2 * up : F32)
+  +r = (sky * sr + (1.0 - sky) * (gr * (1.0 - haze) + 0.9 * haze) : F32)
+  +g = (sky * sg + (1.0 - sky) * (gg * (1.0 - haze) + 0.7 * haze) : F32)
+  +b = (sky * sbl + (1.0 - sky) * (gb * (1.0 - haze) + 0.56 * haze) : F32)
+  +thr = ((U32.to_f32(Viz.bayer(bx, by)) + 0.5) / 16.0 : F32)
+  Viz.glow(Viz.vga(r, thr), Viz.vga(g, thr), Viz.vga(b, thr))
 
 # The flames: a campfire, ray marched as a glowing volume, with the camera circling it. Each
 # pixel's ray steps through the fire, and at each step its heat there (a bed of coals, a short
@@ -409,9 +402,6 @@ def Viz.vox(+x: U32, +y: U32, +k: Viz.K) -> U32:
 # under the coals and a ring of stones, or else the night sky. A ray is marched only where it
 # crosses a cylinder around the fire. The firelight rises and falls with the tongues' heights; the
 # bass stretches the inner tongues a little.
-
-def Viz.glow(+r: F32, +g: F32, +b: F32) -> U32:
-  (F32.to_u32(F32.min(255.0, (r * 255.0 : F32))) << 16n .|. F32.to_u32(F32.min(255.0, (g * 255.0 : F32))) << 8n .|. F32.to_u32(F32.min(255.0, (b * 255.0 : F32))) : U32)
 
 # How tall tongue i of the fire stands at time t: it grows and dies down over a lifetime of its own
 # (1.1 to 2.4 s); the inner tongues stand tallest, and lift (from the bass) stretches them.
@@ -696,9 +686,9 @@ def Viz.traced.at(flames: Bool, +x: U32, +y: U32, +k: Viz.K) -> U32:
     case True{}:
       Viz.flame(x, y, k)
     case False{}:
-      Viz.vox(x, y, k)
+      Viz.canyon(x, y, k)
 
-# A pixel of the ray-traced effects: the flames, or the voxels.
+# A pixel of the ray-traced effects: the flames, or the canyon.
 def Viz.traced(+x: U32, +y: U32, +k: Viz.K) -> U32:
   K{t, zoom, mid, hue, beat, w, h, fx} = k
   Viz.traced.at(U32.is_eq(fx, 3), x, y, k)
@@ -725,10 +715,10 @@ def Viz.vleaf(+j: U32, +k: Viz.K, a: Array<U32>) -> Array<U32>:
   Viz.vlin(U32.to_nat(((w * h + 32767) / 32768 : U32)), j, (j % w : U32), (j / w : U32), (32768 % w : U32), (32768 / w : U32), k, a)
 
 @unsafe
-def Viz.voxels(+k: Viz.K, a: Array<U32>) -> Array<U32>:
+def Viz.rays(+k: Viz.K, a: Array<U32>) -> Array<U32>:
   Array.spread(~U32, ~Viz.K, ~Viz.vleaf, a, 32768, k)
 
-# One effect's frame: the tree, a ray-traced one (the voxels or the flames), or the plasma (on the
+# One effect's frame: the tree, a ray-traced one (the canyon or the flames), or the plasma (on the
 # CPU in tiles, on the GPU strided).
 @unsafe
 def Viz.pick(+fx: U32, gpu: Bool, +k: Viz.K, a: Array<U32>) -> Array<U32>:
@@ -740,13 +730,13 @@ def Viz.pick.tree(tree: Bool, +fx: U32, gpu: Bool, +k: Viz.K, a: Array<U32>) -> 
     case True{}:
       Viz.tree(k, a)
     case False{}:
-      Viz.pick.vox((fx >= 2 : U32), gpu, k, a)
+      Viz.pick.rays((fx >= 2 : U32), gpu, k, a)
 
 @unsafe
-def Viz.pick.vox(vox: Bool, gpu: Bool, +k: Viz.K, a: Array<U32>) -> Array<U32>:
-  match vox:
+def Viz.pick.rays(rays: Bool, gpu: Bool, +k: Viz.K, a: Array<U32>) -> Array<U32>:
+  match rays:
     case True{}:
-      Viz.voxels(k, a)
+      Viz.rays(k, a)
     case False{}:
       Viz.pick.plasma(gpu, k, a)
 

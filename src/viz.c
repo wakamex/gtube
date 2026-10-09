@@ -15,8 +15,8 @@
 #define BOBS 180
 #define AUTO_SECONDS 40
 
-enum { FX_SPECTRUM, FX_TUNNEL, FX_FEEDBACK, FX_FIRE, FX_BOBS, FX_BEND, FX_BEND_TREE, FX_BEND_VOXELS, FX_BEND_FLAMES, FX_COUNT };
-static const char *const fx_names[FX_COUNT] = { "Spectrum", "Tunnel", "Feedback", "Fire", "Stars & bobs", "Bend plasma", "Bend tree", "Bend voxels", "Bend flames" };
+enum { FX_SPECTRUM, FX_TUNNEL, FX_FEEDBACK, FX_FIRE, FX_BOBS, FX_BEND, FX_BEND_TREE, FX_BEND_CANYON, FX_BEND_FLAMES, FX_COUNT };
+static const char *const fx_names[FX_COUNT] = { "Spectrum", "Tunnel", "Feedback", "Fire", "Stars & bobs", "Bend plasma", "Bend tree", "Bend canyon", "Bend flames" };
 
 typedef struct { float x, y, z; } vec3;
 
@@ -487,7 +487,7 @@ static void fx_bend(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
     if (!v->bend_shown) bendviz_request(params, w, h, v->fx - FX_BEND, v->bend_on_gpu);
     if (v->bend_startup == 1 && !v->bend_shown && SDL_GetTicks() - v->bend_start_ms > 5000) {
         SDL_Log("bend: no frame 5 s after starting (asked for %dx%d, %s, on the %s; GPU in use: %s)", w, h,
-                v->fx == FX_BEND_TREE ? "tree" : v->fx == FX_BEND_VOXELS ? "voxels" : v->fx == FX_BEND_FLAMES ? "flames" : "plasma", v->bend_on_gpu ? "GPU" : "CPU", bendviz_gpu() ? "yes" : "no");
+                v->fx == FX_BEND_TREE ? "tree" : v->fx == FX_BEND_CANYON ? "canyon" : v->fx == FX_BEND_FLAMES ? "flames" : "plasma", v->bend_on_gpu ? "GPU" : "CPU", bendviz_gpu() ? "yes" : "no");
         v->bend_startup = 3;
     }
     // Without vsync the player would present as fast as it can, most often the frame already on
