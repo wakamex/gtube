@@ -257,8 +257,8 @@ def Viz.glow(+r: F32, +g: F32, +b: F32) -> U32:
   (F32.to_u32(F32.min(255.0, (r * 255.0 : F32))) << 16n .|. F32.to_u32(F32.min(255.0, (g * 255.0 : F32))) << 8n .|. F32.to_u32(F32.min(255.0, (b * 255.0 : F32))) : U32)
 
 # The voxels: a flight over land made of voxels, drawn the way NovaLogic's Comanche (1992) drew its
-# land, that the music reshapes column by column. The land is a heightmap of 1 by 1 columns, each a
-# stack of 1 by 1 by 1 voxels and one colour; the bass heaves its hills, the mids roll ripples
+# land, that the music reshapes column by column. The land is a heightmap of 1 by 1 columns, each
+# one height and one colour, as Comanche's voxels were; the bass heaves its hills, the mids roll ripples
 # across it, and each beat sends a ring outward from under the jet that lifts the columns it
 # passes. Each pixel's ray runs out over the columns, its height rising in a straight line with
 # distance (the projection sheared, not tilted, as in 1992), in steps that lengthen as it goes,
@@ -266,7 +266,7 @@ def Viz.glow(+r: F32, +g: F32, +b: F32) -> U32:
 # about 180 of them tall, at least 2 screen pixels square), ordered-dithered to 16 levels a channel.
 # No pixel depends on another, and every one runs the same short loop.
 
-# The land's height at (x, z), before it is cut into voxels: warped hills and ridges, with valleys
+# The land's height at (x, z), before it is cut into columns: warped hills and ridges, with valleys
 # below the water's level (0); the bass heaves the hills, the mids roll ripples across them, and a
 # beat's ring, centred under the jet at (ox, oz), widens as the beat fades.
 def Viz.ground(+x: F32, +z: F32, +ox: F32, +oz: F32, +k: Viz.K) -> F32:
@@ -284,9 +284,9 @@ def Viz.ground(+x: F32, +z: F32, +ox: F32, +oz: F32, +k: Viz.K) -> F32:
   +ring = (F32.sqrt((ex * ex + ez * ez : F32)) - (1.0 - beat) * 90.0 : F32)
   (hills + heave + ripple + beat * 5.0 * F32.exp((0.0 - ring * ring / 40.0 : F32)) : F32)
 
-# The column at (x, z): the land's height at the column's middle, cut down to whole voxels.
+# The column at (x, z): the land's height at the column's middle.
 def Viz.column(+x: F32, +z: F32, +ox: F32, +oz: F32, +k: Viz.K) -> F32:
-  F32.floor(Viz.ground((F32.floor(x) + 0.5 : F32), (F32.floor(z) + 0.5 : F32), ox, oz, k))
+  Viz.ground((F32.floor(x) + 0.5 : F32), (F32.floor(z) + 0.5 : F32), ox, oz, k)
 
 # The ray from (ox, oy, oz) along (dx, dz) a unit of depth, rising slope a unit: at depth d, gap
 # above the land (or the water) there. It returns the depth of the first step below it, or 100000
@@ -366,7 +366,7 @@ def Viz.vox(+x: U32, +y: U32, +k: Viz.K) -> U32:
   +cx = (F32.floor(px) + 0.5 : F32)
   +cz = (F32.floor(pz) + 0.5 : F32)
   +raw = Viz.ground(cx, cz, ox, oz, k)
-  +land = F32.floor(raw)
+  +land = raw
   +wet = F32.min(1.0, F32.max(0.0, ((0.0 - land) * 1000000000.0 : F32)))
   +hx = (Viz.ground((cx + 0.6 : F32), cz, ox, oz, k) - Viz.ground((cx - 0.6 : F32), cz, ox, oz, k) : F32)
   +hz = (Viz.ground(cx, (cz + 0.6 : F32), ox, oz, k) - Viz.ground(cx, (cz - 0.6 : F32), ox, oz, k) : F32)

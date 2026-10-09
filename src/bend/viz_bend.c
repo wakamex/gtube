@@ -2028,63 +2028,63 @@ CONSTV u64 STAT_IMG[] = { 0 };
 
 INLINE Term spin_2(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2) {
   u32 wpoll = 0;
-  u32 _v_8 = 0;
+  u32 _v_7 = 0;
   u32 _c_0 = r0;
   u32 _a_1 = r1;
   u32 _b_1 = r2;
   WL_SPIN
     if (_c_0 == 0) {
-      _v_8 = _b_1;
+      _v_7 = _b_1;
     } else {
-      _v_8 = _a_1;
+      _v_7 = _a_1;
     }
   break;
   }
-  o[0] = _v_8;
+  o[0] = _v_7;
   return 1;
 }
 
 INLINE Term spin_1(Env e, WL_OUT(o), u32 r0, u32 r1) {
   u32 wpoll = 0;
-  u32 _v_6 = 0;
+  u32 _v_5 = 0;
   u32 _a_0 = r0;
   u32 _b_0 = r1;
   WL_SPIN
-    u32 _v_7 = 0;
+    u32 _v_6 = 0;
     Term _o_0[WL_OSZ(1)];
     if (spin_2(e, _o_0, ((u64)(f32_unbox(_a_0) < f32_unbox(_b_0))), _b_0, _a_0) == 0) {
       return 0;
     }
-    _v_7 = _o_0[0];
-    _v_6 = _v_7;
+    _v_6 = _o_0[0];
+    _v_5 = _v_6;
   break;
   }
-  o[0] = _v_6;
+  o[0] = _v_5;
   return 1;
 }
 
 INLINE Term spin_3(Env e, WL_OUT(o), u32 r0, u32 r1) {
   u32 wpoll = 0;
-  u32 _v_10 = 0;
+  u32 _v_9 = 0;
   u32 _a_2 = r0;
   u32 _b_2 = r1;
   WL_SPIN
-    u32 _v_11 = 0;
+    u32 _v_10 = 0;
     Term _o_2[WL_OSZ(1)];
     if (spin_2(e, _o_2, ((u64)(f32_unbox(_a_2) < f32_unbox(_b_2))), _a_2, _b_2) == 0) {
       return 0;
     }
-    _v_11 = _o_2[0];
-    _v_10 = _v_11;
+    _v_10 = _o_2[0];
+    _v_9 = _v_10;
   break;
   }
-  o[0] = _v_10;
+  o[0] = _v_9;
   return 1;
 }
 
 INLINE Term spin_0(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, u32 r8, u32 r9, u32 r10, u32 r11) {
   u32 wpoll = 0;
-  u32 _v_2 = 0;
+  u32 _v_1 = 0;
   u32 _x_1 = r0;
   u32 _z_1 = r1;
   u32 _ox_1 = r2;
@@ -2098,35 +2098,35 @@ INLINE Term spin_0(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32
   u32 _k_14 = r10;
   u32 _k_15 = r11;
   WL_SPIN
+    u32 _v_2 = 0;
     u32 _v_3 = 0;
     u32 _v_4 = 0;
-    u32 _v_5 = 0;
     Term _o_1[WL_OSZ(1)];
     if (spin_1(e, _o_1, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_k_9) - f32_unbox(1027101164ull))) * f32_unbox(1110546842ull))) == 0) {
       return 0;
     }
-    _v_5 = _o_1[0];
-    _v_4 = _v_5;
-    u32 _v_9 = 0;
+    _v_4 = _o_1[0];
+    _v_3 = _v_4;
+    u32 _v_8 = 0;
     Term _o_3[WL_OSZ(1)];
-    if (spin_3(e, _o_3, 1065353216ull, _v_4) == 0) {
+    if (spin_3(e, _o_3, 1065353216ull, _v_3) == 0) {
       return 0;
     }
-    _v_9 = _o_3[0];
-    _v_3 = _v_9;
+    _v_8 = _o_3[0];
+    _v_2 = _v_8;
     u32 _wx_0 = f32_rewrap(f32_unbox(_x_1) + f32_unbox(f32_rewrap(f32_unbox(1102053376ull) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(_z_1) * f32_unbox(1015759766ull)))))))));
     u32 _wz_0 = f32_rewrap(f32_unbox(_z_1) + f32_unbox(f32_rewrap(f32_unbox(1102053376ull) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_x_1) * f32_unbox(1014350479ull))) + f32_unbox(1067869798ull)))))))));
     u32 _ridge_0 = f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(f32_rewrap((f32)fabs(f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_wx_0) * f32_unbox(1023275958ull))) + f32_unbox(f32_rewrap(f32_unbox(_wz_0) * f32_unbox(1016833507ull))))) + f32_unbox(1060320051ull))))))))));
     u32 _hills_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1084227584ull) + f32_unbox(f32_rewrap(f32_unbox(1092616192ull) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_wx_0) * f32_unbox(1016833507ull))) + f32_unbox(f32_rewrap(f32_unbox(_wz_0) * f32_unbox(1012202996ull)))))))))))) + f32_unbox(f32_rewrap(f32_unbox(1086324736ull) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_wz_0) * f32_unbox(1023275958ull))) - f32_unbox(f32_rewrap(f32_unbox(_wx_0) * f32_unbox(1018980991ull))))) + f32_unbox(1074161254ull)))))))))) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1091567616ull) * f32_unbox(_ridge_0))) * f32_unbox(_ridge_0))));
-    u32 _heave_0 = f32_rewrap(f32_unbox(_v_3) * f32_unbox(f32_rewrap(f32_unbox(1084227584ull) + f32_unbox(f32_rewrap(f32_unbox(1082130432ull) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_x_1) * f32_unbox(1028443341ull))) + f32_unbox(f32_rewrap(f32_unbox(_z_1) * f32_unbox(1025758986ull))))) + f32_unbox(f32_rewrap(f32_unbox(_k_8) * f32_unbox(1061997773ull)))))))))))));
+    u32 _heave_0 = f32_rewrap(f32_unbox(_v_2) * f32_unbox(f32_rewrap(f32_unbox(1084227584ull) + f32_unbox(f32_rewrap(f32_unbox(1082130432ull) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_x_1) * f32_unbox(1028443341ull))) + f32_unbox(f32_rewrap(f32_unbox(_z_1) * f32_unbox(1025758986ull))))) + f32_unbox(f32_rewrap(f32_unbox(_k_8) * f32_unbox(1061997773ull)))))))))))));
     u32 _ripple_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_k_10) * f32_unbox(1075838976ull))) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_x_1) * f32_unbox(1039516303ull))) + f32_unbox(f32_rewrap(f32_unbox(_z_1) * f32_unbox(1035489772ull))))) - f32_unbox(f32_rewrap(f32_unbox(_k_8) * f32_unbox(1077936128ull)))))))));
     u32 _ex_0 = f32_rewrap(f32_unbox(_x_1) - f32_unbox(_ox_1));
     u32 _ez_0 = f32_rewrap(f32_unbox(_z_1) - f32_unbox(_oz_1));
     u32 _ring_0 = f32_rewrap(f32_unbox(f32_rewrap((f32)sqrt(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_ex_0) * f32_unbox(_ex_0))) + f32_unbox(f32_rewrap(f32_unbox(_ez_0) * f32_unbox(_ez_0)))))))) - f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_k_12))) * f32_unbox(1119092736ull))));
-    _v_2 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_hills_0) + f32_unbox(_heave_0))) + f32_unbox(_ripple_0))) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_k_12) * f32_unbox(1084227584ull))) * f32_unbox(f32_rewrap((f32)exp(f32_unbox(f32_rewrap(f32_unbox(0ull) - f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_ring_0) * f32_unbox(_ring_0))) / f32_unbox(1109393408ull)))))))))));
+    _v_1 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_hills_0) + f32_unbox(_heave_0))) + f32_unbox(_ripple_0))) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_k_12) * f32_unbox(1084227584ull))) * f32_unbox(f32_rewrap((f32)exp(f32_unbox(f32_rewrap(f32_unbox(0ull) - f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_ring_0) * f32_unbox(_ring_0))) / f32_unbox(1109393408ull)))))))))));
   break;
   }
-  o[0] = _v_2;
+  o[0] = _v_1;
   return 1;
 }
 
@@ -2191,14 +2191,12 @@ INLINE Term spin_6(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32
   u32 _k_15 = r11;
   WL_SPIN
     u32 _v_4 = 0;
-    u32 _v_5 = 0;
     Term _o_0[WL_OSZ(1)];
     if (spin_0(e, _o_0, f32_rewrap(f32_unbox(f32_rewrap((f32)floor(f32_unbox(_x_0)))) + f32_unbox(1056964608ull)), f32_rewrap(f32_unbox(f32_rewrap((f32)floor(f32_unbox(_z_0)))) + f32_unbox(1056964608ull)), _ox_1, _oz_1, _k_8, _k_9, _k_10, _k_11, _k_12, _k_13, _k_14, _k_15) == 0) {
       return 0;
     }
-    _v_5 = _o_0[0];
-    _v_4 = _v_5;
-    _v_3 = f32_rewrap((f32)floor(f32_unbox(_v_4)));
+    _v_4 = _o_0[0];
+    _v_3 = _v_4;
   break;
   }
   o[0] = _v_3;
@@ -4336,12 +4334,11 @@ FAR Term spin_25(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r
     }
     _v_186 = _o_90[0];
     _v_185 = _v_186;
-    u32 _land_0 = f32_rewrap((f32)floor(f32_unbox(_v_185)));
     u32 _v_187 = 0;
     u32 _v_188 = 0;
     u32 _v_189 = 0;
     Term _o_91[WL_OSZ(1)];
-    if (spin_1(e, _o_91, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(0ull) - f32_unbox(_land_0))) * f32_unbox(1315859240ull))) == 0) {
+    if (spin_1(e, _o_91, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(0ull) - f32_unbox(_v_185))) * f32_unbox(1315859240ull))) == 0) {
       return 0;
     }
     _v_189 = _o_91[0];
@@ -4400,7 +4397,7 @@ FAR Term spin_25(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r
     u32 _v_202 = 0;
     u32 _v_203 = 0;
     Term _o_98[WL_OSZ(1)];
-    if (spin_1(e, _o_98, 0ull, f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_land_0) - f32_unbox(_py_0))) * f32_unbox(1090519040ull))))) == 0) {
+    if (spin_1(e, _o_98, 0ull, f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_v_185) - f32_unbox(_py_0))) * f32_unbox(1090519040ull))))) == 0) {
       return 0;
     }
     _v_203 = _o_98[0];
@@ -4419,7 +4416,7 @@ FAR Term spin_25(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r
     u32 _v_206 = 0;
     u32 _v_207 = 0;
     Term _o_100[WL_OSZ(1)];
-    if (spin_1(e, _o_100, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_land_0) - f32_unbox(1069547520ull))) / f32_unbox(1069547520ull))) == 0) {
+    if (spin_1(e, _o_100, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_v_185) - f32_unbox(1069547520ull))) / f32_unbox(1069547520ull))) == 0) {
       return 0;
     }
     _v_207 = _o_100[0];
@@ -4435,7 +4432,7 @@ FAR Term spin_25(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r
     u32 _v_210 = 0;
     u32 _v_211 = 0;
     Term _o_102[WL_OSZ(1)];
-    if (spin_1(e, _o_102, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_land_0) - f32_unbox(1091567616ull))) / f32_unbox(1082130432ull))) == 0) {
+    if (spin_1(e, _o_102, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_v_185) - f32_unbox(1091567616ull))) / f32_unbox(1082130432ull))) == 0) {
       return 0;
     }
     _v_211 = _o_102[0];
@@ -4451,7 +4448,7 @@ FAR Term spin_25(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r
     u32 _v_214 = 0;
     u32 _v_215 = 0;
     Term _o_104[WL_OSZ(1)];
-    if (spin_1(e, _o_104, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_land_0) - f32_unbox(1098907648ull))) / f32_unbox(1082130432ull))) == 0) {
+    if (spin_1(e, _o_104, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_v_185) - f32_unbox(1098907648ull))) / f32_unbox(1082130432ull))) == 0) {
       return 0;
     }
     _v_215 = _o_104[0];
@@ -4467,7 +4464,7 @@ FAR Term spin_25(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r
     u32 _v_218 = 0;
     u32 _v_219 = 0;
     Term _o_106[WL_OSZ(1)];
-    if (spin_1(e, _o_106, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_land_0) - f32_unbox(1102577664ull))) / f32_unbox(1077936128ull))) == 0) {
+    if (spin_1(e, _o_106, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_v_185) - f32_unbox(1102577664ull))) / f32_unbox(1077936128ull))) == 0) {
       return 0;
     }
     _v_219 = _o_106[0];
