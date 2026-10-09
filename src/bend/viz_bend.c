@@ -2026,7 +2026,111 @@ static u32 root_take(DEV u64* H, THR_ARR(Term, v, WL_RESW)) {
 
 CONSTV u64 STAT_IMG[] = { 0 };
 
-INLINE Term spin_0(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2) {
+INLINE Term spin_2(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2) {
+  u32 wpoll = 0;
+  u32 _v_8 = 0;
+  u32 _c_0 = r0;
+  u32 _a_1 = r1;
+  u32 _b_1 = r2;
+  WL_SPIN
+    if (_c_0 == 0) {
+      _v_8 = _b_1;
+    } else {
+      _v_8 = _a_1;
+    }
+  break;
+  }
+  o[0] = _v_8;
+  return 1;
+}
+
+INLINE Term spin_1(Env e, WL_OUT(o), u32 r0, u32 r1) {
+  u32 wpoll = 0;
+  u32 _v_6 = 0;
+  u32 _a_0 = r0;
+  u32 _b_0 = r1;
+  WL_SPIN
+    u32 _v_7 = 0;
+    Term _o_0[WL_OSZ(1)];
+    if (spin_2(e, _o_0, ((u64)(f32_unbox(_a_0) < f32_unbox(_b_0))), _b_0, _a_0) == 0) {
+      return 0;
+    }
+    _v_7 = _o_0[0];
+    _v_6 = _v_7;
+  break;
+  }
+  o[0] = _v_6;
+  return 1;
+}
+
+INLINE Term spin_3(Env e, WL_OUT(o), u32 r0, u32 r1) {
+  u32 wpoll = 0;
+  u32 _v_10 = 0;
+  u32 _a_2 = r0;
+  u32 _b_2 = r1;
+  WL_SPIN
+    u32 _v_11 = 0;
+    Term _o_2[WL_OSZ(1)];
+    if (spin_2(e, _o_2, ((u64)(f32_unbox(_a_2) < f32_unbox(_b_2))), _a_2, _b_2) == 0) {
+      return 0;
+    }
+    _v_11 = _o_2[0];
+    _v_10 = _v_11;
+  break;
+  }
+  o[0] = _v_10;
+  return 1;
+}
+
+INLINE Term spin_0(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, u32 r8, u32 r9, u32 r10, u32 r11) {
+  u32 wpoll = 0;
+  u32 _v_2 = 0;
+  u32 _x_1 = r0;
+  u32 _z_1 = r1;
+  u32 _ox_1 = r2;
+  u32 _oz_1 = r3;
+  u32 _k_8 = r4;
+  u32 _k_9 = r5;
+  u32 _k_10 = r6;
+  u32 _k_11 = r7;
+  u32 _k_12 = r8;
+  u32 _k_13 = r9;
+  u32 _k_14 = r10;
+  u32 _k_15 = r11;
+  WL_SPIN
+    u32 _v_3 = 0;
+    u32 _v_4 = 0;
+    u32 _v_5 = 0;
+    Term _o_1[WL_OSZ(1)];
+    if (spin_1(e, _o_1, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_k_9) - f32_unbox(1027101164ull))) * f32_unbox(1110546842ull))) == 0) {
+      return 0;
+    }
+    _v_5 = _o_1[0];
+    _v_4 = _v_5;
+    u32 _v_9 = 0;
+    Term _o_3[WL_OSZ(1)];
+    if (spin_3(e, _o_3, 1065353216ull, _v_4) == 0) {
+      return 0;
+    }
+    _v_9 = _o_3[0];
+    _v_3 = _v_9;
+    u32 _wx_0 = f32_rewrap(f32_unbox(_x_1) + f32_unbox(f32_rewrap(f32_unbox(1102053376ull) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(_z_1) * f32_unbox(1015759766ull)))))))));
+    u32 _wz_0 = f32_rewrap(f32_unbox(_z_1) + f32_unbox(f32_rewrap(f32_unbox(1102053376ull) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_x_1) * f32_unbox(1014350479ull))) + f32_unbox(1067869798ull)))))))));
+    u32 _ridge_0 = f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(f32_rewrap((f32)fabs(f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_wx_0) * f32_unbox(1023275958ull))) + f32_unbox(f32_rewrap(f32_unbox(_wz_0) * f32_unbox(1016833507ull))))) + f32_unbox(1060320051ull))))))))));
+    u32 _hills_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1084227584ull) + f32_unbox(f32_rewrap(f32_unbox(1092616192ull) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_wx_0) * f32_unbox(1016833507ull))) + f32_unbox(f32_rewrap(f32_unbox(_wz_0) * f32_unbox(1012202996ull)))))))))))) + f32_unbox(f32_rewrap(f32_unbox(1086324736ull) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_wz_0) * f32_unbox(1023275958ull))) - f32_unbox(f32_rewrap(f32_unbox(_wx_0) * f32_unbox(1018980991ull))))) + f32_unbox(1074161254ull)))))))))) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1091567616ull) * f32_unbox(_ridge_0))) * f32_unbox(_ridge_0))));
+    u32 _heave_0 = f32_rewrap(f32_unbox(_v_3) * f32_unbox(f32_rewrap(f32_unbox(1084227584ull) + f32_unbox(f32_rewrap(f32_unbox(1082130432ull) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_x_1) * f32_unbox(1028443341ull))) + f32_unbox(f32_rewrap(f32_unbox(_z_1) * f32_unbox(1025758986ull))))) + f32_unbox(f32_rewrap(f32_unbox(_k_8) * f32_unbox(1061997773ull)))))))))))));
+    u32 _ripple_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_k_10) * f32_unbox(1075838976ull))) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_x_1) * f32_unbox(1039516303ull))) + f32_unbox(f32_rewrap(f32_unbox(_z_1) * f32_unbox(1035489772ull))))) - f32_unbox(f32_rewrap(f32_unbox(_k_8) * f32_unbox(1077936128ull)))))))));
+    u32 _ex_0 = f32_rewrap(f32_unbox(_x_1) - f32_unbox(_ox_1));
+    u32 _ez_0 = f32_rewrap(f32_unbox(_z_1) - f32_unbox(_oz_1));
+    u32 _ring_0 = f32_rewrap(f32_unbox(f32_rewrap((f32)sqrt(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_ex_0) * f32_unbox(_ex_0))) + f32_unbox(f32_rewrap(f32_unbox(_ez_0) * f32_unbox(_ez_0)))))))) - f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_k_12))) * f32_unbox(1119092736ull))));
+    _v_2 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_hills_0) + f32_unbox(_heave_0))) + f32_unbox(_ripple_0))) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_k_12) * f32_unbox(1084227584ull))) * f32_unbox(f32_rewrap((f32)exp(f32_unbox(f32_rewrap(f32_unbox(0ull) - f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_ring_0) * f32_unbox(_ring_0))) / f32_unbox(1109393408ull)))))))))));
+  break;
+  }
+  o[0] = _v_2;
+  return 1;
+}
+
+INLINE Term spin_4(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2) {
   u32 wpoll = 0;
   u32 _v_2 = 0;
   u32 _t_1 = r0;
@@ -2044,63 +2148,7 @@ INLINE Term spin_0(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2) {
   return 1;
 }
 
-INLINE Term spin_2(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2) {
-  u32 wpoll = 0;
-  u32 _v_7 = 0;
-  u32 _c_0 = r0;
-  u32 _a_1 = r1;
-  u32 _b_1 = r2;
-  WL_SPIN
-    if (_c_0 == 0) {
-      _v_7 = _b_1;
-    } else {
-      _v_7 = _a_1;
-    }
-  break;
-  }
-  o[0] = _v_7;
-  return 1;
-}
-
-INLINE Term spin_1(Env e, WL_OUT(o), u32 r0, u32 r1) {
-  u32 wpoll = 0;
-  u32 _v_5 = 0;
-  u32 _a_0 = r0;
-  u32 _b_0 = r1;
-  WL_SPIN
-    u32 _v_6 = 0;
-    Term _o_1[WL_OSZ(1)];
-    if (spin_2(e, _o_1, ((u64)(f32_unbox(_a_0) < f32_unbox(_b_0))), _b_0, _a_0) == 0) {
-      return 0;
-    }
-    _v_6 = _o_1[0];
-    _v_5 = _v_6;
-  break;
-  }
-  o[0] = _v_5;
-  return 1;
-}
-
-INLINE Term spin_3(Env e, WL_OUT(o), u32 r0, u32 r1) {
-  u32 wpoll = 0;
-  u32 _v_10 = 0;
-  u32 _a_2 = r0;
-  u32 _b_2 = r1;
-  WL_SPIN
-    u32 _v_11 = 0;
-    Term _o_3[WL_OSZ(1)];
-    if (spin_2(e, _o_3, ((u64)(f32_unbox(_a_2) < f32_unbox(_b_2))), _a_2, _b_2) == 0) {
-      return 0;
-    }
-    _v_11 = _o_3[0];
-    _v_10 = _v_11;
-  break;
-  }
-  o[0] = _v_10;
-  return 1;
-}
-
-INLINE Term spin_4(Env e, WL_OUT(o), u32 r0) {
+INLINE Term spin_5(Env e, WL_OUT(o), u32 r0) {
   u32 wpoll = 0;
   u32 _v_6 = 0;
   u32 _x_0 = r0;
@@ -2126,56 +2174,31 @@ INLINE Term spin_4(Env e, WL_OUT(o), u32 r0) {
   return 1;
 }
 
-INLINE Term spin_5(Env e, WL_OUT(o), u32 r0) {
-  u32 wpoll = 0;
-  u32 _v_4 = 0;
-  u32 _z_1 = r0;
-  WL_SPIN
-    _v_4 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1114636288ull) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(_z_1) * f32_unbox(998445679ull)))))))) + f32_unbox(f32_rewrap(f32_unbox(1103626240ull) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_z_1) * f32_unbox(1010055512ull))) + f32_unbox(1065353216ull)))))))));
-  break;
-  }
-  o[0] = _v_4;
-  return 1;
-}
-
-INLINE Term spin_6(Env e, WL_OUT(o), u32 r0, u32 r1) {
+INLINE Term spin_6(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, u32 r8, u32 r9, u32 r10, u32 r11) {
   u32 wpoll = 0;
   u32 _v_3 = 0;
   u32 _x_0 = r0;
   u32 _z_0 = r1;
+  u32 _ox_1 = r2;
+  u32 _oz_1 = r3;
+  u32 _k_8 = r4;
+  u32 _k_9 = r5;
+  u32 _k_10 = r6;
+  u32 _k_11 = r7;
+  u32 _k_12 = r8;
+  u32 _k_13 = r9;
+  u32 _k_14 = r10;
+  u32 _k_15 = r11;
   WL_SPIN
-    u32 _wx_0 = f32_rewrap(f32_unbox(_x_0) + f32_unbox(f32_rewrap(f32_unbox(1103626240ull) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(_z_0) * f32_unbox(1012202996ull)))))))));
-    u32 _wz_0 = f32_rewrap(f32_unbox(_z_0) + f32_unbox(f32_rewrap(f32_unbox(1103626240ull) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_x_0) * f32_unbox(1010055512ull))) + f32_unbox(1067869798ull)))))))));
-    u32 _r1_0 = f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(f32_rewrap((f32)fabs(f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_wx_0) * f32_unbox(1017907249ull))) + f32_unbox(f32_rewrap(f32_unbox(_wz_0) * f32_unbox(1012202996ull))))) + f32_unbox(1060320051ull))))))))));
-    u32 _r2_0 = f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(f32_rewrap((f32)fabs(f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_wz_0) * f32_unbox(1024953680ull))) - f32_unbox(f32_rewrap(f32_unbox(_wx_0) * f32_unbox(1022202216ull))))) + f32_unbox(1077516698ull))))))))));
-    u32 _hill_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1104150528ull) + f32_unbox(f32_rewrap(f32_unbox(1096810496ull) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_wx_0) * f32_unbox(1005102878ull))) + f32_unbox(f32_rewrap(f32_unbox(_wz_0) * f32_unbox(1000378414ull)))))))))))) + f32_unbox(f32_rewrap(f32_unbox(1091567616ull) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_wz_0) * f32_unbox(1010914506ull))) - f32_unbox(f32_rewrap(f32_unbox(_wx_0) * f32_unbox(1007156409ull))))) + f32_unbox(1074161254ull)))))))))) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1092616192ull) * f32_unbox(_r1_0))) * f32_unbox(_r1_0))))) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1082130432ull) * f32_unbox(_r2_0))) * f32_unbox(_r2_0))));
     u32 _v_4 = 0;
     u32 _v_5 = 0;
-    u32 _v_6 = 0;
-    u32 _v_7 = 0;
     Term _o_0[WL_OSZ(1)];
-    if (spin_5(e, _o_0, _z_0) == 0) {
+    if (spin_0(e, _o_0, f32_rewrap(f32_unbox(f32_rewrap((f32)floor(f32_unbox(_x_0)))) + f32_unbox(1056964608ull)), f32_rewrap(f32_unbox(f32_rewrap((f32)floor(f32_unbox(_z_0)))) + f32_unbox(1056964608ull)), _ox_1, _oz_1, _k_8, _k_9, _k_10, _k_11, _k_12, _k_13, _k_14, _k_15) == 0) {
       return 0;
     }
-    _v_7 = _o_0[0];
-    _v_6 = _v_7;
-    u32 _v_8 = 0;
-    Term _o_1[WL_OSZ(1)];
-    if (spin_1(e, _o_1, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1067869798ull) - f32_unbox(f32_rewrap((f32)fabs(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_x_0) - f32_unbox(_v_6))) / f32_unbox(1108869120ull)))))))) * f32_unbox(1075838976ull))) == 0) {
-      return 0;
-    }
-    _v_8 = _o_1[0];
-    _v_5 = _v_8;
-    u32 _v_9 = 0;
-    Term _o_2[WL_OSZ(1)];
-    if (spin_3(e, _o_2, 1065353216ull, _v_5) == 0) {
-      return 0;
-    }
-    _v_9 = _o_2[0];
-    _v_4 = _v_9;
-    u32 _raw_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_hill_0) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_4))))) - f32_unbox(f32_rewrap(f32_unbox(1086324736ull) * f32_unbox(_v_4))));
-    u32 _ledge_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_raw_0) / f32_unbox(1088421888ull))) - f32_unbox(f32_rewrap((f32)floor(f32_unbox(f32_rewrap(f32_unbox(_raw_0) / f32_unbox(1088421888ull)))))));
-    _v_3 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap((f32)floor(f32_unbox(f32_rewrap(f32_unbox(_raw_0) / f32_unbox(1088421888ull)))))) * f32_unbox(1088421888ull))) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1088421888ull) * f32_unbox(_ledge_0))) * f32_unbox(_ledge_0))) * f32_unbox(_ledge_0))));
+    _v_5 = _o_0[0];
+    _v_4 = _v_5;
+    _v_3 = f32_rewrap((f32)floor(f32_unbox(_v_4)));
   break;
   }
   o[0] = _v_3;
@@ -2262,7 +2285,7 @@ INLINE Term spin_9(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32
     u32 _v_19 = 0;
     u32 _v_20 = 0;
     Term _o_9[WL_OSZ(1)];
-    if (spin_0(e, _o_9, _t_0, _i_0, _lift_1) == 0) {
+    if (spin_4(e, _o_9, _t_0, _i_0, _lift_1) == 0) {
       return 0;
     }
     _v_20 = _o_9[0];
@@ -2394,7 +2417,7 @@ INLINE Term spin_10(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u3
     u32 _v_8 = 0;
     u32 _v_9 = 0;
     Term _o_2[WL_OSZ(1)];
-    if (spin_4(e, _o_2, _hh_0) == 0) {
+    if (spin_5(e, _o_2, _hh_0) == 0) {
       return 0;
     }
     _v_9 = _o_2[0];
@@ -2402,7 +2425,7 @@ INLINE Term spin_10(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u3
     u32 _v_10 = 0;
     u32 _v_11 = 0;
     Term _o_3[WL_OSZ(1)];
-    if (spin_4(e, _o_3, _yy_0) == 0) {
+    if (spin_5(e, _o_3, _yy_0) == 0) {
       return 0;
     }
     _v_11 = _o_3[0];
@@ -2410,7 +2433,7 @@ INLINE Term spin_10(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u3
     u32 _v_12 = 0;
     u32 _v_13 = 0;
     Term _o_4[WL_OSZ(1)];
-    if (spin_4(e, _o_4, f32_rewrap(f32_unbox(_baba_0) - f32_unbox(_yy_0))) == 0) {
+    if (spin_5(e, _o_4, f32_rewrap(f32_unbox(_baba_0) - f32_unbox(_yy_0))) == 0) {
       return 0;
     }
     _v_13 = _o_4[0];
@@ -2418,7 +2441,7 @@ INLINE Term spin_10(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u3
     u32 _v_14 = 0;
     u32 _v_15 = 0;
     Term _o_5[WL_OSZ(1)];
-    if (spin_4(e, _o_5, _tt_0) == 0) {
+    if (spin_5(e, _o_5, _tt_0) == 0) {
       return 0;
     }
     _v_15 = _o_5[0];
@@ -2533,127 +2556,151 @@ INLINE Term spin_14(Env e, WL_OUT(o), u32 r0, u32 r1) {
   return 1;
 }
 
-INLINE Term spin_15(Env e, WL_OUT(o), Term r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, u32 r8, u32 r9) {
+INLINE Term spin_15(Env e, WL_OUT(o), Term r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r5, u32 r6, u32 r7, u32 r8, u32 r9, u32 r10, u32 r11, u32 r12, u32 r13, u32 r14, u32 r15, u32 r16, u32 r17) {
   u32 wpoll = 0;
-  u32 _v_19 = 0;
+  u32 _v_23 = 0;
   Term _n_0 = r0;
   u32 _under_0 = r1;
   u32 _d_0 = r2;
   u32 _gap_0 = r3;
-  u32 _ox_0 = r4;
+  u32 _ox_1 = r4;
   u32 _oy_1 = r5;
   u32 _oz_1 = r6;
   u32 _dx_1 = r7;
   u32 _dz_1 = r8;
   u32 _slope_1 = r9;
+  u32 _k_8 = r10;
+  u32 _k_9 = r11;
+  u32 _k_10 = r12;
+  u32 _k_11 = r13;
+  u32 _k_12 = r14;
+  u32 _k_13 = r15;
+  u32 _k_14 = r16;
+  u32 _k_15 = r17;
   WL_SPIN
     if (_n_0 == 0) {
       if (_under_0 == 0) {
-        _v_19 = 1203982336ull;
+        _v_23 = 1203982336ull;
       } else {
-        _v_19 = _d_0;
+        _v_23 = _d_0;
       }
     } else {
       Term _m_0 = (_n_0 - 1);
       if (_under_0 == 1) {
-        _v_19 = _d_0;
+        _v_23 = _d_0;
       } else {
         u32 _d2_1 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_d_0) + f32_unbox(1053609165ull))) + f32_unbox(f32_rewrap(f32_unbox(_d_0) * f32_unbox(1017370378ull))));
-        u32 _v_20 = 0;
-        u32 _v_21 = 0;
-        u32 _v_22 = 0;
-        Term _o_8[WL_OSZ(1)];
-        if (spin_6(e, _o_8, f32_rewrap(f32_unbox(_ox_0) + f32_unbox(f32_rewrap(f32_unbox(_dx_1) * f32_unbox(_d2_1)))), f32_rewrap(f32_unbox(_oz_1) + f32_unbox(f32_rewrap(f32_unbox(_dz_1) * f32_unbox(_d2_1))))) == 0) {
+        u32 _v_24 = 0;
+        u32 _v_25 = 0;
+        u32 _v_26 = 0;
+        Term _o_10[WL_OSZ(1)];
+        if (spin_6(e, _o_10, f32_rewrap(f32_unbox(_ox_1) + f32_unbox(f32_rewrap(f32_unbox(_dx_1) * f32_unbox(_d2_1)))), f32_rewrap(f32_unbox(_oz_1) + f32_unbox(f32_rewrap(f32_unbox(_dz_1) * f32_unbox(_d2_1)))), _ox_1, _oz_1, _k_8, _k_9, _k_10, _k_11, _k_12, _k_13, _k_14, _k_15) == 0) {
           return 0;
         }
-        _v_22 = _o_8[0];
-        _v_21 = _v_22;
-        u32 _v_23 = 0;
-        Term _o_9[WL_OSZ(1)];
-        if (spin_1(e, _o_9, _v_21, f32_rewrap(f32_unbox(0ull) - f32_unbox(1082130432ull))) == 0) {
+        _v_26 = _o_10[0];
+        _v_25 = _v_26;
+        u32 _v_27 = 0;
+        Term _o_11[WL_OSZ(1)];
+        if (spin_1(e, _o_11, _v_25, 0ull) == 0) {
           return 0;
         }
-        _v_23 = _o_9[0];
-        _v_20 = _v_23;
-        u32 _gap2_1 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_oy_1) + f32_unbox(f32_rewrap(f32_unbox(_slope_1) * f32_unbox(_d2_1))))) - f32_unbox(_v_20));
+        _v_27 = _o_11[0];
+        _v_24 = _v_27;
+        u32 _gap2_1 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_oy_1) + f32_unbox(f32_rewrap(f32_unbox(_slope_1) * f32_unbox(_d2_1))))) - f32_unbox(_v_24));
         r0 = _m_0;
         r1 = ((u64)(f32_unbox(_gap2_1) < f32_unbox(0ull)));
         r2 = _d2_1;
         r3 = _gap2_1;
-        r4 = _ox_0;
+        r4 = _ox_1;
         r5 = _oy_1;
         r6 = _oz_1;
         r7 = _dx_1;
         r8 = _dz_1;
         r9 = _slope_1;
+        r10 = _k_8;
+        r11 = _k_9;
+        r12 = _k_10;
+        r13 = _k_11;
+        r14 = _k_12;
+        r15 = _k_13;
+        r16 = _k_14;
+        r17 = _k_15;
         _n_0 = r0;
         _under_0 = r1;
         _d_0 = r2;
         _gap_0 = r3;
-        _ox_0 = r4;
+        _ox_1 = r4;
         _oy_1 = r5;
         _oz_1 = r6;
         _dx_1 = r7;
         _dz_1 = r8;
         _slope_1 = r9;
+        _k_8 = r10;
+        _k_9 = r11;
+        _k_10 = r12;
+        _k_11 = r13;
+        _k_12 = r14;
+        _k_13 = r15;
+        _k_14 = r16;
+        _k_15 = r17;
         WL_AGAIN(spin_15);
       }
     }
   break;
   }
-  o[0] = _v_19;
+  o[0] = _v_23;
   return 1;
 }
 
 INLINE Term spin_16(Env e, WL_OUT(o), u32 r0, u32 r1) {
   u32 wpoll = 0;
-  u32 _v_122 = 0;
+  u32 _v_146 = 0;
   u32 _bx_1 = r0;
   u32 _by_1 = r1;
   WL_SPIN
-    u32 _a_19 = U32_BIN(_bx_1, &, 1ull);
+    u32 _a_18 = U32_BIN(_bx_1, &, 1ull);
     u32 _b_2 = U32_BIN(_by_1, &, 1ull);
+    Term _a_19 = 1ull;
+    u32 _c_0 = U32_BIN((_a_19 >= 32 ? 0 : U32_BIN(_bx_1, >>, _a_19)), &, 1ull);
     Term _a_20 = 1ull;
-    u32 _c_0 = U32_BIN((_a_20 >= 32 ? 0 : U32_BIN(_bx_1, >>, _a_20)), &, 1ull);
-    Term _a_21 = 1ull;
-    u32 _e_0 = U32_BIN((_a_21 >= 32 ? 0 : U32_BIN(_by_1, >>, _a_21)), &, 1ull);
-    Term _a_22 = U32_BIN(_a_19, +, _b_2);
-    Term _a_23 = 2ull;
-    Term _a_24 = U32_BIN(_c_0, +, _e_0);
-    Term _a_25 = 2ull;
-    _v_122 = U32_BIN(U32_BIN(U32_BIN(4ull, *, U32_BIN(U32_BIN(2ull, *, ((u32)(_a_23) == 0 ? _a_22 : U32_BIN(_a_22, -, U32_QUO((u32)(_a_22), (u32)(_a_23)) * _a_23))), +, _b_2)), +, U32_BIN(2ull, *, ((u32)(_a_25) == 0 ? _a_24 : U32_BIN(_a_24, -, U32_QUO((u32)(_a_24), (u32)(_a_25)) * _a_25)))), +, _e_0);
+    u32 _e_0 = U32_BIN((_a_20 >= 32 ? 0 : U32_BIN(_by_1, >>, _a_20)), &, 1ull);
+    Term _a_21 = U32_BIN(_a_18, +, _b_2);
+    Term _a_22 = 2ull;
+    Term _a_23 = U32_BIN(_c_0, +, _e_0);
+    Term _a_24 = 2ull;
+    _v_146 = U32_BIN(U32_BIN(U32_BIN(4ull, *, U32_BIN(U32_BIN(2ull, *, ((u32)(_a_22) == 0 ? _a_21 : U32_BIN(_a_21, -, U32_QUO((u32)(_a_21), (u32)(_a_22)) * _a_22))), +, _b_2)), +, U32_BIN(2ull, *, ((u32)(_a_24) == 0 ? _a_23 : U32_BIN(_a_23, -, U32_QUO((u32)(_a_23), (u32)(_a_24)) * _a_24)))), +, _e_0);
   break;
   }
-  o[0] = _v_122;
+  o[0] = _v_146;
   return 1;
 }
 
 INLINE Term spin_17(Env e, WL_OUT(o), u32 r0, u32 r1) {
   u32 wpoll = 0;
-  u32 _v_125 = 0;
+  u32 _v_149 = 0;
   u32 _c_1 = r0;
   u32 _thr_1 = r1;
   WL_SPIN
-    u32 _v_126 = 0;
-    u32 _v_127 = 0;
-    u32 _v_128 = 0;
-    Term _o_60[WL_OSZ(1)];
-    if (spin_1(e, _o_60, 0ull, _c_1) == 0) {
+    u32 _v_150 = 0;
+    u32 _v_151 = 0;
+    u32 _v_152 = 0;
+    Term _o_72[WL_OSZ(1)];
+    if (spin_1(e, _o_72, 0ull, _c_1) == 0) {
       return 0;
     }
-    _v_128 = _o_60[0];
-    _v_127 = _v_128;
-    u32 _v_129 = 0;
-    Term _o_61[WL_OSZ(1)];
-    if (spin_3(e, _o_61, 1065353216ull, _v_127) == 0) {
+    _v_152 = _o_72[0];
+    _v_151 = _v_152;
+    u32 _v_153 = 0;
+    Term _o_73[WL_OSZ(1)];
+    if (spin_3(e, _o_73, 1065353216ull, _v_151) == 0) {
       return 0;
     }
-    _v_129 = _o_61[0];
-    _v_126 = _v_129;
-    _v_125 = f32_rewrap(f32_unbox(f32_rewrap((f32)floor(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_v_126) * f32_unbox(1097859072ull))) + f32_unbox(_thr_1)))))) / f32_unbox(1097859072ull));
+    _v_153 = _o_73[0];
+    _v_150 = _v_153;
+    _v_149 = f32_rewrap(f32_unbox(f32_rewrap((f32)floor(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_v_150) * f32_unbox(1097859072ull))) + f32_unbox(_thr_1)))))) / f32_unbox(1097859072ull));
   break;
   }
-  o[0] = _v_125;
+  o[0] = _v_149;
   return 1;
 }
 
@@ -2701,7 +2748,7 @@ INLINE Term spin_18(Env e, WL_OUT(o), Term r0, u32 r1, u32 r2, u32 r3, u32 r4, u
       u32 _v_59 = 0;
       u32 _v_60 = 0;
       Term _o_26[WL_OSZ(1)];
-      if (spin_4(e, _o_26, _hh_0) == 0) {
+      if (spin_5(e, _o_26, _hh_0) == 0) {
         return 0;
       }
       _v_60 = _o_26[0];
@@ -2709,7 +2756,7 @@ INLINE Term spin_18(Env e, WL_OUT(o), Term r0, u32 r1, u32 r2, u32 r3, u32 r4, u
       u32 _v_61 = 0;
       u32 _v_62 = 0;
       Term _o_27[WL_OSZ(1)];
-      if (spin_4(e, _o_27, _tt_0) == 0) {
+      if (spin_5(e, _o_27, _tt_0) == 0) {
         return 0;
       }
       _v_62 = _o_27[0];
@@ -2717,7 +2764,7 @@ INLINE Term spin_18(Env e, WL_OUT(o), Term r0, u32 r1, u32 r2, u32 r3, u32 r4, u
       u32 _v_63 = 0;
       u32 _v_64 = 0;
       Term _o_28[WL_OSZ(1)];
-      if (spin_4(e, _o_28, f32_rewrap(f32_unbox(_best_0) - f32_unbox(_tt_0))) == 0) {
+      if (spin_5(e, _o_28, f32_rewrap(f32_unbox(_best_0) - f32_unbox(_tt_0))) == 0) {
         return 0;
       }
       _v_64 = _o_28[0];
@@ -3481,7 +3528,7 @@ FAR Term spin_24(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r
     u32 _v_11 = 0;
     u32 _v_12 = 0;
     Term _o_4[WL_OSZ(1)];
-    if (spin_0(e, _o_4, _k_8, 0ull, _lift_0) == 0) {
+    if (spin_4(e, _o_4, _k_8, 0ull, _lift_0) == 0) {
       return 0;
     }
     _v_12 = _o_4[0];
@@ -3489,7 +3536,7 @@ FAR Term spin_24(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r
     u32 _v_13 = 0;
     u32 _v_14 = 0;
     Term _o_5[WL_OSZ(1)];
-    if (spin_0(e, _o_5, _k_8, 1065353216ull, _lift_0) == 0) {
+    if (spin_4(e, _o_5, _k_8, 1065353216ull, _lift_0) == 0) {
       return 0;
     }
     _v_14 = _o_5[0];
@@ -3497,7 +3544,7 @@ FAR Term spin_24(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r
     u32 _v_15 = 0;
     u32 _v_16 = 0;
     Term _o_6[WL_OSZ(1)];
-    if (spin_0(e, _o_6, _k_8, 1073741824ull, _lift_0) == 0) {
+    if (spin_4(e, _o_6, _k_8, 1073741824ull, _lift_0) == 0) {
       return 0;
     }
     _v_16 = _o_6[0];
@@ -3505,7 +3552,7 @@ FAR Term spin_24(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r
     u32 _v_17 = 0;
     u32 _v_18 = 0;
     Term _o_7[WL_OSZ(1)];
-    if (spin_0(e, _o_7, _k_8, 1077936128ull, _lift_0) == 0) {
+    if (spin_4(e, _o_7, _k_8, 1077936128ull, _lift_0) == 0) {
       return 0;
     }
     _v_18 = _o_7[0];
@@ -3513,7 +3560,7 @@ FAR Term spin_24(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r
     u32 _v_19 = 0;
     u32 _v_20 = 0;
     Term _o_8[WL_OSZ(1)];
-    if (spin_0(e, _o_8, _k_8, 1082130432ull, _lift_0) == 0) {
+    if (spin_4(e, _o_8, _k_8, 1082130432ull, _lift_0) == 0) {
       return 0;
     }
     _v_20 = _o_8[0];
@@ -3521,7 +3568,7 @@ FAR Term spin_24(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r
     u32 _v_21 = 0;
     u32 _v_22 = 0;
     Term _o_9[WL_OSZ(1)];
-    if (spin_0(e, _o_9, _k_8, 1084227584ull, _lift_0) == 0) {
+    if (spin_4(e, _o_9, _k_8, 1084227584ull, _lift_0) == 0) {
       return 0;
     }
     _v_22 = _o_9[0];
@@ -3529,7 +3576,7 @@ FAR Term spin_24(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r
     u32 _v_23 = 0;
     u32 _v_24 = 0;
     Term _o_10[WL_OSZ(1)];
-    if (spin_0(e, _o_10, _k_8, 1086324736ull, _lift_0) == 0) {
+    if (spin_4(e, _o_10, _k_8, 1086324736ull, _lift_0) == 0) {
       return 0;
     }
     _v_24 = _o_10[0];
@@ -3537,7 +3584,7 @@ FAR Term spin_24(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r
     u32 _v_25 = 0;
     u32 _v_26 = 0;
     Term _o_11[WL_OSZ(1)];
-    if (spin_0(e, _o_11, _k_8, 1088421888ull, _lift_0) == 0) {
+    if (spin_4(e, _o_11, _k_8, 1088421888ull, _lift_0) == 0) {
       return 0;
     }
     _v_26 = _o_11[0];
@@ -3545,7 +3592,7 @@ FAR Term spin_24(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r
     u32 _v_27 = 0;
     u32 _v_28 = 0;
     Term _o_12[WL_OSZ(1)];
-    if (spin_0(e, _o_12, _k_8, 1090519040ull, _lift_0) == 0) {
+    if (spin_4(e, _o_12, _k_8, 1090519040ull, _lift_0) == 0) {
       return 0;
     }
     _v_28 = _o_12[0];
@@ -3734,7 +3781,7 @@ FAR Term spin_24(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r
     u32 _v_67 = 0;
     u32 _v_68 = 0;
     Term _o_31[WL_OSZ(1)];
-    if (spin_4(e, _o_31, f32_rewrap(f32_unbox(_v_57) - f32_unbox(_v_49))) == 0) {
+    if (spin_5(e, _o_31, f32_rewrap(f32_unbox(_v_57) - f32_unbox(_v_49))) == 0) {
       return 0;
     }
     _v_68 = _o_31[0];
@@ -3742,7 +3789,7 @@ FAR Term spin_24(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r
     u32 _v_69 = 0;
     u32 _v_70 = 0;
     Term _o_32[WL_OSZ(1)];
-    if (spin_4(e, _o_32, f32_rewrap(f32_unbox(_tg_0) - f32_unbox(_v_49))) == 0) {
+    if (spin_5(e, _o_32, f32_rewrap(f32_unbox(_tg_0) - f32_unbox(_v_49))) == 0) {
       return 0;
     }
     _v_70 = _o_32[0];
@@ -3750,7 +3797,7 @@ FAR Term spin_24(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r
     u32 _v_71 = 0;
     u32 _v_72 = 0;
     Term _o_33[WL_OSZ(1)];
-    if (spin_4(e, _o_33, f32_rewrap(f32_unbox(1148829696ull) - f32_unbox(_v_49))) == 0) {
+    if (spin_5(e, _o_33, f32_rewrap(f32_unbox(1148829696ull) - f32_unbox(_v_49))) == 0) {
       return 0;
     }
     _v_72 = _o_33[0];
@@ -3759,7 +3806,7 @@ FAR Term spin_24(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r
     u32 _v_73 = 0;
     u32 _v_74 = 0;
     Term _o_34[WL_OSZ(1)];
-    if (spin_4(e, _o_34, f32_rewrap(f32_unbox(_tg_0) - f32_unbox(_v_57))) == 0) {
+    if (spin_5(e, _o_34, f32_rewrap(f32_unbox(_tg_0) - f32_unbox(_v_57))) == 0) {
       return 0;
     }
     _v_74 = _o_34[0];
@@ -3767,7 +3814,7 @@ FAR Term spin_24(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r
     u32 _v_75 = 0;
     u32 _v_76 = 0;
     Term _o_35[WL_OSZ(1)];
-    if (spin_4(e, _o_35, f32_rewrap(f32_unbox(1148829696ull) - f32_unbox(_v_57))) == 0) {
+    if (spin_5(e, _o_35, f32_rewrap(f32_unbox(1148829696ull) - f32_unbox(_v_57))) == 0) {
       return 0;
     }
     _v_76 = _o_35[0];
@@ -3905,10 +3952,10 @@ FAR Term spin_25(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r
   u32 _k_23 = r9;
   WL_SPIN
     u32 _v_104 = 0;
-    Term _a_9 = 200ull;
+    Term _a_9 = 180ull;
     u32 _v_105 = 0;
     Term _o_50[WL_OSZ(1)];
-    if (spin_14(e, _o_50, 1ull, ((u32)(_a_9) == 0 ? 0 : (u64)U32_QUO((u32)(_k_22), (u32)(_a_9)))) == 0) {
+    if (spin_14(e, _o_50, 2ull, ((u32)(_a_9) == 0 ? 0 : (u64)U32_QUO((u32)(_k_22), (u32)(_a_9)))) == 0) {
       return 0;
     }
     _v_105 = _o_50[0];
@@ -3935,380 +3982,381 @@ FAR Term spin_25(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r
     }
     _v_110 = _o_52[0];
     _v_107 = _v_110;
-    u32 _oz_0 = f32_rewrap(f32_unbox(_k_16) * f32_unbox(1113325568ull));
+    u32 _oz_0 = f32_rewrap(f32_unbox(_k_16) * f32_unbox(1106247680ull));
+    u32 _ox_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1109393408ull) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(_k_16) * f32_unbox(1028443341ull)))))))) + f32_unbox(f32_rewrap(f32_unbox(1097859072ull) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(_k_16) * f32_unbox(1040522936ull)))))))));
+    u32 _yaw_0 = f32_rewrap((f32)atan(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1073741824ull) * f32_unbox(f32_rewrap((f32)cos(f32_unbox(f32_rewrap(f32_unbox(_k_16) * f32_unbox(1028443341ull)))))))) + f32_unbox(f32_rewrap(f32_unbox(1073322394ull) * f32_unbox(f32_rewrap((f32)cos(f32_unbox(f32_rewrap(f32_unbox(_k_16) * f32_unbox(1040522936ull)))))))))) / f32_unbox(1106247680ull)))));
+    u32 _bank_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(0ull) - f32_unbox(1067030938ull))) * f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1036831949ull) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(_k_16) * f32_unbox(1028443341ull)))))))) + f32_unbox(f32_rewrap(f32_unbox(1048693441ull) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(_k_16) * f32_unbox(1040522936ull)))))))))));
     u32 _v_111 = 0;
     u32 _v_112 = 0;
-    Term _o_53[WL_OSZ(1)];
-    if (spin_5(e, _o_53, _oz_0) == 0) {
-      return 0;
-    }
-    _v_112 = _o_53[0];
-    _v_111 = _v_112;
-    u32 _oy_0 = f32_rewrap(f32_unbox(1077936128ull) + f32_unbox(f32_rewrap(f32_unbox(_v_107) * f32_unbox(1069547520ull))));
-    u32 _za_0 = f32_rewrap(f32_unbox(_oz_0) + f32_unbox(1109393408ull));
     u32 _v_113 = 0;
     u32 _v_114 = 0;
-    Term _o_54[WL_OSZ(1)];
-    if (spin_5(e, _o_54, _za_0) == 0) {
+    Term _o_53[WL_OSZ(1)];
+    if (spin_0(e, _o_53, _ox_0, _oz_0, _ox_0, _oz_0, _k_16, _k_17, _k_18, _k_19, _k_20, _k_21, _k_22, _k_23) == 0) {
       return 0;
     }
-    _v_114 = _o_54[0];
+    _v_114 = _o_53[0];
     _v_113 = _v_114;
-    u32 _yaw_0 = f32_rewrap((f32)atan(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_v_113) - f32_unbox(_v_111))) / f32_unbox(1109393408ull)))));
-    u32 _bend_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(0ull) - f32_unbox(1114636288ull))) * f32_unbox(931542973ull))) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(_za_0) * f32_unbox(998445679ull)))))))) - f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1103626240ull) * f32_unbox(956154209ull))) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_za_0) * f32_unbox(1010055512ull))) + f32_unbox(1065353216ull)))))))));
-    u32 _bank_0 = f32_rewrap((f32)atan(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_bend_0) * f32_unbox(1161629696ull))) / f32_unbox(1106247680ull)))));
+    u32 _v_115 = 0;
+    u32 _v_116 = 0;
+    Term _o_54[WL_OSZ(1)];
+    if (spin_0(e, _o_54, _ox_0, f32_rewrap(f32_unbox(_oz_0) + f32_unbox(1103626240ull)), _ox_0, _oz_0, _k_16, _k_17, _k_18, _k_19, _k_20, _k_21, _k_22, _k_23) == 0) {
+      return 0;
+    }
+    _v_116 = _o_54[0];
+    _v_115 = _v_116;
+    u32 _v_117 = 0;
+    Term _o_55[WL_OSZ(1)];
+    if (spin_1(e, _o_55, _v_113, _v_115) == 0) {
+      return 0;
+    }
+    _v_117 = _o_55[0];
+    _v_112 = _v_117;
+    u32 _v_118 = 0;
+    Term _o_56[WL_OSZ(1)];
+    if (spin_1(e, _o_56, 1109393408ull, f32_rewrap(f32_unbox(_v_112) + f32_unbox(1102053376ull))) == 0) {
+      return 0;
+    }
+    _v_118 = _o_56[0];
+    _v_111 = _v_118;
+    u32 _oy_0 = f32_rewrap(f32_unbox(_v_111) + f32_unbox(f32_rewrap(f32_unbox(_k_20) * f32_unbox(1069547520ull))));
     u32 _cb_0 = f32_rewrap((f32)cos(f32_unbox(_bank_0)));
     u32 _sb_0 = f32_rewrap((f32)sin(f32_unbox(_bank_0)));
     u32 _ur_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_u_1) * f32_unbox(_cb_0))) + f32_unbox(f32_rewrap(f32_unbox(_v_106) * f32_unbox(_sb_0))));
-    u32 _vr_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_v_106) * f32_unbox(_cb_0))) - f32_unbox(f32_rewrap(f32_unbox(_u_1) * f32_unbox(_sb_0))))) - f32_unbox(1025758986ull));
+    u32 _vr_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_v_106) * f32_unbox(_cb_0))) - f32_unbox(f32_rewrap(f32_unbox(_u_1) * f32_unbox(_sb_0))))) - f32_unbox(1047904911ull));
     u32 _fx_0 = f32_rewrap((f32)sin(f32_unbox(_yaw_0)));
     u32 _fz_0 = f32_rewrap((f32)cos(f32_unbox(_yaw_0)));
     u32 _dx_1 = f32_rewrap(f32_unbox(_fx_0) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_ur_0) * f32_unbox(1066192077ull))) * f32_unbox(_fz_0))));
     u32 _dz_1 = f32_rewrap(f32_unbox(_fz_0) - f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_ur_0) * f32_unbox(1066192077ull))) * f32_unbox(_fx_0))));
     u32 _slope_0 = f32_rewrap(f32_unbox(_vr_0) * f32_unbox(1066192077ull));
     u32 _d2_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1056964608ull) + f32_unbox(1053609165ull))) + f32_unbox(f32_rewrap(f32_unbox(1056964608ull) * f32_unbox(1017370378ull))));
-    u32 _v_115 = 0;
-    u32 _v_116 = 0;
-    u32 _v_117 = 0;
-    Term _o_55[WL_OSZ(1)];
-    if (spin_6(e, _o_55, f32_rewrap(f32_unbox(_v_111) + f32_unbox(f32_rewrap(f32_unbox(_dx_1) * f32_unbox(_d2_0)))), f32_rewrap(f32_unbox(_oz_0) + f32_unbox(f32_rewrap(f32_unbox(_dz_1) * f32_unbox(_d2_0))))) == 0) {
-      return 0;
-    }
-    _v_117 = _o_55[0];
-    _v_116 = _v_117;
-    u32 _v_118 = 0;
-    Term _o_56[WL_OSZ(1)];
-    if (spin_1(e, _o_56, _v_116, f32_rewrap(f32_unbox(0ull) - f32_unbox(1082130432ull))) == 0) {
-      return 0;
-    }
-    _v_118 = _o_56[0];
-    _v_115 = _v_118;
-    u32 _gap2_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_oy_0) + f32_unbox(f32_rewrap(f32_unbox(_slope_0) * f32_unbox(_d2_0))))) - f32_unbox(_v_115));
     u32 _v_119 = 0;
     u32 _v_120 = 0;
-    Term _o_57[WL_OSZ(1)];
-    if (spin_15(e, _o_57, 219ull, ((u64)(f32_unbox(_gap2_0) < f32_unbox(0ull))), _d2_0, _gap2_0, _v_111, _oy_0, _oz_0, _dx_1, _dz_1, _slope_0) == 0) {
-      return 0;
-    }
-    _v_120 = _o_57[0];
-    _v_119 = _v_120;
     u32 _v_121 = 0;
-    u32 _v_122 = 0;
-    u32 _v_123 = 0;
-    Term _o_58[WL_OSZ(1)];
-    if (spin_1(e, _o_58, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_v_119) - f32_unbox(1203982208ull))) * f32_unbox(1315859240ull))) == 0) {
+    Term _o_57[WL_OSZ(1)];
+    if (spin_6(e, _o_57, f32_rewrap(f32_unbox(_ox_0) + f32_unbox(f32_rewrap(f32_unbox(_dx_1) * f32_unbox(_d2_0)))), f32_rewrap(f32_unbox(_oz_0) + f32_unbox(f32_rewrap(f32_unbox(_dz_1) * f32_unbox(_d2_0)))), _ox_0, _oz_0, _k_16, _k_17, _k_18, _k_19, _k_20, _k_21, _k_22, _k_23) == 0) {
       return 0;
     }
-    _v_123 = _o_58[0];
-    _v_122 = _v_123;
+    _v_121 = _o_57[0];
+    _v_120 = _v_121;
+    u32 _v_122 = 0;
+    Term _o_58[WL_OSZ(1)];
+    if (spin_1(e, _o_58, _v_120, 0ull) == 0) {
+      return 0;
+    }
+    _v_122 = _o_58[0];
+    _v_119 = _v_122;
+    u32 _gap2_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_oy_0) + f32_unbox(f32_rewrap(f32_unbox(_slope_0) * f32_unbox(_d2_0))))) - f32_unbox(_v_119));
+    u32 _v_123 = 0;
     u32 _v_124 = 0;
     Term _o_59[WL_OSZ(1)];
-    if (spin_3(e, _o_59, 1065353216ull, _v_122) == 0) {
+    if (spin_15(e, _o_59, 219ull, ((u64)(f32_unbox(_gap2_0) < f32_unbox(0ull))), _d2_0, _gap2_0, _ox_0, _oy_0, _oz_0, _dx_1, _dz_1, _slope_0, _k_16, _k_17, _k_18, _k_19, _k_20, _k_21, _k_22, _k_23) == 0) {
       return 0;
     }
     _v_124 = _o_59[0];
-    _v_121 = _v_124;
-    u32 _a_12 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_v_119) - f32_unbox(1053609165ull))) / f32_unbox(1065520988ull));
-    u32 _mid_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_a_12) + f32_unbox(_v_119))) * f32_unbox(1056964608ull));
+    _v_123 = _v_124;
     u32 _v_125 = 0;
     u32 _v_126 = 0;
     u32 _v_127 = 0;
     Term _o_60[WL_OSZ(1)];
-    if (spin_6(e, _o_60, f32_rewrap(f32_unbox(_v_111) + f32_unbox(f32_rewrap(f32_unbox(_dx_1) * f32_unbox(_mid_0)))), f32_rewrap(f32_unbox(_oz_0) + f32_unbox(f32_rewrap(f32_unbox(_dz_1) * f32_unbox(_mid_0))))) == 0) {
+    if (spin_1(e, _o_60, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_v_123) - f32_unbox(1203982208ull))) * f32_unbox(1315859240ull))) == 0) {
       return 0;
     }
     _v_127 = _o_60[0];
     _v_126 = _v_127;
     u32 _v_128 = 0;
     Term _o_61[WL_OSZ(1)];
-    if (spin_1(e, _o_61, _v_126, f32_rewrap(f32_unbox(0ull) - f32_unbox(1082130432ull))) == 0) {
+    if (spin_3(e, _o_61, 1065353216ull, _v_126) == 0) {
       return 0;
     }
     _v_128 = _o_61[0];
     _v_125 = _v_128;
-    u32 _gap_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_oy_0) + f32_unbox(f32_rewrap(f32_unbox(_slope_0) * f32_unbox(_mid_0))))) - f32_unbox(_v_125));
+    u32 _a_12 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_v_123) - f32_unbox(1053609165ull))) / f32_unbox(1065520988ull));
+    u32 _mid_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_a_12) + f32_unbox(_v_123))) * f32_unbox(1056964608ull));
     u32 _v_129 = 0;
     u32 _v_130 = 0;
     u32 _v_131 = 0;
     Term _o_62[WL_OSZ(1)];
-    if (spin_1(e, _o_62, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(0ull) - f32_unbox(_gap_0))) * f32_unbox(1315859240ull))) == 0) {
+    if (spin_6(e, _o_62, f32_rewrap(f32_unbox(_ox_0) + f32_unbox(f32_rewrap(f32_unbox(_dx_1) * f32_unbox(_mid_0)))), f32_rewrap(f32_unbox(_oz_0) + f32_unbox(f32_rewrap(f32_unbox(_dz_1) * f32_unbox(_mid_0)))), _ox_0, _oz_0, _k_16, _k_17, _k_18, _k_19, _k_20, _k_21, _k_22, _k_23) == 0) {
       return 0;
     }
     _v_131 = _o_62[0];
     _v_130 = _v_131;
     u32 _v_132 = 0;
     Term _o_63[WL_OSZ(1)];
-    if (spin_3(e, _o_63, 1065353216ull, _v_130) == 0) {
+    if (spin_1(e, _o_63, _v_130, 0ull) == 0) {
       return 0;
     }
     _v_132 = _o_63[0];
     _v_129 = _v_132;
-    u32 _a_13 = f32_rewrap(f32_unbox(_a_12) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_mid_0) - f32_unbox(_a_12))) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_129))))));
-    u32 _a_14 = f32_rewrap(f32_unbox(_v_119) - f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_v_119) - f32_unbox(_mid_0))) * f32_unbox(_v_129))));
-    u32 _mid_1 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_a_13) + f32_unbox(_a_14))) * f32_unbox(1056964608ull));
+    u32 _gap_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_oy_0) + f32_unbox(f32_rewrap(f32_unbox(_slope_0) * f32_unbox(_mid_0))))) - f32_unbox(_v_129));
     u32 _v_133 = 0;
     u32 _v_134 = 0;
     u32 _v_135 = 0;
     Term _o_64[WL_OSZ(1)];
-    if (spin_6(e, _o_64, f32_rewrap(f32_unbox(_v_111) + f32_unbox(f32_rewrap(f32_unbox(_dx_1) * f32_unbox(_mid_1)))), f32_rewrap(f32_unbox(_oz_0) + f32_unbox(f32_rewrap(f32_unbox(_dz_1) * f32_unbox(_mid_1))))) == 0) {
+    if (spin_1(e, _o_64, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(0ull) - f32_unbox(_gap_0))) * f32_unbox(1315859240ull))) == 0) {
       return 0;
     }
     _v_135 = _o_64[0];
     _v_134 = _v_135;
     u32 _v_136 = 0;
     Term _o_65[WL_OSZ(1)];
-    if (spin_1(e, _o_65, _v_134, f32_rewrap(f32_unbox(0ull) - f32_unbox(1082130432ull))) == 0) {
+    if (spin_3(e, _o_65, 1065353216ull, _v_134) == 0) {
       return 0;
     }
     _v_136 = _o_65[0];
     _v_133 = _v_136;
-    u32 _gap_1 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_oy_0) + f32_unbox(f32_rewrap(f32_unbox(_slope_0) * f32_unbox(_mid_1))))) - f32_unbox(_v_133));
+    u32 _a_13 = f32_rewrap(f32_unbox(_a_12) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_mid_0) - f32_unbox(_a_12))) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_133))))));
+    u32 _a_14 = f32_rewrap(f32_unbox(_v_123) - f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_v_123) - f32_unbox(_mid_0))) * f32_unbox(_v_133))));
+    u32 _mid_1 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_a_13) + f32_unbox(_a_14))) * f32_unbox(1056964608ull));
     u32 _v_137 = 0;
     u32 _v_138 = 0;
     u32 _v_139 = 0;
     Term _o_66[WL_OSZ(1)];
-    if (spin_1(e, _o_66, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(0ull) - f32_unbox(_gap_1))) * f32_unbox(1315859240ull))) == 0) {
+    if (spin_6(e, _o_66, f32_rewrap(f32_unbox(_ox_0) + f32_unbox(f32_rewrap(f32_unbox(_dx_1) * f32_unbox(_mid_1)))), f32_rewrap(f32_unbox(_oz_0) + f32_unbox(f32_rewrap(f32_unbox(_dz_1) * f32_unbox(_mid_1)))), _ox_0, _oz_0, _k_16, _k_17, _k_18, _k_19, _k_20, _k_21, _k_22, _k_23) == 0) {
       return 0;
     }
     _v_139 = _o_66[0];
     _v_138 = _v_139;
     u32 _v_140 = 0;
     Term _o_67[WL_OSZ(1)];
-    if (spin_3(e, _o_67, 1065353216ull, _v_138) == 0) {
+    if (spin_1(e, _o_67, _v_138, 0ull) == 0) {
       return 0;
     }
     _v_140 = _o_67[0];
     _v_137 = _v_140;
-    u32 _a_15 = f32_rewrap(f32_unbox(_a_13) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_mid_1) - f32_unbox(_a_13))) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_137))))));
-    u32 _a_16 = f32_rewrap(f32_unbox(_a_14) - f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_a_14) - f32_unbox(_mid_1))) * f32_unbox(_v_137))));
-    u32 _mid_2 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_a_15) + f32_unbox(_a_16))) * f32_unbox(1056964608ull));
+    u32 _gap_1 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_oy_0) + f32_unbox(f32_rewrap(f32_unbox(_slope_0) * f32_unbox(_mid_1))))) - f32_unbox(_v_137));
     u32 _v_141 = 0;
     u32 _v_142 = 0;
     u32 _v_143 = 0;
     Term _o_68[WL_OSZ(1)];
-    if (spin_6(e, _o_68, f32_rewrap(f32_unbox(_v_111) + f32_unbox(f32_rewrap(f32_unbox(_dx_1) * f32_unbox(_mid_2)))), f32_rewrap(f32_unbox(_oz_0) + f32_unbox(f32_rewrap(f32_unbox(_dz_1) * f32_unbox(_mid_2))))) == 0) {
+    if (spin_1(e, _o_68, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(0ull) - f32_unbox(_gap_1))) * f32_unbox(1315859240ull))) == 0) {
       return 0;
     }
     _v_143 = _o_68[0];
     _v_142 = _v_143;
     u32 _v_144 = 0;
     Term _o_69[WL_OSZ(1)];
-    if (spin_1(e, _o_69, _v_142, f32_rewrap(f32_unbox(0ull) - f32_unbox(1082130432ull))) == 0) {
+    if (spin_3(e, _o_69, 1065353216ull, _v_142) == 0) {
       return 0;
     }
     _v_144 = _o_69[0];
     _v_141 = _v_144;
-    u32 _gap_2 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_oy_0) + f32_unbox(f32_rewrap(f32_unbox(_slope_0) * f32_unbox(_mid_2))))) - f32_unbox(_v_141));
+    u32 _a_15 = f32_rewrap(f32_unbox(_a_13) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_mid_1) - f32_unbox(_a_13))) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_141))))));
+    u32 _a_16 = f32_rewrap(f32_unbox(_a_14) - f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_a_14) - f32_unbox(_mid_1))) * f32_unbox(_v_141))));
+    u32 _mid_2 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_a_15) + f32_unbox(_a_16))) * f32_unbox(1056964608ull));
     u32 _v_145 = 0;
     u32 _v_146 = 0;
     u32 _v_147 = 0;
     Term _o_70[WL_OSZ(1)];
-    if (spin_1(e, _o_70, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(0ull) - f32_unbox(_gap_2))) * f32_unbox(1315859240ull))) == 0) {
+    if (spin_6(e, _o_70, f32_rewrap(f32_unbox(_ox_0) + f32_unbox(f32_rewrap(f32_unbox(_dx_1) * f32_unbox(_mid_2)))), f32_rewrap(f32_unbox(_oz_0) + f32_unbox(f32_rewrap(f32_unbox(_dz_1) * f32_unbox(_mid_2)))), _ox_0, _oz_0, _k_16, _k_17, _k_18, _k_19, _k_20, _k_21, _k_22, _k_23) == 0) {
       return 0;
     }
     _v_147 = _o_70[0];
     _v_146 = _v_147;
     u32 _v_148 = 0;
     Term _o_71[WL_OSZ(1)];
-    if (spin_3(e, _o_71, 1065353216ull, _v_146) == 0) {
+    if (spin_1(e, _o_71, _v_146, 0ull) == 0) {
       return 0;
     }
     _v_148 = _o_71[0];
     _v_145 = _v_148;
-    u32 _a_17 = f32_rewrap(f32_unbox(_a_15) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_mid_2) - f32_unbox(_a_15))) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_145))))));
-    u32 _a_18 = f32_rewrap(f32_unbox(_a_16) - f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_a_16) - f32_unbox(_mid_2))) * f32_unbox(_v_145))));
-    u32 _mid_3 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_a_17) + f32_unbox(_a_18))) * f32_unbox(1056964608ull));
+    u32 _gap_2 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_oy_0) + f32_unbox(f32_rewrap(f32_unbox(_slope_0) * f32_unbox(_mid_2))))) - f32_unbox(_v_145));
     u32 _v_149 = 0;
     u32 _v_150 = 0;
     u32 _v_151 = 0;
     Term _o_72[WL_OSZ(1)];
-    if (spin_6(e, _o_72, f32_rewrap(f32_unbox(_v_111) + f32_unbox(f32_rewrap(f32_unbox(_dx_1) * f32_unbox(_mid_3)))), f32_rewrap(f32_unbox(_oz_0) + f32_unbox(f32_rewrap(f32_unbox(_dz_1) * f32_unbox(_mid_3))))) == 0) {
+    if (spin_1(e, _o_72, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(0ull) - f32_unbox(_gap_2))) * f32_unbox(1315859240ull))) == 0) {
       return 0;
     }
     _v_151 = _o_72[0];
     _v_150 = _v_151;
     u32 _v_152 = 0;
     Term _o_73[WL_OSZ(1)];
-    if (spin_1(e, _o_73, _v_150, f32_rewrap(f32_unbox(0ull) - f32_unbox(1082130432ull))) == 0) {
+    if (spin_3(e, _o_73, 1065353216ull, _v_150) == 0) {
       return 0;
     }
     _v_152 = _o_73[0];
     _v_149 = _v_152;
-    u32 _gap_3 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_oy_0) + f32_unbox(f32_rewrap(f32_unbox(_slope_0) * f32_unbox(_mid_3))))) - f32_unbox(_v_149));
+    u32 _a_17 = f32_rewrap(f32_unbox(_a_15) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_mid_2) - f32_unbox(_a_15))) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_149))))));
+    u32 _a_18 = f32_rewrap(f32_unbox(_a_16) - f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_a_16) - f32_unbox(_mid_2))) * f32_unbox(_v_149))));
+    u32 _mid_3 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_a_17) + f32_unbox(_a_18))) * f32_unbox(1056964608ull));
     u32 _v_153 = 0;
     u32 _v_154 = 0;
     u32 _v_155 = 0;
     Term _o_74[WL_OSZ(1)];
-    if (spin_1(e, _o_74, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(0ull) - f32_unbox(_gap_3))) * f32_unbox(1315859240ull))) == 0) {
+    if (spin_6(e, _o_74, f32_rewrap(f32_unbox(_ox_0) + f32_unbox(f32_rewrap(f32_unbox(_dx_1) * f32_unbox(_mid_3)))), f32_rewrap(f32_unbox(_oz_0) + f32_unbox(f32_rewrap(f32_unbox(_dz_1) * f32_unbox(_mid_3)))), _ox_0, _oz_0, _k_16, _k_17, _k_18, _k_19, _k_20, _k_21, _k_22, _k_23) == 0) {
       return 0;
     }
     _v_155 = _o_74[0];
     _v_154 = _v_155;
     u32 _v_156 = 0;
     Term _o_75[WL_OSZ(1)];
-    if (spin_3(e, _o_75, 1065353216ull, _v_154) == 0) {
+    if (spin_1(e, _o_75, _v_154, 0ull) == 0) {
       return 0;
     }
     _v_156 = _o_75[0];
     _v_153 = _v_156;
-    u32 _a_19 = f32_rewrap(f32_unbox(_a_17) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_mid_3) - f32_unbox(_a_17))) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_153))))));
-    u32 _a_20 = f32_rewrap(f32_unbox(_a_18) - f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_a_18) - f32_unbox(_mid_3))) * f32_unbox(_v_153))));
-    u32 _mid_4 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_a_19) + f32_unbox(_a_20))) * f32_unbox(1056964608ull));
+    u32 _gap_3 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_oy_0) + f32_unbox(f32_rewrap(f32_unbox(_slope_0) * f32_unbox(_mid_3))))) - f32_unbox(_v_153));
     u32 _v_157 = 0;
     u32 _v_158 = 0;
     u32 _v_159 = 0;
     Term _o_76[WL_OSZ(1)];
-    if (spin_6(e, _o_76, f32_rewrap(f32_unbox(_v_111) + f32_unbox(f32_rewrap(f32_unbox(_dx_1) * f32_unbox(_mid_4)))), f32_rewrap(f32_unbox(_oz_0) + f32_unbox(f32_rewrap(f32_unbox(_dz_1) * f32_unbox(_mid_4))))) == 0) {
+    if (spin_1(e, _o_76, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(0ull) - f32_unbox(_gap_3))) * f32_unbox(1315859240ull))) == 0) {
       return 0;
     }
     _v_159 = _o_76[0];
     _v_158 = _v_159;
     u32 _v_160 = 0;
     Term _o_77[WL_OSZ(1)];
-    if (spin_1(e, _o_77, _v_158, f32_rewrap(f32_unbox(0ull) - f32_unbox(1082130432ull))) == 0) {
+    if (spin_3(e, _o_77, 1065353216ull, _v_158) == 0) {
       return 0;
     }
     _v_160 = _o_77[0];
     _v_157 = _v_160;
-    u32 _gap_4 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_oy_0) + f32_unbox(f32_rewrap(f32_unbox(_slope_0) * f32_unbox(_mid_4))))) - f32_unbox(_v_157));
+    u32 _a_19 = f32_rewrap(f32_unbox(_a_17) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_mid_3) - f32_unbox(_a_17))) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_157))))));
+    u32 _a_20 = f32_rewrap(f32_unbox(_a_18) - f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_a_18) - f32_unbox(_mid_3))) * f32_unbox(_v_157))));
+    u32 _mid_4 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_a_19) + f32_unbox(_a_20))) * f32_unbox(1056964608ull));
     u32 _v_161 = 0;
     u32 _v_162 = 0;
     u32 _v_163 = 0;
     Term _o_78[WL_OSZ(1)];
-    if (spin_1(e, _o_78, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(0ull) - f32_unbox(_gap_4))) * f32_unbox(1315859240ull))) == 0) {
+    if (spin_6(e, _o_78, f32_rewrap(f32_unbox(_ox_0) + f32_unbox(f32_rewrap(f32_unbox(_dx_1) * f32_unbox(_mid_4)))), f32_rewrap(f32_unbox(_oz_0) + f32_unbox(f32_rewrap(f32_unbox(_dz_1) * f32_unbox(_mid_4)))), _ox_0, _oz_0, _k_16, _k_17, _k_18, _k_19, _k_20, _k_21, _k_22, _k_23) == 0) {
       return 0;
     }
     _v_163 = _o_78[0];
     _v_162 = _v_163;
     u32 _v_164 = 0;
     Term _o_79[WL_OSZ(1)];
-    if (spin_3(e, _o_79, 1065353216ull, _v_162) == 0) {
+    if (spin_1(e, _o_79, _v_162, 0ull) == 0) {
       return 0;
     }
     _v_164 = _o_79[0];
     _v_161 = _v_164;
-    u32 _a_21 = f32_rewrap(f32_unbox(_a_19) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_mid_4) - f32_unbox(_a_19))) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_161))))));
-    u32 _a_22 = f32_rewrap(f32_unbox(_a_20) - f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_a_20) - f32_unbox(_mid_4))) * f32_unbox(_v_161))));
-    u32 _mid_5 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_a_21) + f32_unbox(_a_22))) * f32_unbox(1056964608ull));
+    u32 _gap_4 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_oy_0) + f32_unbox(f32_rewrap(f32_unbox(_slope_0) * f32_unbox(_mid_4))))) - f32_unbox(_v_161));
     u32 _v_165 = 0;
     u32 _v_166 = 0;
     u32 _v_167 = 0;
     Term _o_80[WL_OSZ(1)];
-    if (spin_6(e, _o_80, f32_rewrap(f32_unbox(_v_111) + f32_unbox(f32_rewrap(f32_unbox(_dx_1) * f32_unbox(_mid_5)))), f32_rewrap(f32_unbox(_oz_0) + f32_unbox(f32_rewrap(f32_unbox(_dz_1) * f32_unbox(_mid_5))))) == 0) {
+    if (spin_1(e, _o_80, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(0ull) - f32_unbox(_gap_4))) * f32_unbox(1315859240ull))) == 0) {
       return 0;
     }
     _v_167 = _o_80[0];
     _v_166 = _v_167;
     u32 _v_168 = 0;
     Term _o_81[WL_OSZ(1)];
-    if (spin_1(e, _o_81, _v_166, f32_rewrap(f32_unbox(0ull) - f32_unbox(1082130432ull))) == 0) {
+    if (spin_3(e, _o_81, 1065353216ull, _v_166) == 0) {
       return 0;
     }
     _v_168 = _o_81[0];
     _v_165 = _v_168;
-    u32 _gap_5 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_oy_0) + f32_unbox(f32_rewrap(f32_unbox(_slope_0) * f32_unbox(_mid_5))))) - f32_unbox(_v_165));
+    u32 _a_21 = f32_rewrap(f32_unbox(_a_19) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_mid_4) - f32_unbox(_a_19))) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_165))))));
+    u32 _a_22 = f32_rewrap(f32_unbox(_a_20) - f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_a_20) - f32_unbox(_mid_4))) * f32_unbox(_v_165))));
+    u32 _mid_5 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_a_21) + f32_unbox(_a_22))) * f32_unbox(1056964608ull));
     u32 _v_169 = 0;
     u32 _v_170 = 0;
     u32 _v_171 = 0;
     Term _o_82[WL_OSZ(1)];
-    if (spin_1(e, _o_82, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(0ull) - f32_unbox(_gap_5))) * f32_unbox(1315859240ull))) == 0) {
+    if (spin_6(e, _o_82, f32_rewrap(f32_unbox(_ox_0) + f32_unbox(f32_rewrap(f32_unbox(_dx_1) * f32_unbox(_mid_5)))), f32_rewrap(f32_unbox(_oz_0) + f32_unbox(f32_rewrap(f32_unbox(_dz_1) * f32_unbox(_mid_5)))), _ox_0, _oz_0, _k_16, _k_17, _k_18, _k_19, _k_20, _k_21, _k_22, _k_23) == 0) {
       return 0;
     }
     _v_171 = _o_82[0];
     _v_170 = _v_171;
     u32 _v_172 = 0;
     Term _o_83[WL_OSZ(1)];
-    if (spin_3(e, _o_83, 1065353216ull, _v_170) == 0) {
+    if (spin_1(e, _o_83, _v_170, 0ull) == 0) {
       return 0;
     }
     _v_172 = _o_83[0];
     _v_169 = _v_172;
-    u32 _a_23 = f32_rewrap(f32_unbox(_a_21) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_mid_5) - f32_unbox(_a_21))) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_169))))));
-    u32 _a_24 = f32_rewrap(f32_unbox(_a_22) - f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_a_22) - f32_unbox(_mid_5))) * f32_unbox(_v_169))));
-    u32 _mid_6 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_a_23) + f32_unbox(_a_24))) * f32_unbox(1056964608ull));
+    u32 _gap_5 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_oy_0) + f32_unbox(f32_rewrap(f32_unbox(_slope_0) * f32_unbox(_mid_5))))) - f32_unbox(_v_169));
     u32 _v_173 = 0;
     u32 _v_174 = 0;
     u32 _v_175 = 0;
     Term _o_84[WL_OSZ(1)];
-    if (spin_6(e, _o_84, f32_rewrap(f32_unbox(_v_111) + f32_unbox(f32_rewrap(f32_unbox(_dx_1) * f32_unbox(_mid_6)))), f32_rewrap(f32_unbox(_oz_0) + f32_unbox(f32_rewrap(f32_unbox(_dz_1) * f32_unbox(_mid_6))))) == 0) {
+    if (spin_1(e, _o_84, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(0ull) - f32_unbox(_gap_5))) * f32_unbox(1315859240ull))) == 0) {
       return 0;
     }
     _v_175 = _o_84[0];
     _v_174 = _v_175;
     u32 _v_176 = 0;
     Term _o_85[WL_OSZ(1)];
-    if (spin_1(e, _o_85, _v_174, f32_rewrap(f32_unbox(0ull) - f32_unbox(1082130432ull))) == 0) {
+    if (spin_3(e, _o_85, 1065353216ull, _v_174) == 0) {
       return 0;
     }
     _v_176 = _o_85[0];
     _v_173 = _v_176;
-    u32 _gap_6 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_oy_0) + f32_unbox(f32_rewrap(f32_unbox(_slope_0) * f32_unbox(_mid_6))))) - f32_unbox(_v_173));
+    u32 _a_23 = f32_rewrap(f32_unbox(_a_21) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_mid_5) - f32_unbox(_a_21))) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_173))))));
+    u32 _a_24 = f32_rewrap(f32_unbox(_a_22) - f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_a_22) - f32_unbox(_mid_5))) * f32_unbox(_v_173))));
+    u32 _mid_6 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_a_23) + f32_unbox(_a_24))) * f32_unbox(1056964608ull));
     u32 _v_177 = 0;
     u32 _v_178 = 0;
     u32 _v_179 = 0;
     Term _o_86[WL_OSZ(1)];
-    if (spin_1(e, _o_86, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(0ull) - f32_unbox(_gap_6))) * f32_unbox(1315859240ull))) == 0) {
+    if (spin_6(e, _o_86, f32_rewrap(f32_unbox(_ox_0) + f32_unbox(f32_rewrap(f32_unbox(_dx_1) * f32_unbox(_mid_6)))), f32_rewrap(f32_unbox(_oz_0) + f32_unbox(f32_rewrap(f32_unbox(_dz_1) * f32_unbox(_mid_6)))), _ox_0, _oz_0, _k_16, _k_17, _k_18, _k_19, _k_20, _k_21, _k_22, _k_23) == 0) {
       return 0;
     }
     _v_179 = _o_86[0];
     _v_178 = _v_179;
     u32 _v_180 = 0;
     Term _o_87[WL_OSZ(1)];
-    if (spin_3(e, _o_87, 1065353216ull, _v_178) == 0) {
+    if (spin_1(e, _o_87, _v_178, 0ull) == 0) {
       return 0;
     }
     _v_180 = _o_87[0];
     _v_177 = _v_180;
-    u32 _a_25 = f32_rewrap(f32_unbox(_a_23) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_mid_6) - f32_unbox(_a_23))) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_177))))));
-    u32 _a_26 = f32_rewrap(f32_unbox(_a_24) - f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_a_24) - f32_unbox(_mid_6))) * f32_unbox(_v_177))));
-    u32 _d_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_v_121) * f32_unbox(_v_119))) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_121))) * f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_a_25) + f32_unbox(_a_26))) * f32_unbox(1056964608ull))))));
-    u32 _px_0 = f32_rewrap(f32_unbox(_v_111) + f32_unbox(f32_rewrap(f32_unbox(_dx_1) * f32_unbox(_d_0))));
-    u32 _pz_0 = f32_rewrap(f32_unbox(_oz_0) + f32_unbox(f32_rewrap(f32_unbox(_dz_1) * f32_unbox(_d_0))));
+    u32 _gap_6 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_oy_0) + f32_unbox(f32_rewrap(f32_unbox(_slope_0) * f32_unbox(_mid_6))))) - f32_unbox(_v_177));
     u32 _v_181 = 0;
     u32 _v_182 = 0;
-    Term _o_88[WL_OSZ(1)];
-    if (spin_6(e, _o_88, _px_0, _pz_0) == 0) {
-      return 0;
-    }
-    _v_182 = _o_88[0];
-    _v_181 = _v_182;
     u32 _v_183 = 0;
-    u32 _v_184 = 0;
-    u32 _v_185 = 0;
-    Term _o_89[WL_OSZ(1)];
-    if (spin_1(e, _o_89, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(0ull) - f32_unbox(1082130432ull))) - f32_unbox(_v_181))) * f32_unbox(1315859240ull))) == 0) {
+    Term _o_88[WL_OSZ(1)];
+    if (spin_1(e, _o_88, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(0ull) - f32_unbox(_gap_6))) * f32_unbox(1315859240ull))) == 0) {
       return 0;
     }
-    _v_185 = _o_89[0];
-    _v_184 = _v_185;
+    _v_183 = _o_88[0];
+    _v_182 = _v_183;
+    u32 _v_184 = 0;
+    Term _o_89[WL_OSZ(1)];
+    if (spin_3(e, _o_89, 1065353216ull, _v_182) == 0) {
+      return 0;
+    }
+    _v_184 = _o_89[0];
+    _v_181 = _v_184;
+    u32 _a_25 = f32_rewrap(f32_unbox(_a_24) - f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_a_24) - f32_unbox(_mid_6))) * f32_unbox(_v_181))));
+    u32 _d_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_v_125) * f32_unbox(_v_123))) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_125))) * f32_unbox(_a_25))));
+    u32 _px_0 = f32_rewrap(f32_unbox(_ox_0) + f32_unbox(f32_rewrap(f32_unbox(_dx_1) * f32_unbox(_d_0))));
+    u32 _pz_0 = f32_rewrap(f32_unbox(_oz_0) + f32_unbox(f32_rewrap(f32_unbox(_dz_1) * f32_unbox(_d_0))));
+    u32 _py_0 = f32_rewrap(f32_unbox(_oy_0) + f32_unbox(f32_rewrap(f32_unbox(_slope_0) * f32_unbox(_d_0))));
+    u32 _cx_1 = f32_rewrap(f32_unbox(f32_rewrap((f32)floor(f32_unbox(_px_0)))) + f32_unbox(1056964608ull));
+    u32 _cz_1 = f32_rewrap(f32_unbox(f32_rewrap((f32)floor(f32_unbox(_pz_0)))) + f32_unbox(1056964608ull));
+    u32 _v_185 = 0;
     u32 _v_186 = 0;
     Term _o_90[WL_OSZ(1)];
-    if (spin_3(e, _o_90, 1065353216ull, _v_184) == 0) {
+    if (spin_0(e, _o_90, _cx_1, _cz_1, _ox_0, _oz_0, _k_16, _k_17, _k_18, _k_19, _k_20, _k_21, _k_22, _k_23) == 0) {
       return 0;
     }
     _v_186 = _o_90[0];
-    _v_183 = _v_186;
+    _v_185 = _v_186;
+    u32 _land_0 = f32_rewrap((f32)floor(f32_unbox(_v_185)));
     u32 _v_187 = 0;
     u32 _v_188 = 0;
+    u32 _v_189 = 0;
     Term _o_91[WL_OSZ(1)];
-    if (spin_6(e, _o_91, f32_rewrap(f32_unbox(_px_0) + f32_unbox(1058642330ull)), _pz_0) == 0) {
+    if (spin_1(e, _o_91, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(0ull) - f32_unbox(_land_0))) * f32_unbox(1315859240ull))) == 0) {
       return 0;
     }
-    _v_188 = _o_91[0];
-    _v_187 = _v_188;
-    u32 _v_189 = 0;
+    _v_189 = _o_91[0];
+    _v_188 = _v_189;
     u32 _v_190 = 0;
     Term _o_92[WL_OSZ(1)];
-    if (spin_6(e, _o_92, f32_rewrap(f32_unbox(_px_0) - f32_unbox(1058642330ull)), _pz_0) == 0) {
+    if (spin_3(e, _o_92, 1065353216ull, _v_188) == 0) {
       return 0;
     }
     _v_190 = _o_92[0];
-    _v_189 = _v_190;
-    u32 _hx_0 = f32_rewrap(f32_unbox(_v_187) - f32_unbox(_v_189));
+    _v_187 = _v_190;
     u32 _v_191 = 0;
     u32 _v_192 = 0;
     Term _o_93[WL_OSZ(1)];
-    if (spin_6(e, _o_93, _px_0, f32_rewrap(f32_unbox(_pz_0) + f32_unbox(1058642330ull))) == 0) {
+    if (spin_0(e, _o_93, f32_rewrap(f32_unbox(_cx_1) + f32_unbox(1058642330ull)), _cz_1, _ox_0, _oz_0, _k_16, _k_17, _k_18, _k_19, _k_20, _k_21, _k_22, _k_23) == 0) {
       return 0;
     }
     _v_192 = _o_93[0];
@@ -4316,52 +4364,43 @@ FAR Term spin_25(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r
     u32 _v_193 = 0;
     u32 _v_194 = 0;
     Term _o_94[WL_OSZ(1)];
-    if (spin_6(e, _o_94, _px_0, f32_rewrap(f32_unbox(_pz_0) - f32_unbox(1058642330ull))) == 0) {
+    if (spin_0(e, _o_94, f32_rewrap(f32_unbox(_cx_1) - f32_unbox(1058642330ull)), _cz_1, _ox_0, _oz_0, _k_16, _k_17, _k_18, _k_19, _k_20, _k_21, _k_22, _k_23) == 0) {
       return 0;
     }
     _v_194 = _o_94[0];
     _v_193 = _v_194;
-    u32 _hz_0 = f32_rewrap(f32_unbox(_v_191) - f32_unbox(_v_193));
-    u32 _nl_0 = f32_rewrap((f32)sqrt(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_hx_0) * f32_unbox(_hx_0))) + f32_unbox(1069044204ull))) + f32_unbox(f32_rewrap(f32_unbox(_hz_0) * f32_unbox(_hz_0)))))));
-    u32 _ny_0 = f32_rewrap(f32_unbox(1067030938ull) / f32_unbox(_nl_0));
+    u32 _hx_0 = f32_rewrap(f32_unbox(_v_191) - f32_unbox(_v_193));
     u32 _v_195 = 0;
     u32 _v_196 = 0;
     Term _o_95[WL_OSZ(1)];
-    if (spin_1(e, _o_95, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(0ull) - f32_unbox(_hx_0))) * f32_unbox(1057803469ull))) + f32_unbox(f32_rewrap(f32_unbox(1067030938ull) * f32_unbox(1058977874ull))))) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(0ull) - f32_unbox(_hz_0))) * f32_unbox(1057971241ull))))) / f32_unbox(_nl_0))) == 0) {
+    if (spin_0(e, _o_95, _cx_1, f32_rewrap(f32_unbox(_cz_1) + f32_unbox(1058642330ull)), _ox_0, _oz_0, _k_16, _k_17, _k_18, _k_19, _k_20, _k_21, _k_22, _k_23) == 0) {
       return 0;
     }
     _v_196 = _o_95[0];
     _v_195 = _v_196;
-    u32 _lit_0 = f32_rewrap(f32_unbox(1050924810ull) + f32_unbox(f32_rewrap(f32_unbox(1062836634ull) * f32_unbox(_v_195))));
-    u32 _band_0 = f32_rewrap(f32_unbox(1056964608ull) + f32_unbox(f32_rewrap(f32_unbox(1056964608ull) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(_v_181) * f32_unbox(1057803469ull)))))))));
-    u32 _fine_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1063675494ull) + f32_unbox(f32_rewrap(f32_unbox(1036831949ull) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(_v_181) * f32_unbox(1075000115ull)))))))))) * f32_unbox(f32_rewrap(f32_unbox(1062333317ull) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1043878380ull) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_px_0) * f32_unbox(1060320051ull))) + f32_unbox(f32_rewrap(f32_unbox(_pz_0) * f32_unbox(1056964608ull)))))))))) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_pz_0) * f32_unbox(1050589266ull))) - f32_unbox(f32_rewrap(f32_unbox(_px_0) * f32_unbox(1047233823ull)))))))))))));
     u32 _v_197 = 0;
     u32 _v_198 = 0;
-    u32 _v_199 = 0;
     Term _o_96[WL_OSZ(1)];
-    if (spin_1(e, _o_96, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_ny_0) - f32_unbox(1063675494ull))) * f32_unbox(1094713344ull))) == 0) {
+    if (spin_0(e, _o_96, _cx_1, f32_rewrap(f32_unbox(_cz_1) - f32_unbox(1058642330ull)), _ox_0, _oz_0, _k_16, _k_17, _k_18, _k_19, _k_20, _k_21, _k_22, _k_23) == 0) {
       return 0;
     }
-    _v_199 = _o_96[0];
-    _v_198 = _v_199;
+    _v_198 = _o_96[0];
+    _v_197 = _v_198;
+    u32 _hz_0 = f32_rewrap(f32_unbox(_v_195) - f32_unbox(_v_197));
+    u32 _nl_0 = f32_rewrap((f32)sqrt(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_hx_0) * f32_unbox(_hx_0))) + f32_unbox(1069044204ull))) + f32_unbox(f32_rewrap(f32_unbox(_hz_0) * f32_unbox(_hz_0)))))));
+    u32 _v_199 = 0;
     u32 _v_200 = 0;
     Term _o_97[WL_OSZ(1)];
-    if (spin_3(e, _o_97, 1065353216ull, _v_198) == 0) {
+    if (spin_1(e, _o_97, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(0ull) - f32_unbox(_hx_0))) * f32_unbox(1057803469ull))) + f32_unbox(f32_rewrap(f32_unbox(1067030938ull) * f32_unbox(1058977874ull))))) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(0ull) - f32_unbox(_hz_0))) * f32_unbox(1057971241ull))))) / f32_unbox(_nl_0))) == 0) {
       return 0;
     }
     _v_200 = _o_97[0];
-    _v_197 = _v_200;
-    u32 _rr_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1058977874ull) + f32_unbox(f32_rewrap(f32_unbox(1046562734ull) * f32_unbox(_band_0))))) * f32_unbox(_fine_0))) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_197))))) + f32_unbox(f32_rewrap(f32_unbox(1056964608ull) * f32_unbox(_v_197))));
-    u32 _rg_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1049247089ull) + f32_unbox(f32_rewrap(f32_unbox(1050253722ull) * f32_unbox(_band_0))))) * f32_unbox(_fine_0))) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_197))))) + f32_unbox(f32_rewrap(f32_unbox(1054615798ull) * f32_unbox(_v_197))));
-    u32 _rb_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1041194025ull) + f32_unbox(f32_rewrap(f32_unbox(1047904911ull) * f32_unbox(_band_0))))) * f32_unbox(_fine_0))) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_197))))) + f32_unbox(f32_rewrap(f32_unbox(1046562734ull) * f32_unbox(_v_197))));
-    u32 _qx_0 = f32_rewrap(f32_unbox(_px_0) + f32_unbox(f32_rewrap(f32_unbox(1075838976ull) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(_pz_0) * f32_unbox(1045891645ull)))))))));
-    u32 _qz_0 = f32_rewrap(f32_unbox(_pz_0) + f32_unbox(f32_rewrap(f32_unbox(1075838976ull) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_px_0) * f32_unbox(1043207291ull))) + f32_unbox(1061997773ull)))))))));
-    u32 _ripple_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_qx_0) * f32_unbox(1067869798ull))) + f32_unbox(f32_rewrap(f32_unbox(_qz_0) * f32_unbox(1053609165ull))))) + f32_unbox(f32_rewrap(f32_unbox(_k_16) * f32_unbox(1082130432ull)))))))) + f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_qz_0) * f32_unbox(1072902963ull))) - f32_unbox(f32_rewrap(f32_unbox(_qx_0) * f32_unbox(1060320051ull))))) - f32_unbox(f32_rewrap(f32_unbox(_k_16) * f32_unbox(1078355558ull)))))))))) + f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_qx_0) * f32_unbox(1077516698ull))) - f32_unbox(f32_rewrap(f32_unbox(_qz_0) * f32_unbox(1075000115ull))))) + f32_unbox(f32_rewrap(f32_unbox(_k_16) * f32_unbox(1084856730ull)))))))));
+    _v_199 = _v_200;
     u32 _v_201 = 0;
     u32 _v_202 = 0;
     u32 _v_203 = 0;
     Term _o_98[WL_OSZ(1)];
-    if (spin_1(e, _o_98, 0ull, f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(f32_rewrap(f32_unbox(_d_0) / f32_unbox(1119092736ull))))) == 0) {
+    if (spin_1(e, _o_98, 0ull, f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_land_0) - f32_unbox(_py_0))) * f32_unbox(1090519040ull))))) == 0) {
       return 0;
     }
     _v_203 = _o_98[0];
@@ -4373,31 +4412,30 @@ FAR Term spin_25(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r
     }
     _v_204 = _o_99[0];
     _v_201 = _v_204;
+    u32 _lit_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1050924810ull) + f32_unbox(f32_rewrap(f32_unbox(1062836634ull) * f32_unbox(_v_199))))) * f32_unbox(f32_rewrap(f32_unbox(1058977874ull) + f32_unbox(f32_rewrap(f32_unbox(1052938076ull) * f32_unbox(_v_201))))));
+    u32 _jh_1 = f32_rewrap(f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_cx_1) * f32_unbox(1095751225ull))) + f32_unbox(f32_rewrap(f32_unbox(_cz_1) * f32_unbox(1117550412ull)))))))) * f32_unbox(1193995904ull));
+    u32 _jit_0 = f32_rewrap(f32_unbox(1063339950ull) + f32_unbox(f32_rewrap(f32_unbox(1047904911ull) * f32_unbox(f32_rewrap(f32_unbox(_jh_1) - f32_unbox(f32_rewrap((f32)floor(f32_unbox(_jh_1)))))))));
     u32 _v_205 = 0;
     u32 _v_206 = 0;
+    u32 _v_207 = 0;
     Term _o_100[WL_OSZ(1)];
-    if (spin_1(e, _o_100, 0ull, f32_rewrap(f32_unbox(_ripple_0) - f32_unbox(1076048691ull))) == 0) {
+    if (spin_1(e, _o_100, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_land_0) - f32_unbox(1069547520ull))) / f32_unbox(1069547520ull))) == 0) {
       return 0;
     }
-    _v_206 = _o_100[0];
-    _v_205 = _v_206;
-    u32 _glint_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_v_205) * f32_unbox(f32_rewrap(f32_unbox(1070386381ull) + f32_unbox(f32_rewrap(f32_unbox(_k_18) * f32_unbox(1073741824ull))))))) + f32_unbox(f32_rewrap(f32_unbox(1022739087ull) * f32_unbox(_ripple_0))))) * f32_unbox(_v_201));
-    u32 _v_207 = 0;
+    _v_207 = _o_100[0];
+    _v_206 = _v_207;
     u32 _v_208 = 0;
     Term _o_101[WL_OSZ(1)];
-    if (spin_3(e, _o_101, 1061158912ull, f32_rewrap(f32_unbox(_d_0) / f32_unbox(1126170624ull))) == 0) {
+    if (spin_3(e, _o_101, 1065353216ull, _v_206) == 0) {
       return 0;
     }
     _v_208 = _o_101[0];
-    _v_207 = _v_208;
-    u32 _gr_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_v_183) * f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1036831949ull) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_207))))) + f32_unbox(f32_rewrap(f32_unbox(1061997773ull) * f32_unbox(_v_207))))) + f32_unbox(_glint_0))))) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_183))) * f32_unbox(_rr_0))) * f32_unbox(_lit_0))));
-    u32 _gg_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_v_183) * f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1049247089ull) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_207))))) + f32_unbox(f32_rewrap(f32_unbox(1059648963ull) * f32_unbox(_v_207))))) + f32_unbox(_glint_0))))) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_183))) * f32_unbox(_rg_0))) * f32_unbox(_lit_0))));
-    u32 _gb_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_v_183) * f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1052266988ull) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_207))))) + f32_unbox(f32_rewrap(f32_unbox(1058977874ull) * f32_unbox(_v_207))))) + f32_unbox(_glint_0))))) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_183))) * f32_unbox(_rb_0))) * f32_unbox(_lit_0))));
+    _v_205 = _v_208;
     u32 _v_209 = 0;
     u32 _v_210 = 0;
     u32 _v_211 = 0;
     Term _o_102[WL_OSZ(1)];
-    if (spin_1(e, _o_102, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_d_0) - f32_unbox(1114636288ull))) / f32_unbox(1137836032ull))) == 0) {
+    if (spin_1(e, _o_102, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_land_0) - f32_unbox(1091567616ull))) / f32_unbox(1082130432ull))) == 0) {
       return 0;
     }
     _v_211 = _o_102[0];
@@ -4413,7 +4451,7 @@ FAR Term spin_25(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r
     u32 _v_214 = 0;
     u32 _v_215 = 0;
     Term _o_104[WL_OSZ(1)];
-    if (spin_1(e, _o_104, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_vr_0) + f32_unbox(1028443341ull))) * f32_unbox(1074580685ull))) == 0) {
+    if (spin_1(e, _o_104, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_land_0) - f32_unbox(1098907648ull))) / f32_unbox(1082130432ull))) == 0) {
       return 0;
     }
     _v_215 = _o_104[0];
@@ -4425,52 +4463,163 @@ FAR Term spin_25(Env e, WL_OUT(o), u32 r0, u32 r1, u32 r2, u32 r3, u32 r4, u32 r
     }
     _v_216 = _o_105[0];
     _v_213 = _v_216;
-    u32 _sr_0 = f32_rewrap(f32_unbox(1064178811ull) - f32_unbox(f32_rewrap(f32_unbox(1059984507ull) * f32_unbox(_v_213))));
-    u32 _sg_0 = f32_rewrap(f32_unbox(1060991140ull) - f32_unbox(f32_rewrap(f32_unbox(1050253722ull) * f32_unbox(_v_213))));
-    u32 _sbl_0 = f32_rewrap(f32_unbox(1057971241ull) + f32_unbox(f32_rewrap(f32_unbox(1045220557ull) * f32_unbox(_v_213))));
-    u32 _r_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_v_121) * f32_unbox(_sr_0))) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_121))) * f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_gr_0) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_209))))) + f32_unbox(f32_rewrap(f32_unbox(1063675494ull) * f32_unbox(_v_209))))))));
-    u32 _g_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_v_121) * f32_unbox(_sg_0))) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_121))) * f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_gg_0) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_209))))) + f32_unbox(f32_rewrap(f32_unbox(1060320051ull) * f32_unbox(_v_209))))))));
-    u32 _b_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_v_121) * f32_unbox(_sbl_0))) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_121))) * f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_gb_0) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_209))))) + f32_unbox(f32_rewrap(f32_unbox(1057971241ull) * f32_unbox(_v_209))))))));
     u32 _v_217 = 0;
     u32 _v_218 = 0;
+    u32 _v_219 = 0;
     Term _o_106[WL_OSZ(1)];
-    if (spin_16(e, _o_106, _bx_0, _by_0) == 0) {
+    if (spin_1(e, _o_106, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_land_0) - f32_unbox(1102577664ull))) / f32_unbox(1077936128ull))) == 0) {
       return 0;
     }
-    _v_218 = _o_106[0];
-    _v_217 = _v_218;
-    u32 _thr_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap((f32)(u32)(_v_217))) + f32_unbox(1056964608ull))) / f32_unbox(1098907648ull));
-    u32 _v_219 = 0;
+    _v_219 = _o_106[0];
+    _v_218 = _v_219;
     u32 _v_220 = 0;
     Term _o_107[WL_OSZ(1)];
-    if (spin_17(e, _o_107, _r_0, _thr_0) == 0) {
+    if (spin_3(e, _o_107, 1065353216ull, _v_218) == 0) {
       return 0;
     }
     _v_220 = _o_107[0];
-    _v_219 = _v_220;
+    _v_217 = _v_220;
+    u32 _cr_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1061997773ull) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_205))))) + f32_unbox(f32_rewrap(f32_unbox(1052266988ull) * f32_unbox(_v_205))))) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_209))))) + f32_unbox(f32_rewrap(f32_unbox(1045220557ull) * f32_unbox(_v_209))))) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_213))))) + f32_unbox(f32_rewrap(f32_unbox(1055957975ull) * f32_unbox(_v_213))))) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_217))))) + f32_unbox(f32_rewrap(f32_unbox(1064011039ull) * f32_unbox(_v_217))));
+    u32 _cg_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1060655596ull) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_205))))) + f32_unbox(f32_rewrap(f32_unbox(1057971241ull) * f32_unbox(_v_205))))) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_209))))) + f32_unbox(f32_rewrap(f32_unbox(1053609165ull) * f32_unbox(_v_209))))) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_213))))) + f32_unbox(f32_rewrap(f32_unbox(1053609165ull) * f32_unbox(_v_213))))) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_217))))) + f32_unbox(f32_rewrap(f32_unbox(1064178811ull) * f32_unbox(_v_217))));
+    u32 _cbl_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1056964608ull) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_205))))) + f32_unbox(f32_rewrap(f32_unbox(1046562734ull) * f32_unbox(_v_205))))) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_209))))) + f32_unbox(f32_rewrap(f32_unbox(1042536202ull) * f32_unbox(_v_209))))) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_213))))) + f32_unbox(f32_rewrap(f32_unbox(1050924810ull) * f32_unbox(_v_213))))) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_217))))) + f32_unbox(f32_rewrap(f32_unbox(1064514355ull) * f32_unbox(_v_217))));
+    u32 _qx_0 = f32_rewrap(f32_unbox(_px_0) + f32_unbox(f32_rewrap(f32_unbox(1075838976ull) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(_pz_0) * f32_unbox(1045891645ull)))))))));
+    u32 _qz_0 = f32_rewrap(f32_unbox(_pz_0) + f32_unbox(f32_rewrap(f32_unbox(1075838976ull) * f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_px_0) * f32_unbox(1043207291ull))) + f32_unbox(1061997773ull)))))))));
+    u32 _swell_0 = f32_rewrap(f32_unbox(1048576000ull) + f32_unbox(f32_rewrap(f32_unbox(1066192077ull) * f32_unbox(_v_107))));
+    u32 _wave_0 = f32_rewrap(f32_unbox(1061997773ull) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_swell_0) * f32_unbox(1039516303ull))) * f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap((f32)cos(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_qx_0) * f32_unbox(1051931443ull))) + f32_unbox(f32_rewrap(f32_unbox(_qz_0) * f32_unbox(1039516303ull))))) + f32_unbox(f32_rewrap(f32_unbox(_k_16) * f32_unbox(1074580685ull)))))))) + f32_unbox(f32_rewrap(f32_unbox(1061997773ull) * f32_unbox(f32_rewrap((f32)cos(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_qz_0) * f32_unbox(1055286886ull))) - f32_unbox(f32_rewrap(f32_unbox(_qx_0) * f32_unbox(1045220557ull))))) - f32_unbox(f32_rewrap(f32_unbox(_k_16) * f32_unbox(1077516698ull)))))))))))) + f32_unbox(f32_rewrap(f32_unbox(1056964608ull) * f32_unbox(f32_rewrap((f32)cos(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_qx_0) * f32_unbox(1063675494ull))) - f32_unbox(f32_rewrap(f32_unbox(_qz_0) * f32_unbox(1060320051ull))))) + f32_unbox(f32_rewrap(f32_unbox(_k_16) * f32_unbox(1082340147ull)))))))))))))));
+    u32 _ripple_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_qx_0) * f32_unbox(1067869798ull))) + f32_unbox(f32_rewrap(f32_unbox(_qz_0) * f32_unbox(1053609165ull))))) + f32_unbox(f32_rewrap(f32_unbox(_k_16) * f32_unbox(1082130432ull)))))))) + f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_qz_0) * f32_unbox(1072902963ull))) - f32_unbox(f32_rewrap(f32_unbox(_qx_0) * f32_unbox(1060320051ull))))) - f32_unbox(f32_rewrap(f32_unbox(_k_16) * f32_unbox(1078355558ull)))))))))) + f32_unbox(f32_rewrap((f32)sin(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_qx_0) * f32_unbox(1077516698ull))) - f32_unbox(f32_rewrap(f32_unbox(_qz_0) * f32_unbox(1075000115ull))))) + f32_unbox(f32_rewrap(f32_unbox(_k_16) * f32_unbox(1084856730ull)))))))));
     u32 _v_221 = 0;
     u32 _v_222 = 0;
+    u32 _v_223 = 0;
     Term _o_108[WL_OSZ(1)];
-    if (spin_17(e, _o_108, _g_0, _thr_0) == 0) {
+    if (spin_1(e, _o_108, 0ull, f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(f32_rewrap(f32_unbox(_d_0) / f32_unbox(1123024896ull))))) == 0) {
       return 0;
     }
-    _v_222 = _o_108[0];
-    _v_221 = _v_222;
-    u32 _v_223 = 0;
+    _v_223 = _o_108[0];
+    _v_222 = _v_223;
     u32 _v_224 = 0;
     Term _o_109[WL_OSZ(1)];
-    if (spin_17(e, _o_109, _b_0, _thr_0) == 0) {
+    if (spin_3(e, _o_109, 1065353216ull, _v_222) == 0) {
       return 0;
     }
     _v_224 = _o_109[0];
-    _v_223 = _v_224;
+    _v_221 = _v_224;
     u32 _v_225 = 0;
+    u32 _v_226 = 0;
     Term _o_110[WL_OSZ(1)];
-    if (spin_8(e, _o_110, _v_219, _v_221, _v_223) == 0) {
+    if (spin_1(e, _o_110, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_ripple_0) - f32_unbox(1076048691ull))) + f32_unbox(f32_rewrap(f32_unbox(1058642330ull) * f32_unbox(_v_107))))) == 0) {
       return 0;
     }
-    _v_225 = _o_110[0];
-    _v_103 = _v_225;
+    _v_226 = _o_110[0];
+    _v_225 = _v_226;
+    u32 _glint_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_v_225) * f32_unbox(f32_rewrap(f32_unbox(1070386381ull) + f32_unbox(f32_rewrap(f32_unbox(_k_18) * f32_unbox(1077936128ull))))))) * f32_unbox(_v_221));
+    u32 _v_227 = 0;
+    u32 _v_228 = 0;
+    u32 _v_229 = 0;
+    Term _o_111[WL_OSZ(1)];
+    if (spin_1(e, _o_111, 0ull, f32_rewrap(f32_unbox(1065353216ull) + f32_unbox(f32_rewrap(f32_unbox(_v_185) / f32_unbox(1077936128ull))))) == 0) {
+      return 0;
+    }
+    _v_229 = _o_111[0];
+    _v_228 = _v_229;
+    u32 _v_230 = 0;
+    Term _o_112[WL_OSZ(1)];
+    if (spin_3(e, _o_112, 1065353216ull, _v_228) == 0) {
+      return 0;
+    }
+    _v_230 = _o_112[0];
+    _v_227 = _v_230;
+    u32 _v_231 = 0;
+    u32 _v_232 = 0;
+    Term _o_113[WL_OSZ(1)];
+    if (spin_3(e, _o_113, 1058642330ull, f32_rewrap(f32_unbox(_d_0) / f32_unbox(1133903872ull))) == 0) {
+      return 0;
+    }
+    _v_232 = _o_113[0];
+    _v_231 = _v_232;
+    u32 _wr_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1031127695ull) + f32_unbox(f32_rewrap(f32_unbox(1050253722ull) * f32_unbox(_v_227))))) * f32_unbox(_wave_0))) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_231))))) + f32_unbox(f32_rewrap(f32_unbox(1061997773ull) * f32_unbox(_v_231))))) + f32_unbox(_glint_0));
+    u32 _wg_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1046562734ull) + f32_unbox(f32_rewrap(f32_unbox(1048911544ull) * f32_unbox(_v_227))))) * f32_unbox(_wave_0))) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_231))))) + f32_unbox(f32_rewrap(f32_unbox(1059648963ull) * f32_unbox(_v_231))))) + f32_unbox(_glint_0));
+    u32 _wb_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1051595899ull) + f32_unbox(f32_rewrap(f32_unbox(1034147594ull) * f32_unbox(_v_227))))) * f32_unbox(_wave_0))) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_231))))) + f32_unbox(f32_rewrap(f32_unbox(1058977874ull) * f32_unbox(_v_231))))) + f32_unbox(_glint_0));
+    u32 _gr_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_v_187) * f32_unbox(_wr_0))) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_187))) * f32_unbox(_cr_0))) * f32_unbox(_jit_0))) * f32_unbox(_lit_0))));
+    u32 _gg_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_v_187) * f32_unbox(_wg_0))) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_187))) * f32_unbox(_cg_0))) * f32_unbox(_jit_0))) * f32_unbox(_lit_0))));
+    u32 _gb_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_v_187) * f32_unbox(_wb_0))) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_187))) * f32_unbox(_cbl_0))) * f32_unbox(_jit_0))) * f32_unbox(_lit_0))));
+    u32 _v_233 = 0;
+    u32 _v_234 = 0;
+    u32 _v_235 = 0;
+    Term _o_114[WL_OSZ(1)];
+    if (spin_1(e, _o_114, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_d_0) - f32_unbox(1123024896ull))) / f32_unbox(1139802112ull))) == 0) {
+      return 0;
+    }
+    _v_235 = _o_114[0];
+    _v_234 = _v_235;
+    u32 _v_236 = 0;
+    Term _o_115[WL_OSZ(1)];
+    if (spin_3(e, _o_115, 1065353216ull, _v_234) == 0) {
+      return 0;
+    }
+    _v_236 = _o_115[0];
+    _v_233 = _v_236;
+    u32 _v_237 = 0;
+    u32 _v_238 = 0;
+    u32 _v_239 = 0;
+    Term _o_116[WL_OSZ(1)];
+    if (spin_1(e, _o_116, 0ull, f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_vr_0) + f32_unbox(1048576000ull))) * f32_unbox(1074580685ull))) == 0) {
+      return 0;
+    }
+    _v_239 = _o_116[0];
+    _v_238 = _v_239;
+    u32 _v_240 = 0;
+    Term _o_117[WL_OSZ(1)];
+    if (spin_3(e, _o_117, 1065353216ull, _v_238) == 0) {
+      return 0;
+    }
+    _v_240 = _o_117[0];
+    _v_237 = _v_240;
+    u32 _sr_0 = f32_rewrap(f32_unbox(1064178811ull) - f32_unbox(f32_rewrap(f32_unbox(1059984507ull) * f32_unbox(_v_237))));
+    u32 _sg_0 = f32_rewrap(f32_unbox(1060991140ull) - f32_unbox(f32_rewrap(f32_unbox(1050253722ull) * f32_unbox(_v_237))));
+    u32 _sbl_0 = f32_rewrap(f32_unbox(1057971241ull) + f32_unbox(f32_rewrap(f32_unbox(1045220557ull) * f32_unbox(_v_237))));
+    u32 _r_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_v_125) * f32_unbox(_sr_0))) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_125))) * f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_gr_0) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_233))))) + f32_unbox(f32_rewrap(f32_unbox(1063675494ull) * f32_unbox(_v_233))))))));
+    u32 _g_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_v_125) * f32_unbox(_sg_0))) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_125))) * f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_gg_0) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_233))))) + f32_unbox(f32_rewrap(f32_unbox(1060991140ull) * f32_unbox(_v_233))))))));
+    u32 _b_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_v_125) * f32_unbox(_sbl_0))) + f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_125))) * f32_unbox(f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(_gb_0) * f32_unbox(f32_rewrap(f32_unbox(1065353216ull) - f32_unbox(_v_233))))) + f32_unbox(f32_rewrap(f32_unbox(1058977874ull) * f32_unbox(_v_233))))))));
+    u32 _v_241 = 0;
+    u32 _v_242 = 0;
+    Term _o_118[WL_OSZ(1)];
+    if (spin_16(e, _o_118, _bx_0, _by_0) == 0) {
+      return 0;
+    }
+    _v_242 = _o_118[0];
+    _v_241 = _v_242;
+    u32 _thr_0 = f32_rewrap(f32_unbox(f32_rewrap(f32_unbox(f32_rewrap((f32)(u32)(_v_241))) + f32_unbox(1056964608ull))) / f32_unbox(1098907648ull));
+    u32 _v_243 = 0;
+    u32 _v_244 = 0;
+    Term _o_119[WL_OSZ(1)];
+    if (spin_17(e, _o_119, _r_0, _thr_0) == 0) {
+      return 0;
+    }
+    _v_244 = _o_119[0];
+    _v_243 = _v_244;
+    u32 _v_245 = 0;
+    u32 _v_246 = 0;
+    Term _o_120[WL_OSZ(1)];
+    if (spin_17(e, _o_120, _g_0, _thr_0) == 0) {
+      return 0;
+    }
+    _v_246 = _o_120[0];
+    _v_245 = _v_246;
+    u32 _v_247 = 0;
+    u32 _v_248 = 0;
+    Term _o_121[WL_OSZ(1)];
+    if (spin_17(e, _o_121, _b_0, _thr_0) == 0) {
+      return 0;
+    }
+    _v_248 = _o_121[0];
+    _v_247 = _v_248;
+    u32 _v_249 = 0;
+    Term _o_122[WL_OSZ(1)];
+    if (spin_8(e, _o_122, _v_243, _v_245, _v_247) == 0) {
+      return 0;
+    }
+    _v_249 = _o_122[0];
+    _v_103 = _v_249;
   break;
   }
   o[0] = _v_103;
@@ -11673,7 +11822,7 @@ bool bendviz_start(const char* gpu_heap) {
 }
 
 // Asks for a frame of w x h (each at most BENDVIZ_MAX), replacing any request not yet started.
-// params: time, bass, mids, hue, beat; fx: 0 the plasma, 1 the tree, 2 the canyon, 3 the flames.
+// params: time, bass, mids, hue, beat; fx: 0 the plasma, 1 the tree, 2 the voxels, 3 the flames.
 void bendviz_request(const float params[5], int w, int h, int fx, bool gpu) {
   w = w < 1 ? 1 : w > BENDVIZ_MAX ? BENDVIZ_MAX : w;
   h = h < 1 ? 1 : h > BENDVIZ_MAX ? BENDVIZ_MAX : h;

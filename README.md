@@ -83,7 +83,7 @@ View 4 draws what you're hearing (a 64-band spectrum, the waveform, bass, mids, 
 - Feedback: [MilkDrop](https://en.wikipedia.org/wiki/MilkDrop)-style, each frame the last one seen through a warp mesh
 - Fire, fed by the spectrum
 - Stars and bobs: a warp starfield around a sphere of bobs pushed out by the bands
-- Bend plasma, Bend tree, Bend canyon and Bend flames, written in [Bend](https://github.com/bendlang/bend). The canyon is a low, fast flight down a winding desert canyon, banking through its turns, drawn the way NovaLogic's [Comanche: Maximum Overkill](https://en.wikipedia.org/wiki/Comanche:_Maximum_Overkill) drew its land in 1992: a heightmap each pixel's ray runs out over, in big VGA-era pixels; the flames are a campfire in a ring of stones, seen from a slowly circling camera: separate tongues of fire, ray marched as a glowing volume, that light the logs and ground, with sparks rising from them
+- Bend plasma, Bend tree, Bend voxels and Bend flames, written in [Bend](https://github.com/bendlang/bend). The voxels are a flight over land built of small cubes, drawn the way NovaLogic's [Comanche: Maximum Overkill](https://en.wikipedia.org/wiki/Comanche:_Maximum_Overkill) drew its land in 1992, in big VGA-era pixels: the bass heaves the hills, the mids roll ripples across them and each beat sends a ring of rising columns outward; the flames are a campfire in a ring of stones, seen from a slowly circling camera: separate tongues of fire, ray marched as a glowing volume, that light the logs and ground, with sparks rising from them
 
 | Key | Action |
 |---|---|
