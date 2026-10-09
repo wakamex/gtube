@@ -43,7 +43,3 @@ gh release verify-asset vX.Y.Z ASSET --repo wakamex/gtube
 
 - Turn on immutable releases in the repository settings.
 - Once `release-eligible / validate` has passed on `main`, add a tag ruleset named `Validated release tags` for `refs/tags/v*` that requires that check (from the GitHub Actions app that produced it), with no bypass actors, deletion restricted and non-fast-forward updates blocked.
-
-## Windows builds are unsigned
-
-The Windows executable ships without a code signature, so Microsoft Defender SmartScreen warns on first run and users click "More info", then "Run anyway"; the README does not mention it. This matches Streamlink, which also ships unsigned Windows builds. Signing was declined for now: SignPath's free certificate needs a manual approval for every release, which breaks release automation, and Azure Artifact Signing costs about $10 a month. If Windows users become a real audience, Azure Artifact Signing is the option that keeps releases automatic: it signs inside `publish.yml`, before checksums and attestation.
