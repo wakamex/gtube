@@ -263,7 +263,7 @@ def Viz.glow(+r: F32, +g: F32, +b: F32) -> U32:
 # passes. Each pixel's ray runs out over the columns, its height rising in a straight line with
 # distance (the projection sheared, not tilted, as in 1992), in steps that lengthen as it goes,
 # then finds the column it met by halving the last step. The pixels are big, as 1992's were (the
-# screen about 270 of them tall, at least 2 screen pixels square), ordered-dithered to VGA's 64
+# screen about 270 of them tall), each the average of four rays, ordered-dithered to VGA's 64
 # levels a channel. Up close each column shows, lighter or darker than its neighbours and its sides
 # darker than its top; from 40 to 100 away that fades, where columns grow too small for the pixels
 # to draw cleanly and would beat against them.
@@ -303,7 +303,7 @@ def Viz.scan(n: Nat, under: Bool, +d: F32, +gap: F32, +ox: F32, +oy: F32, +oz: F
     case 1n++m True{}:
       d
     case 1n++m False{}:
-      +d2 = (d + 0.4 + d * 0.02 : F32)
+      +d2 = (d + 0.4 + d * 0.012 : F32)
       +gap2 = (oy + slope * d2 - F32.max(Viz.column((ox + dx * d2 : F32), (oz + dz * d2 : F32), ox, oz, k), 0.0) : F32)
       Viz.scan(m, F32.is_lt(gap2, 0.0), d2, gap2, ox, oy, oz, dx, dz, slope, k)
 
@@ -332,19 +332,14 @@ def Viz.bayer(+bx: U32, +by: U32) -> U32:
   +e = (by >> 1n .&. 1 : U32)
   (4 * (2 * ((a + b) % 2) + b) + 2 * ((c + e) % 2) + e : U32)
 
-# One pixel of the voxels. The jet flies forward at 30 a second, weaving, banked into its turns,
+# The voxels as the ray through (u, v) sees them. The jet flies forward at 30 a second, weaving, banked into its turns,
 # high enough to look out over the land and to clear what rises ahead; each beat jolts it up. What
 # the ray meets is lit by a low sun, each column one colour by its height (sand, grass, forest,
 # rock, snow) and a little lighter or darker than its neighbours, its top lit more than its sides;
 # water is deep blue, paler in the shallows, mirroring the sky further off, swelling into waves
 # with the bass and glittering with the mids. All of it hazes toward the horizon; past the land, the sky, pale and warm low down.
-def Viz.vox(+x: U32, +y: U32, +k: Viz.K) -> U32:
+def Viz.vsample(+u: F32, +v: F32, +k: Viz.K) -> U32:
   K{t, zoom, mid, hue, beat, w, h, fx} = k
-  +blk = U32.max(2, (h / 270 : U32))
-  +bx = (x / blk : U32)
-  +by = (y / blk : U32)
-  +u = ((U32.to_f32((bx * blk + blk / 2 : U32)) - U32.to_f32(w) * 0.5) / U32.to_f32(h) : F32)
-  +v = ((U32.to_f32(h) * 0.5 - U32.to_f32((by * blk + blk / 2 : U32))) / U32.to_f32(h) : F32)
   +bass = F32.min(1.0, F32.max(0.0, ((zoom - 0.045) * 44.4 : F32)))
   +oz = (t * 30.0 : F32)
   +ox = (40.0 * F32.sin((t * 0.05 : F32)) + 15.0 * F32.sin((t * 0.13 : F32)) : F32)
@@ -360,9 +355,9 @@ def Viz.vox(+x: U32, +y: U32, +k: Viz.K) -> U32:
   +dx = (fx + ur * 1.1 * fz : F32)
   +dz = (fz - ur * 1.1 * fx : F32)
   +slope = (vr * 1.1 : F32)
-  +hit = Viz.scan(220n, False{}, 0.5, 1.0, ox, oy, oz, dx, dz, slope, k)
+  +hit = Viz.scan(320n, False{}, 0.5, 1.0, ox, oy, oz, dx, dz, slope, k)
   +sky = F32.min(1.0, F32.max(0.0, ((hit - 99999.0) * 1000000000.0 : F32)))
-  +d = (sky * hit + (1.0 - sky) * Viz.refine(7n, ((hit - 0.4) / 1.02 : F32), hit, ox, oy, oz, dx, dz, slope, k) : F32)
+  +d = (sky * hit + (1.0 - sky) * Viz.refine(7n, ((hit - 0.4) / 1.012 : F32), hit, ox, oy, oz, dx, dz, slope, k) : F32)
   +px = (ox + dx * d : F32)
   +pz = (oz + dz * d : F32)
   +py = (oy + slope * d : F32)
@@ -412,8 +407,32 @@ def Viz.vox(+x: U32, +y: U32, +k: Viz.K) -> U32:
   +r = (sky * sr + (1.0 - sky) * (gr * (1.0 - haze) + 0.9 * haze) : F32)
   +g = (sky * sg + (1.0 - sky) * (gg * (1.0 - haze) + 0.74 * haze) : F32)
   +b = (sky * sbl + (1.0 - sky) * (gb * (1.0 - haze) + 0.62 * haze) : F32)
+  Viz.glow(r, g, b)
+
+# A channel of a packed colour, 0 to 1: red at place 65536, green 256, blue 1.
+def Viz.chan(+c: U32, +place: U32) -> F32:
+  (U32.to_f32((c / place % 256 : U32)) / 255.0 : F32)
+
+# One pixel of the voxels: the average of four samples spread over it on a rotated grid (so an
+# edge between land and sky, or near and far land, is shaded by how much of the pixel each covers),
+# dithered to VGA's 64 levels. The player asks for the voxels at about 270 pixels tall and shows
+# them scaled up, each a square of screen pixels.
+def Viz.vox(+x: U32, +y: U32, +k: Viz.K) -> U32:
+  K{t, zoom, mid, hue, beat, w, h, fx} = k
+  +blk = U32.max(1, (h / 270 : U32))
+  +bx = (x / blk : U32)
+  +by = (y / blk : U32)
+  +p = (U32.to_f32(blk) / U32.to_f32(h) : F32)
+  +u = ((U32.to_f32((bx * blk + blk / 2 : U32)) - U32.to_f32(w) * 0.5) / U32.to_f32(h) : F32)
+  +v = ((U32.to_f32(h) * 0.5 - U32.to_f32((by * blk + blk / 2 : U32))) / U32.to_f32(h) : F32)
+  +a = Viz.vsample((u + 0.125 * p : F32), (v + 0.375 * p : F32), k)
+  +b = Viz.vsample((u + 0.375 * p : F32), (v - 0.125 * p : F32), k)
+  +c = Viz.vsample((u - 0.125 * p : F32), (v - 0.375 * p : F32), k)
+  +e = Viz.vsample((u - 0.375 * p : F32), (v + 0.125 * p : F32), k)
   +thr = ((U32.to_f32(Viz.bayer(bx, by)) + 0.5) / 16.0 : F32)
-  Viz.glow(Viz.vga(r, thr), Viz.vga(g, thr), Viz.vga(b, thr))
+  Viz.glow(Viz.vga(((Viz.chan(a, 65536) + Viz.chan(b, 65536) + Viz.chan(c, 65536) + Viz.chan(e, 65536)) * 0.25 : F32), thr),
+    Viz.vga(((Viz.chan(a, 256) + Viz.chan(b, 256) + Viz.chan(c, 256) + Viz.chan(e, 256)) * 0.25 : F32), thr),
+    Viz.vga(((Viz.chan(a, 1) + Viz.chan(b, 1) + Viz.chan(c, 1) + Viz.chan(e, 1)) * 0.25 : F32), thr))
 
 # The flames: a campfire, ray marched as a glowing volume, with the camera circling it. Each
 # pixel's ray steps through the fire, and at each step its heat there (a bed of coals, a short

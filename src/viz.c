@@ -483,6 +483,9 @@ static void fx_bend(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
         v->bend_startup = 1;
     }
     int w = (int)a.w < BENDVIZ_MAX ? (int)a.w : BENDVIZ_MAX, h = (int)a.h < BENDVIZ_MAX ? (int)a.h : BENDVIZ_MAX;
+    // The voxels are drawn about 270 pixels tall, each the average of four rays, and shown scaled
+    // up with hard edges, as 1992's big pixels were.
+    if (v->fx == FX_BEND_VOXELS && h > 270) w = (int)((long)w * 270 / h), h = 270;
     float params[5] = { (float)v->t, v->bass, v->mid, v->hue, v->beat };
     if (!v->bend_shown) bendviz_request(params, w, h, v->fx - FX_BEND, v->bend_on_gpu);
     if (v->bend_startup == 1 && !v->bend_shown && SDL_GetTicks() - v->bend_start_ms > 5000) {
@@ -565,6 +568,7 @@ static void fx_bend(viz *v, SDL_FRect a, gs_glyphs *g, gs_fontset *f) {
     bend_count_frame(v, fresh, (SDL_GetTicksNS() - take_from) / 1e6);
     if (v->bend_shown && v->bend_draw) {
         SDL_SetTextureBlendMode(v->bend_draw, SDL_BLENDMODE_NONE);
+        SDL_SetTextureScaleMode(v->bend_draw, v->fx == FX_BEND_VOXELS ? SDL_SCALEMODE_NEAREST : SDL_SCALEMODE_LINEAR);
         SDL_RenderTexture(v->ren, v->bend_draw, NULL, &a);
     }
     bend_label(v, a, g, f);
