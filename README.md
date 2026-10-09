@@ -76,14 +76,14 @@ Long playlists load in full, not page by page. The window's size and position an
 
 ## Visualizer
 
-View 4 draws what you're hearing (a 64-band spectrum, the waveform, bass, mids, treble and beats) through eight effects, at the screen's full resolution:
+View 4 draws what you're hearing (a 64-band spectrum, the waveform, bass, mids, treble and beats) through nine effects, at the screen's full resolution:
 
 - Spectrum: Winamp-style LED bars with a scope
 - Tunnel: a bending tunnel of textured rings
 - Feedback: [MilkDrop](https://en.wikipedia.org/wiki/MilkDrop)-style, each frame the last one seen through a warp mesh
 - Fire, fed by the spectrum
 - Stars and bobs: a warp starfield around a sphere of bobs pushed out by the bands
-- Bend plasma, Bend tree and Bend voxels, written in [Bend](https://github.com/bendlang/bend); the voxels are a flight over land made of blocks, ray traced one pixel at a time, which the bass lifts and the mids ripple
+- Bend plasma, Bend tree, Bend voxels and Bend flames, written in [Bend](https://github.com/bendlang/bend). The voxels are a flight over land made of blocks, ray traced one pixel at a time, which the bass lifts and the mids ripple; the flames are a campfire in a ring of stones, seen from a slowly circling camera: separate tongues of fire, ray marched as a glowing volume, that light the logs and ground, with sparks rising from them
 
 | Key | Action |
 |---|---|
