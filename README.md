@@ -92,7 +92,7 @@ View 4 draws what you're hearing (a 64-band spectrum, the waveform, bass, mids, 
 | t | Show or hide the scroller with the track's name |
 | g | Run a Bend effect on the GPU or the CPU |
 
-The Bend effects draw every pixel on a thread of their own. With a Vulkan GPU they draw straight into the player's textures: at 4K on an RTX 3080 the plasma runs at over 3,000 frames a second with `--uncapped`. Without one they draw on the CPU. Loading the Vulkan driver the first time a Bend effect is shown brings gtube to about 85 MB in Task Manager on Windows with an NVIDIA GPU.
+The Bend effects draw every pixel on a thread of their own. With a Vulkan GPU they draw straight into the player's textures: at 4K on an RTX 3080 the plasma runs at over 3,000 frames a second with `--uncapped`. Without one they draw on the CPU. Loading the Vulkan driver the first time a Bend effect is shown brings gtube to about 85 MB in Task Manager on Windows with an NVIDIA GPU. The GPU driver translates the effects' GPU program for your GPU the first time it sees it, which takes a few seconds, and keeps the result; gtube has that done in the background at launch, so opening a Bend effect takes about half a second.
 
 ## Options
 

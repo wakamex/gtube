@@ -11802,12 +11802,120 @@ static void* bv_thread(void* arg) {
   return NULL;
 }
 
+// The GPU driver translates the GPU program for the GPU the first time its pipelines are built,
+// which takes seconds, and keeps the result on disk. bendviz_warm builds them once, on a thread
+// and a device of its own with the same features as Bend's, then lets the device go, so a Bend
+// effect opened later starts without that wait and gtube holds no device until then.
+#if BEND_VULKAN
+static pthread_t bv_warm_tid;
+static bool      bv_warming;
+
+static void* bv_warm_run(void* arg) {
+  (void)arg;
+  VkApplicationInfo    app  = { 0, NULL, "bend", 0, "bend", 0, (1u << 22) | (3u << 12) };
+  VkInstanceCreateInfo ic   = { 1, NULL, 0, &app, 0, NULL, 0, NULL };
+  VkInstance           inst = NULL;
+  if (!gpu_open_vk() || vkCreateInstance(&ic, NULL, &inst) != 0) {
+    return NULL;
+  }
+  void (VKAPI* destroy_inst)(VkInstance, const void*) =
+    (void (VKAPI*)(VkInstance, const void*))vkGetInstanceProcAddr(inst, "vkDestroyInstance");
+  void (VKAPI* destroy_dev)(VkDevice, const void*) =
+    (void (VKAPI*)(VkDevice, const void*))vkGetInstanceProcAddr(inst, "vkDestroyDevice");
+  void (VKAPI* destroy_pso)(VkDevice, VkPipeline, const void*) =
+    (void (VKAPI*)(VkDevice, VkPipeline, const void*))vkGetInstanceProcAddr(inst, "vkDestroyPipeline");
+  void (VKAPI* destroy_lay)(VkDevice, VkPipelineLayout, const void*) =
+    (void (VKAPI*)(VkDevice, VkPipelineLayout, const void*))vkGetInstanceProcAddr(inst, "vkDestroyPipelineLayout");
+  void (VKAPI* destroy_mod)(VkDevice, VkShaderModule, const void*) =
+    (void (VKAPI*)(VkDevice, VkShaderModule, const void*))vkGetInstanceProcAddr(inst, "vkDestroyShaderModule");
+  VkPhysicalDevice pds[8];
+  u32              n = 8;
+  if (destroy_inst == NULL || destroy_dev == NULL || destroy_pso == NULL || destroy_lay == NULL || destroy_mod == NULL
+    || !gpu_load_vk(inst) || vkEnumeratePhysicalDevices(inst, &n, pds) < 0 || n == 0) {
+    if (destroy_inst != NULL) destroy_inst(inst, NULL);
+    return NULL;
+  }
+  VkPhysicalDevice phys = pds[0];  // as gpu_probe picks: a discrete GPU first
+  for (u32 i = 0; i < n; i += 1) {
+    VkPhysicalDeviceProperties pp;
+    vkGetPhysicalDeviceProperties(pds[i], &pp);
+    if (pp.type == 2) {
+      phys = pds[i];
+      break;
+    }
+  }
+  VkQueueFamilyProperties fams[16];
+  u32                     nf = 16, family = 0;
+  vkGetPhysicalDeviceQueueFamilyProperties(phys, &nf, fams);
+  while (family < nf && (fams[family].flags & 3) != 3) {
+    family += 1;
+  }
+  VkPhysicalDeviceVulkan12Features f12 = { 51, NULL };  // the features gpu_probe asks for
+  VkPhysicalDeviceFeatures2        f2  = { 1000059000, &f12 };
+  f12.on[8] = 1, f12.on[37] = 1, f12.on[38] = 1, f2.on[40] = 1;
+  float                   prio = 1;
+  VkDeviceQueueCreateInfo qi   = { 2, NULL, 0, family, 1, &prio };
+  VkDeviceCreateInfo      dc   = { 3, &f2, 0, 1, &qi, 0, NULL, 0, NULL, NULL };
+  VkDevice                dev  = NULL;
+  long                    len  = 0;
+  char*                   bin  = NULL;
+  u64                     key  = 0;
+  if (family < nf && vkCreateDevice(phys, &dc, NULL, &dev) == 0) {
+    bin = gpu_read(gpu_path(), &len);
+    if (bin != NULL && len > 8) {
+      memcpy(&key, bin, 8);
+    }
+  }
+  if (dev != NULL && key == gpu_hash()) {  // (a stale program is rebuilt when Bend starts, not here)
+    VkShaderModule             mod = 0;
+    VkPipelineLayout           lay = 0;
+    VkPipeline                 ps[3] = { 0, 0, 0 };
+    VkShaderModuleCreateInfo   mc  = { 16, NULL, 0, (size_t)(len - 8), (const uint32_t*)(bin + 8) };
+    VkPushConstantRange        pr  = { 0x20, 0, sizeof(GpuArgs) };
+    VkPipelineLayoutCreateInfo lc  = { 30, NULL, 0, 0, NULL, 1, &pr };
+    if (vkCreateShaderModule(dev, &mc, NULL, &mod) == 0 && vkCreatePipelineLayout(dev, &lc, NULL, &lay) == 0) {
+      VkComputePipelineCreateInfo pc[3] = {  // as gpu_load builds them
+        { 29, NULL, 0, { 18, NULL, 0, 0x20, mod, "bend_dev", NULL }, lay, 0, -1 },
+        { 29, NULL, 0, { 18, NULL, 0, 0x20, mod, "bend_pages", NULL }, lay, 0, -1 },
+        { 29, NULL, 0, { 18, NULL, 0, 0x20, mod, "bend_blit", NULL }, lay, 0, -1 } };
+      u64 t0 = io_tick();
+      if (vkCreateComputePipelines(dev, 0, 3, pc, NULL, ps) == 0) {
+        fprintf(stderr, "bend: GPU program built ahead in %.0f ms\n", (double)(io_tick() - t0) / 1e6);
+        for (int i = 0; i < 3; i++) destroy_pso(dev, ps[i], NULL);
+      }
+    }
+    if (lay != 0) destroy_lay(dev, lay, NULL);
+    if (mod != 0) destroy_mod(dev, mod, NULL);
+  }
+  free(bin);
+  if (dev != NULL) destroy_dev(dev, NULL);
+  destroy_inst(inst, NULL);
+  return NULL;
+}
+
+void bendviz_warm(void) {
+  bv_warming = pthread_create(&bv_warm_tid, NULL, bv_warm_run, NULL) == 0;
+}
+
+// Bend's own device is opened only after the warm-up is done with the runtime's Vulkan functions.
+static void bv_warm_wait(void) {
+  if (bv_warming) {
+    pthread_join(bv_warm_tid, NULL);
+    bv_warming = false;
+  }
+}
+#else
+void bendviz_warm(void) {}
+static void bv_warm_wait(void) {}
+#endif
+
 // Starts the Bend program, once. `gpu_heap` is a size such as "512MB", or "off" for the CPU only.
 bool bendviz_start(const char* gpu_heap) {
   static bool started;
   if (started) {
     return true;
   }
+  bv_warm_wait();
   // Bend reports a fatal error on stderr and exits at once; unbuffered, the report survives.
   setvbuf(stderr, NULL, _IONBF, 0);
   const char* trace = getenv("BENDVIZ_TRACE");
@@ -11900,6 +12008,7 @@ static VkResult bv_vk_submit_any(const VkSubmitInfo* si);
 // then runs on the CPU). Before bendviz_start.
 bool bendviz_vk_open(const char* const* iexts, int niexts, const char* const* dexts, int ndexts, void** inst,
   void** phys, void** dev, unsigned* family) {
+  bv_warm_wait();
   gpu_iexts = iexts, gpu_niexts = (u32)niexts, gpu_dexts = dexts, gpu_ndexts = (u32)ndexts;
   VkSemaphoreTypeCreateInfo ti = { 1000207002, NULL, 1, 0 };  // a timeline, from 0
   VkSemaphoreCreateInfo     si = { 9, &ti, 0 };

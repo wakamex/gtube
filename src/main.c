@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "bend/bendviz.h"
 #include "gs_jobs.h"
 #include "gs_mix.h"
 #include "gs_pace.h"
@@ -373,6 +374,7 @@ SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
     show_window(a);
     a->viz = viz_new(a->ren, RATE);
     if (a->shot) viz_bend_ready(a->viz);  // (a shot's renderer stays as it is)
+    else bendviz_warm();
     for (int i = 1; i < effect; i++) viz_step(a->viz, 1);
     a->audio = !a->shot && gs_mix_open(RATE);
     a->started = SDL_GetTicks();
