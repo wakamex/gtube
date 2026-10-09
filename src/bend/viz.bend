@@ -262,8 +262,11 @@ def Viz.glow(+r: F32, +g: F32, +b: F32) -> U32:
 # across it, and each beat sends a ring outward from under the jet that lifts the columns it
 # passes. Each pixel's ray runs out over the columns, its height rising in a straight line with
 # distance (the projection sheared, not tilted, as in 1992), in steps that lengthen as it goes,
-# then finds the column it met by halving the last step. The pixels are as big as 1992's (the screen
-# about 180 of them tall, at least 2 screen pixels square), ordered-dithered to 16 levels a channel.
+# then finds the column it met by halving the last step. The pixels are big, as 1992's were (the
+# screen about 270 of them tall, at least 2 screen pixels square), ordered-dithered to VGA's 64
+# levels a channel. Up close each column shows, lighter or darker than its neighbours and its sides
+# darker than its top; from 40 to 100 away that fades, where columns grow too small for the pixels
+# to draw cleanly and would beat against them.
 # No pixel depends on another, and every one runs the same short loop.
 
 # The land's height at (x, z), before it is cut into columns: warped hills and ridges, with valleys
@@ -317,9 +320,9 @@ def Viz.refine(n: Nat, +lo: F32, +hi: F32, +ox: F32, +oy: F32, +oz: F32, +dx: F3
       +below = F32.min(1.0, F32.max(0.0, ((0.0 - gap) * 1000000000.0 : F32)))
       Viz.refine(r, (lo + (mid - lo) * (1.0 - below) : F32), (hi - (hi - mid) * below : F32), ox, oy, oz, dx, dz, slope, k)
 
-# One channel quantized to 16 levels, dithered by thr (0 to 1).
+# One channel quantized to VGA's 64 levels, dithered by thr (0 to 1).
 def Viz.vga(+c: F32, +thr: F32) -> F32:
-  (F32.floor((F32.min(1.0, F32.max(0.0, c)) * 15.0 + thr : F32)) / 15.0 : F32)
+  (F32.floor((F32.min(1.0, F32.max(0.0, c)) * 63.0 + thr : F32)) / 63.0 : F32)
 
 # A 4x4 Bayer threshold for pixel block (bx, by): 0 to 15.
 def Viz.bayer(+bx: U32, +by: U32) -> U32:
@@ -333,11 +336,11 @@ def Viz.bayer(+bx: U32, +by: U32) -> U32:
 # high enough to look out over the land and to clear what rises ahead; each beat jolts it up. What
 # the ray meets is lit by a low sun, each column one colour by its height (sand, grass, forest,
 # rock, snow) and a little lighter or darker than its neighbours, its top lit more than its sides;
-# water is deep blue, paler in the shallows, swelling into waves with the bass and glittering with
-# the mids. All of it hazes toward the horizon; past the land, the sky, pale and warm low down.
+# water is deep blue, paler in the shallows, mirroring the sky further off, swelling into waves
+# with the bass and glittering with the mids. All of it hazes toward the horizon; past the land, the sky, pale and warm low down.
 def Viz.vox(+x: U32, +y: U32, +k: Viz.K) -> U32:
   K{t, zoom, mid, hue, beat, w, h, fx} = k
-  +blk = U32.max(2, (h / 180 : U32))
+  +blk = U32.max(2, (h / 270 : U32))
   +bx = (x / blk : U32)
   +by = (y / blk : U32)
   +u = ((U32.to_f32((bx * blk + blk / 2 : U32)) - U32.to_f32(w) * 0.5) / U32.to_f32(h) : F32)
@@ -372,10 +375,11 @@ def Viz.vox(+x: U32, +y: U32, +k: Viz.K) -> U32:
   +hz = (Viz.ground(cx, (cz + 0.6 : F32), ox, oz, k) - Viz.ground(cx, (cz - 0.6 : F32), ox, oz, k) : F32)
   +nl = F32.sqrt((hx * hx + 1.44 + hz * hz : F32))
   +sun = F32.max(0.0, (((0.0 - hx) * 0.55 + 1.2 * 0.62 + (0.0 - hz) * 0.56) / nl : F32))
+  +detail = F32.min(1.0, F32.max(0.0, ((100.0 - d) / 60.0 : F32)))
   +face = F32.min(1.0, F32.max(0.0, (1.0 - (land - py) * 8.0 : F32)))
-  +lit = ((0.32 + 0.85 * sun) * (0.62 + 0.38 * face) : F32)
+  +lit = ((0.32 + 0.85 * sun) * (1.0 - 0.38 * (1.0 - face) * detail) : F32)
   +jh = (F32.sin((cx * 12.9898 + cz * 78.233 : F32)) * 43758.5 : F32)
-  +jit = (0.88 + 0.24 * (jh - F32.floor(jh)) : F32)
+  +jit = (1.0 + 0.24 * (jh - F32.floor(jh) - 0.5) * detail : F32)
   +g1 = F32.min(1.0, F32.max(0.0, ((land - 1.5) / 1.5 : F32)))
   +g2 = F32.min(1.0, F32.max(0.0, ((land - 9.0) / 4.0 : F32)))
   +g3 = F32.min(1.0, F32.max(0.0, ((land - 16.0) / 4.0 : F32)))
@@ -393,10 +397,10 @@ def Viz.vox(+x: U32, +y: U32, +k: Viz.K) -> U32:
   +near = F32.min(1.0, F32.max(0.0, (1.0 - d / 120.0 : F32)))
   +glint = (F32.max(0.0, (ripple - 2.55 + 0.6 * bass : F32)) * (1.6 + mid * 3.0) * near : F32)
   +shallow = F32.min(1.0, F32.max(0.0, (1.0 + raw / 3.0 : F32)))
-  +sheen = F32.min(0.6, (d / 300.0 : F32))
-  +wr = (((0.06 + 0.3 * shallow) * wave * (1.0 - sheen) + 0.8 * sheen) + glint : F32)
-  +wg = (((0.22 + 0.26 * shallow) * wave * (1.0 - sheen) + 0.66 * sheen) + glint : F32)
-  +wb = (((0.34 + 0.08 * shallow) * wave * (1.0 - sheen) + 0.62 * sheen) + glint : F32)
+  +sheen = F32.min(0.5, (d / 300.0 : F32))
+  +wr = (((0.06 + 0.3 * shallow) * wave * (1.0 - sheen) + 0.5 * sheen) + glint : F32)
+  +wg = (((0.22 + 0.26 * shallow) * wave * (1.0 - sheen) + 0.62 * sheen) + glint : F32)
+  +wb = (((0.34 + 0.08 * shallow) * wave * (1.0 - sheen) + 0.8 * sheen) + glint : F32)
   +gr = (wet * wr + (1.0 - wet) * cr * jit * lit : F32)
   +gg = (wet * wg + (1.0 - wet) * cg * jit * lit : F32)
   +gb = (wet * wb + (1.0 - wet) * cbl * jit * lit : F32)
