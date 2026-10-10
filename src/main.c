@@ -330,6 +330,7 @@ SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
             size_t n;
             int code;
             char *out = p ? SDL_ReadProcess(p, &n, &code) : NULL;
+            if (p) code = tools_exit_code(p, code);
             char errors[2048];
             tools_errors(p, errors, sizeof errors, 0);
             printf("probe (exit %d%s): %s%s", p ? code : -1, signed_in ? ", signed in" : "", out ? out : "\n", errors);

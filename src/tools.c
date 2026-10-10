@@ -10,6 +10,11 @@
 #include "gs_http.h"
 
 #ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
+
+#ifdef _WIN32
 #define EXE ".exe"
 #define SLASH "\\"
 #define PATHSEP ';'
@@ -85,6 +90,33 @@ static SDL_Environment *trimmed_env(void) {
 // Started one at a time with gs_http's own curl processes (gs_http_spawn), so none inherits another's pipes.
 SDL_Process *tools_spawn(SDL_PropertiesID props) { return gs_http_spawn(props); }
 
+#ifdef _WIN32
+#define HANDLE_PROP "gtube.process.handle"
+
+static void SDLCALL close_handle(void *user, void *value) {
+    (void)user;
+    CloseHandle(value);
+}
+
+// Every program the app starts joins one job, which Windows ends when the app's last handle to it
+// closes: when the app exits, however it exits (Task Manager included), they end with it.
+static HANDLE children(void) {
+    static HANDLE job;
+    static SDL_InitState once;
+    if (SDL_ShouldInit(&once)) {
+        job = CreateJobObjectW(NULL, NULL);
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION limit = { 0 };
+        limit.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        if (job && !SetInformationJobObject(job, JobObjectExtendedLimitInformation, &limit, sizeof limit)) CloseHandle(job), job = NULL;
+        SDL_SetInitialized(&once, true);
+    }
+    return job;
+}
+#endif
+
+// yt-dlp, Deno and tar are console programs: on Windows each runs without a window of its own (SDL's
+// background flag, CREATE_NO_WINDOW), joins the app's job, and keeps a handle of the app's own
+// from which tools_exit_code reads its exit code, since SDL reports 0 for a background process.
 static SDL_Process *start(const char *const *args, bool pipe, bool errors) {
     SDL_Environment *env = trimmed_env();
     SDL_PropertiesID p = SDL_CreateProperties();
@@ -93,10 +125,34 @@ static SDL_Process *start(const char *const *args, bool pipe, bool errors) {
     SDL_SetNumberProperty(p, SDL_PROP_PROCESS_CREATE_STDIN_NUMBER, SDL_PROCESS_STDIO_NULL);
     SDL_SetNumberProperty(p, SDL_PROP_PROCESS_CREATE_STDOUT_NUMBER, pipe ? SDL_PROCESS_STDIO_APP : SDL_PROCESS_STDIO_NULL);
     SDL_SetNumberProperty(p, SDL_PROP_PROCESS_CREATE_STDERR_NUMBER, errors ? SDL_PROCESS_STDIO_APP : SDL_PROCESS_STDIO_INHERITED);
+#ifdef _WIN32
+    SDL_SetBooleanProperty(p, SDL_PROP_PROCESS_CREATE_BACKGROUND_BOOLEAN, true);
+#endif
     SDL_Process *proc = tools_spawn(p);
     SDL_DestroyProperties(p);
     SDL_DestroyEnvironment(env);
+#ifdef _WIN32
+    if (proc) {
+        DWORD pid = (DWORD)SDL_GetNumberProperty(SDL_GetProcessProperties(proc), SDL_PROP_PROCESS_PID_NUMBER, 0);
+        HANDLE h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SET_QUOTA | PROCESS_TERMINATE, FALSE, pid);
+        if (h) {
+            if (children()) AssignProcessToJobObject(children(), h);
+            SDL_SetPointerPropertyWithCleanup(SDL_GetProcessProperties(proc), HANDLE_PROP, h, close_handle, NULL);
+        }
+    }
+#endif
     return proc;
+}
+
+int tools_exit_code(SDL_Process *proc, int code) {
+#ifdef _WIN32
+    HANDLE h = proc ? SDL_GetPointerProperty(SDL_GetProcessProperties(proc), HANDLE_PROP, NULL) : NULL;
+    DWORD real;
+    if (h && GetExitCodeProcess(h, &real) && real != STILL_ACTIVE) return (int)real;
+#else
+    (void)proc;
+#endif
+    return code;
 }
 
 // Runs a program to completion; its output (if wanted) is returned malloc'd. True on exit code 0.
@@ -106,6 +162,7 @@ static bool run(const char *const *args, char **out) {
     size_t n;
     int code = -1;
     char *data = SDL_ReadProcess(proc, &n, &code);
+    code = tools_exit_code(proc, code);
     SDL_DestroyProcess(proc);
     if (out) *out = data; else SDL_free(data);
     return code == 0;

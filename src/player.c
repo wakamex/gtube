@@ -13,6 +13,7 @@
 #define RATE 48000
 #define MAX_TRACKS 2000
 #define NEED_SIGNIN "YouTube wants a signed-in session: press s to sign in"
+#define MAX_FAILURES 3  // tracks in a row that fail to play before the player stops trying the next
 
 // One track playing: its WebM downloaded from a prefetched address (curl), or else written by yt-dlp
 // to a pipe, and a thread decoding it into the stream.
@@ -51,6 +52,7 @@ struct player {
     prefetch *prefetch;
     char expected[PREFETCH_WANTS][32];  // the app's own guesses (player_expect)
     int nexpected;
+    int failures;  // tracks in a row that failed to play
 };
 
 // ---- Listing a link ----
@@ -64,6 +66,15 @@ static void set_status(player *p, const char *fmt, const char *arg) {
     SDL_LockMutex(p->lock);
     SDL_snprintf(p->status, sizeof p->status, fmt, arg);
     SDL_UnlockMutex(p->lock);
+}
+
+// The last "ERROR: " line yt-dlp wrote, without the prefix, into out; or "" if none.
+static void last_error(const char *errors, char *out, size_t size) {
+    out[0] = 0;
+    for (const char *e = errors; (e = strstr(e, "ERROR: ")); e += 7) {
+        size_t len = strcspn(e + 7, "\r\n");
+        SDL_snprintf(out, size, "%.*s", (int)len, e + 7);
+    }
 }
 
 // Runs yt-dlp to completion, collecting its output and error output (read together, so neither
@@ -86,6 +97,7 @@ static char *collect(player *p, const char *const *args, const char *cookies, ch
     }
     data[n] = 0;
     SDL_WaitProcess(proc, true, code);
+    *code = tools_exit_code(proc, *code);
     tools_errors(proc, errors, esize, used);
     SDL_DestroyProcess(proc);
     return data;
@@ -266,6 +278,9 @@ static void play_pipe(playback *pb) {
         pb->proc = SDL_GetAtomicInt(&pb->p->tools->state) == 1 ? tools_ytdlp(pb->p->tools, args, signed_in ? pb->cookies : NULL) : NULL;
     }
     SDL_UnlockMutex(pb->lock);
+    bool started = pb->proc != NULL;
+    char why[256] = "";
+    if (!started) SDL_snprintf(why, sizeof why, "ERROR: could not start yt-dlp (%s); an antivirus may have removed it", SDL_GetError());
     SDL_IOStream *out = pb->proc ? SDL_GetProcessOutput(pb->proc) : NULL;
     uint8_t *buf = malloc(65536);
     bool bad = !out;
@@ -282,6 +297,7 @@ static void play_pipe(playback *pb) {
     free(buf);
     if (pb->proc && !SDL_GetAtomicInt(&pb->stop)) SDL_WaitProcess(pb->proc, true, NULL);
     pb->nerrors = tools_errors(pb->proc, pb->errors, sizeof pb->errors, pb->nerrors);
+    if (!started) SDL_strlcpy(pb->errors, why, sizeof pb->errors);
     if (pb->errors[0] && !SDL_GetAtomicInt(&pb->stop)) SDL_Log("yt-dlp: %s", pb->errors);
     if (bad) pb->bad = true;
 }
@@ -427,6 +443,7 @@ void player_update(player *p) {
     }
     if (p->now && !p->now->started && gs_stream_position(p->now->stream) > 0) {
         p->now->started = true;
+        p->failures = 0;
         SDL_LockMutex(p->lock);
         if (!strcmp(p->status, NEED_SIGNIN)) p->status[0] = 0;  // signing in worked
         SDL_Log("player: playing \"%s\", at %.3f s", p->current >= 0 ? p->queue[p->current].title : "", gs_stream_position(p->now->stream));
@@ -439,7 +456,18 @@ void player_update(player *p) {
             stop_playback(p);  // signing in plays it again
             return;
         }
-        if (SDL_GetAtomicInt(&pb->failed)) set_status(p, "could not play %s; skipping", p->queue[p->current].title);
+        bool failed = SDL_GetAtomicInt(&pb->failed);
+        if (failed && ++p->failures >= MAX_FAILURES) {  // something is wrong with every track, not one: stop and say what
+            char why[200];
+            last_error(pb->errors, why, sizeof why);
+            SDL_LockMutex(p->lock);
+            SDL_snprintf(p->status, sizeof p->status, "stopped: %d tracks in a row would not play%s%s", p->failures, why[0] ? ": " : "", why);
+            SDL_UnlockMutex(p->lock);
+            SDL_Log("player: %s", p->status);
+            stop_playback(p);
+            return;
+        }
+        if (failed) set_status(p, "could not play %s; skipping", p->queue[p->current].title);
         if (p->current + 1 < n) player_play(p, p->current + 1);
         else stop_playback(p);
     }

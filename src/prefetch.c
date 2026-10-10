@@ -91,8 +91,9 @@ static int resolve(prefetch *pf, video_id *ids, int n, bool background, SDL_Atom
     bool signed_in = account_jar_file(pf->account, jar, sizeof jar);
     SDL_Process *proc = tools_ytdlp(pf->tools, args, signed_in ? jar : NULL);
     SDL_IOStream *out = proc ? SDL_GetProcessOutput(proc) : NULL;
-    char line[8192], errors[1024];
+    char line[8192], errors[1024] = "";
     size_t len = 0, nerr = 0;
+    if (!proc) SDL_snprintf(errors, sizeof errors, "could not start yt-dlp (%s)", SDL_GetError());
     bool found[BATCH] = { 0 };
     int got = 0;
     while (out) {

@@ -29,6 +29,9 @@ void tools_prepare(void *t);  // blocking; a gs_job_fn
 // Starts yt-dlp with `args` (NULL-terminated, without the program), signed in with a Netscape
 // `cookies` file if not NULL. Its output and error output are piped to the caller.
 SDL_Process *tools_ytdlp(tools *t, const char *const *args, const char *cookies);
+// The exit code of a finished process started here, given the one SDL reported (which on Windows
+// is always 0: the processes run in the background, without console windows).
+int tools_exit_code(SDL_Process *proc, int code);
 // Appends what yt-dlp has written to its error output so far to out[used..], which stays a string
 // (the rest is drained and dropped when full, so the pipe never blocks yt-dlp). Returns the new length.
 size_t tools_errors(SDL_Process *proc, char *out, size_t size, size_t used);
