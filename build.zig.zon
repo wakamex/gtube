@@ -2,11 +2,11 @@
     .name = .gtube,
     .version = "0.2.0",
     .fingerprint = 0x31445dc269f80118,
-    .minimum_zig_version = "0.16.0",
+    .minimum_zig_version = "0.17.0",
     .dependencies = .{
         .gesso = .{
-            .url = "git+https://github.com/wakamex/gesso?ref=main#b6e92771bcc31030a9d02145c6014ed3fd4cc14e",
-            .hash = "gesso-0.0.0-LFvUrzx_PgDjIR33oz0BijxblTG2_D9_oBlUj1STUHMR",
+            .url = "git+https://github.com/wakamex/gesso?ref=main#b3e039d5706f18feb3fdaf7a74bdb42174ba6771",
+            .hash = "gesso-0.0.0-LFvUrzC0PgBl-6sTSRqxeuONqZCipRF4UJ6IXmtvlVKC",
         },
     },
     .paths = .{ "build.zig", "build.zig.zon", "README.md", "LICENSE", "src" },
