@@ -24,7 +24,7 @@ release/stage.sh windows dist
 
 ## Releasing vX.Y.Z
 
-1. Set `.version` in `build.zig.zon` to `X.Y.Z` and write `release-notes/vX.Y.Z.md`.
+1. Set `.version` in `build.zig.zon` to `X.Y.Z` and write `release-notes/vX.Y.Z.md`, ending it with a "Verifying a download" section that gives both commands below for that version.
 2. Commit both as `Release vX.Y.Z` and push `main` without tags.
 3. Wait for `release-eligible / validate` to pass on that commit, and check that remote `main` still points to it.
 4. Tag it with an annotated `vX.Y.Z` and push only the tag.

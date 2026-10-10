@@ -36,6 +36,18 @@ Keep `gtube.gpu` (or `gtube.exe.gpu`) next to the executable when you move it; t
 
 On Linux gtube needs [libcurl](https://curl.se/libcurl/), which Ubuntu, Debian, Fedora, Arch, openSUSE and Mint desktops all install (or else the `curl` program), and an X11 or Wayland desktop, plus `unzip` if it has to download [Deno](https://deno.com/) (see First run). [WebKitGTK](https://webkitgtk.org/) is needed for the sign-in window (see Sign-in), and a [Vulkan](https://www.vulkan.org/) driver is optional (see Visualizer).
 
+## Verifying a download
+
+Each Release lists the archives' SHA-256 sums in `SHA256SUMS`, and GitHub attests that every archive was built from the tagged source by gtube's release workflow. To check a download with the [GitHub CLI](https://cli.github.com/):
+
+```sh
+gh attestation verify gtube-vX.Y.Z-x86_64-windows.zip --repo wakamex/gtube \
+  --signer-workflow wakamex/release-actions/.github/workflows/binary-release.yml
+gh release verify-asset vX.Y.Z gtube-vX.Y.Z-x86_64-windows.zip --repo wakamex/gtube
+```
+
+The `--signer-workflow` option is needed because the archives are signed by the shared release workflow in wakamex/release-actions; without it `gh attestation verify` reports a mismatch.
+
 ## First run
 
 On first run gtube downloads its own copy of yt-dlp into its data folder and keeps it current, so the first song takes a little longer. yt-dlp needs a JavaScript runtime for YouTube: gtube uses Deno, Node or Bun if one is on your PATH, and otherwise downloads Deno too.
