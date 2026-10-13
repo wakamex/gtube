@@ -79,7 +79,7 @@ gtube keeps only the youtube.com and google.com cookies from the file and renews
 | r | Start a radio from the selected or playing song |
 | l | Like or unlike the selected song |
 | Ctrl+V, or drop a link | Play a link: a track, an album or a playlist |
-| - and + | Volume |
+| - and +, or the volume slider | Volume (the slider is under the now-playing times; drag or scroll on it) |
 | s | Sign in |
 | F1 | Performance overlay |
 | f, Alt+Enter or F11 | Full screen |

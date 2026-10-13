@@ -7,7 +7,7 @@
 // Up/Down, Home/End and Enter or a click pick; a song plays its whole list from there, an album or
 // playlist opens (Esc or Backspace goes back). r starts a radio from the selected song, l likes or
 // unlikes it. Left/Right switch views. Space pauses (or starts), n and p or the media keys next and
-// previous track, Ctrl+V pastes a link, -/+ volume, s signs in,
+// previous track, Ctrl+V pastes a link, -/+ or the volume slider set volume, s signs in,
 // F1 performance overlay. Closing the window quits.
 #define SDL_MAIN_USE_CALLBACKS
 #include <SDL3/SDL.h>
@@ -85,6 +85,8 @@ typedef struct {
     uint64_t stats_next;
     uint64_t started;
     float volume;
+    SDL_FRect volume_bar;  // the clickable track in the now-playing header
+    bool volume_drag;
     SDL_FRect rows[64];
     int row_index[64], nrows;
     bool persist;         // remembers the window and queue (not in test modes)
@@ -671,6 +673,31 @@ static bool heading_at(app *a, int i) {
 
 static bool inside(SDL_FRect r, float x, float y) { return x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h; }
 
+static void set_volume(app *a, float v) {
+    a->volume = fminf(1.5f, fmaxf(0, v));
+    gs_mix_set_volume(a->volume);
+}
+
+static void volume_from_x(app *a, float mx) {
+    if (a->volume_bar.w <= 0) return;
+    set_volume(a, (mx - a->volume_bar.x) / a->volume_bar.w * 1.5f);
+}
+
+// The volume track on the right of the now-playing block; `by` is the progress bar's y (or the same
+// slot when nothing is playing). Hit target is taller than the drawn bar.
+static void draw_volume(app *a, float u, float right, float by, SDL_FColor dim) {
+    float bar_w = 96 * u, bar_h = 4 * u, px = 14 * u, gap = 8 * u;
+    const char *label = "vol";
+    float lw = gs_fontset_width(a->fonts, px, label);
+    SDL_FRect track = { right - bar_w, by + 18 * u, bar_w, bar_h };
+    a->volume_bar = (SDL_FRect){ track.x - 4 * u, track.y - 8 * u, track.w + 8 * u, track.h + 16 * u };
+    gs_fontset_draw(a->glyphs, a->fonts, px, track.x - gap - lw, by + 22 * u, label, dim);
+    SDL_SetRenderDrawColor(a->ren, 60, 57, 54, 255);
+    SDL_RenderFillRect(a->ren, &track);
+    SDL_SetRenderDrawColor(a->ren, 255, 92, 70, 255);
+    SDL_RenderFillRect(a->ren, &(SDL_FRect){ track.x, track.y, track.w * (a->volume / 1.5f), track.h });
+}
+
 SDL_AppResult SDL_AppEvent(void *state, SDL_Event *e) {
     app *a = state;
     if (!a->ren) return SDL_APP_CONTINUE;
@@ -755,13 +782,18 @@ SDL_AppResult SDL_AppEvent(void *state, SDL_Event *e) {
         case SDLK_RETURN: case SDLK_KP_ENTER: activate(a, *sel); break;
         case SDLK_R: if (!ctrl) start_radio(a); break;
         case SDLK_L: if (!ctrl) toggle_like(a); break;
-        case SDLK_MINUS: case SDLK_KP_MINUS: a->volume = fmaxf(0, a->volume - 0.1f), gs_mix_set_volume(a->volume); break;
-        case SDLK_EQUALS: case SDLK_PLUS: case SDLK_KP_PLUS: a->volume = fminf(1.5f, a->volume + 0.1f), gs_mix_set_volume(a->volume); break;
+        case SDLK_MINUS: case SDLK_KP_MINUS: set_volume(a, a->volume - 0.1f); break;
+        case SDLK_EQUALS: case SDLK_PLUS: case SDLK_KP_PLUS: set_volume(a, a->volume + 0.1f); break;
         case SDLK_S: if (!ctrl) sign_in(a); break;
         case SDLK_F1: case SDLK_GRAVE: a->show_stats = !a->show_stats; break;
         }
     } else if (e->type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
         float x = e->button.x, y = e->button.y;
+        if (inside(a->volume_bar, x, y)) {
+            a->volume_drag = true;
+            volume_from_x(a, x);
+            return SDL_APP_CONTINUE;
+        }
         for (int i = 0; i < 4; i++)
             if (inside(a->tabs[i], x, y)) {
                 show(a, i);
@@ -771,7 +803,15 @@ SDL_AppResult SDL_AppEvent(void *state, SDL_Event *e) {
         else if (a->view == V_OPEN && inside(a->header, x, y)) show(a, a->back);
         for (int i = 0; i < a->nrows; i++)
             if (inside(a->rows[i], x, y)) *sel = a->row_index[i], activate(a, a->row_index[i]);
+    } else if (e->type == SDL_EVENT_MOUSE_BUTTON_UP) {
+        a->volume_drag = false;
+    } else if (e->type == SDL_EVENT_MOUSE_MOTION && a->volume_drag) {
+        volume_from_x(a, e->motion.x);
     } else if (e->type == SDL_EVENT_MOUSE_WHEEL) {
+        if (inside(a->volume_bar, e->wheel.mouse_x, e->wheel.mouse_y)) {
+            set_volume(a, a->volume + e->wheel.y * 0.05f);
+            return SDL_APP_CONTINUE;
+        }
         a->scroll[a->view] -= (int)e->wheel.y * 3;
         a->wheel_until = SDL_GetTicks() + 1500;  // the list stays where it was scrolled for a moment
     }
@@ -908,6 +948,7 @@ SDL_AppResult SDL_AppIterate(void *state) {
     char buf[400], status[256];
     player_status(a->player, status, sizeof status);
     if (a->fullscreen && a->view == V_VIZ) {  // the whole screen is the visualizer
+        a->volume_bar = (SDL_FRect){ 0 };
         viz_frame(a, (SDL_FRect){ 0, 0, (float)ow, (float)oh }, cur >= 0 && cur < qn ? &queue_copy[cur] : NULL);
         goto drawn;
     }
@@ -931,10 +972,13 @@ SDL_AppResult SDL_AppIterate(void *state) {
         char t1[16], t2[16];
         clock_text(pos, t1, sizeof t1), clock_text(dur, t2, sizeof t2);
         snprintf(buf, sizeof buf, "%s / %s%s%s", t1, t2, player_paused(a->player) ? "   paused" : "", player_loading(a->player) ? "   loading" : "");
-        gs_fontset_draw(a->glyphs, a->fonts, 14 * u, x, by + 22 * u, buf, dim);
+        float vol_w = 96 * u + 8 * u + gs_fontset_width(a->fonts, 14 * u, "vol") + 16 * u;
+        fit(a, 14 * u, x, by + 22 * u, w - vol_w, buf, dim);
+        draw_volume(a, u, x + w, by, dim);
     } else {
         gs_fontset_draw(a->glyphs, a->fonts, 22 * u, x, y, player_loading(a->player) ? "Loading..." : "Nothing playing", ink);
         fit(a, 14 * u, x, y + 28 * u, w, a->tools.status[0] && SDL_GetAtomicInt(&a->tools.state) != 1 ? a->tools.status : "Search with /, open your liked music or playlists, or paste a link (Ctrl+V)", dim);
+        draw_volume(a, u, x + w, y + 52 * u, dim);
     }
 
     // Tabs.
