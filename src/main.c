@@ -7,8 +7,8 @@
 // Up/Down, Home/End and Enter or a click pick; a song plays its whole list from there, an album or
 // playlist opens (Esc or Backspace goes back). r starts a radio from the selected song, l likes or
 // unlikes it. Left/Right switch views. Space pauses (or starts), n and p or the media keys next and
-// previous track, Ctrl+V pastes a link, -/+ volume, s signs in,
-// F1 performance overlay. Closing the window quits.
+// previous track (on Windows the media keys also work while another window is focused), Ctrl+V
+// pastes a link, -/+ volume, s signs in, F1 performance overlay. Closing the window quits.
 #define SDL_MAIN_USE_CALLBACKS
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
@@ -28,6 +28,7 @@
 #include "account.h"
 #include "api.h"
 #include "library.h"
+#include "media.h"
 #include "player.h"
 #include "signin.h"
 #include "state.h"
@@ -382,6 +383,7 @@ SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
     a->started = SDL_GetTicks();
     a->volume = 1;
     a->player = player_new(&a->tools, &a->account, a->jobs, a->audio);
+    media_keys_open(a->player);
     a->glyphs = gs_glyphs_new(a->ren, 1024);
     a->fonts = gs_fontset_system();
     if (a->persist && !nurls && !radio) {  // links given to play take its place
@@ -1094,6 +1096,7 @@ void SDL_AppQuit(void *state, SDL_AppResult result) {
     if (a->persist && a->player) save_queue(a);
     gs_mix_close();
     signin_close(a->signin);
+    media_keys_close();
     player_free(a->player);
     if (a->jobs) gs_jobs_wait(a->jobs), gs_jobs_free(a->jobs);
     library_free(&a->library);
