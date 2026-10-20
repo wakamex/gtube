@@ -105,6 +105,8 @@ typedef struct {
     int media_version, media_state;  // what was last given to them (version -1 to give it again)
     char media_title[256], media_artist[160];
     uint64_t media_check;  // when to look again for a title that came in after its song started
+    char playing_id[32];   // the song playing, and its place in the queue, as follow_playing last saw
+    int playing_at;
 } app;
 
 static void sign_in(app *a);
@@ -636,6 +638,34 @@ static bool chosen_song(app *a, item *out) {
     return false;
 }
 
+// The song at `id` in a view's list, or -1.
+static int find_song(const shelf *s, const char *id) {
+    for (int i = 0; id[0] && i < s->n; i++)
+        if (s->items[i].kind == ITEM_SONG && !strcmp(s->items[i].id, id)) return i;
+    return -1;
+}
+
+// When the next song starts, a selection that was on the one before moves to it, in the queue and in
+// every list that has both, so the playing song is in view without scrolling to it.
+static void follow_playing(app *a) {
+    int cur;
+    char id[32] = "";
+    player_queue(a->player, NULL, 0, &cur);
+    if (cur >= 0) player_track_id(a->player, cur, id, sizeof id);
+    if (!strcmp(id, a->playing_id) && cur == a->playing_at) return;
+    if (cur >= 0 && (!a->playing_id[0] || a->selected[V_QUEUE] == a->playing_at)) a->selected[V_QUEUE] = cur;
+    SDL_LockMutex(a->library.lock);
+    for (int v = 0; v < VIEWS; v++) {
+        if (view_shelf[v] < 0) continue;
+        const shelf *s = &a->library.shelves[view_shelf[v]];
+        int from = find_song(s, a->playing_id), to = find_song(s, id);
+        if (from >= 0 && to >= 0 && a->selected[v] == from) a->selected[v] = to;
+    }
+    SDL_UnlockMutex(a->library.lock);
+    SDL_strlcpy(a->playing_id, id, sizeof a->playing_id);
+    a->playing_at = cur;
+}
+
 static void show(app *a, int view) {
     a->view = view;
     a->typing = false;
@@ -1038,7 +1068,7 @@ SDL_AppResult SDL_AppIterate(void *state) {
     if (cap != a->pace_cap) gs_pace_set(&a->pace, a->win, a->ren, !a->uncapped, a->pace_cap = cap);
     viz_set_vsync(a->viz, a->pace.vsync != 0 && !a->pace.vsync_suspect);
     gs_stats_frame_begin(&a->stats);
-    if (!a->demo) player_update(a->player), show_media(a);
+    if (!a->demo) player_update(a->player), show_media(a), follow_playing(a);
     if (update_due(a)) return SDL_Log("update: a new build is in place; starting it"), a->restart = true, SDL_APP_SUCCESS;
     if (a->signin) {  // signing in: done when the page reaches YouTube signed in, or the window is closed
         char *jar = NULL, why[200];
