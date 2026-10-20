@@ -31,6 +31,7 @@ typedef struct {
     bool started;  // its first audio has played (logged)
     int preskip;
     double duration;
+    double skip_to;  // seconds into the track where it starts (player_play_at); earlier audio is dropped
     char id[32], url[256], cookies[1200];
     long long received;  // bytes of WebM taken from the address
     char errors[2048];
@@ -213,7 +214,6 @@ void player_set_queue(player *p, const track *tracks, int n, int start) {
 
 static void on_frame(void *user, const uint8_t *data, size_t len, double seconds) {
     playback *pb = user;
-    (void)seconds;
     if (SDL_GetAtomicInt(&pb->stop) || pb->bad) return;
     if (!pb->opus) {  // the first frame: the track headers have been read, set up the decoder
         size_t hl;
@@ -228,7 +228,7 @@ static void on_frame(void *user, const uint8_t *data, size_t len, double seconds
     }
     float lr[5760 * 2];
     int frames = gs_opus_decode(pb->opus, data, len, lr, 5760);
-    if (frames <= 0) return;
+    if (frames <= 0 || seconds < pb->skip_to) return;  // (decoded all the same, for the decoder's state)
     int skip = pb->preskip < frames ? pb->preskip : frames;  // the encoder's priming samples
     pb->preskip -= skip;
     SDL_SetAtomicInt(&pb->got_audio, 1);
@@ -348,7 +348,9 @@ static void stop_playback(player *p) {
     free(pb);
 }
 
-void player_play(player *p, int index) {
+void player_play(player *p, int index) { player_play_at(p, index, 0); }
+
+void player_play_at(player *p, int index, double seconds) {
     stop_playback(p);
     SDL_LockMutex(p->lock);
     if (index < 0 || index >= p->n) { SDL_UnlockMutex(p->lock); return; }
@@ -359,6 +361,7 @@ void player_play(player *p, int index) {
     SDL_strlcpy(pb->id, p->queue[index].id, sizeof pb->id);
     SDL_snprintf(pb->url, sizeof pb->url, "https://www.youtube.com/watch?v=%s", pb->id);
     pb->duration = p->queue[index].duration;
+    pb->skip_to = seconds;
     SDL_UnlockMutex(p->lock);
     pb->stream = gs_stream_new(RATE, 8, 0.4);
     pb->lock = SDL_CreateMutex();
@@ -375,7 +378,7 @@ void player_next(player *p) {
 }
 
 void player_previous(player *p) {
-    if (p->now && gs_stream_position(p->now->stream) > 3) player_play(p, p->current);
+    if (player_position(p) > 3) player_play(p, p->current);
     else if (p->current > 0) player_play(p, p->current - 1);
 }
 
@@ -446,7 +449,7 @@ void player_update(player *p) {
         p->failures = 0;
         SDL_LockMutex(p->lock);
         if (!strcmp(p->status, NEED_SIGNIN)) p->status[0] = 0;  // signing in worked
-        SDL_Log("player: playing \"%s\", at %.3f s", p->current >= 0 ? p->queue[p->current].title : "", gs_stream_position(p->now->stream));
+        SDL_Log("player: playing \"%s\", at %.3f s", p->current >= 0 ? p->queue[p->current].title : "", player_position(p));
         SDL_UnlockMutex(p->lock);
     }
     if (p->now && gs_stream_finished(p->now->stream)) {
@@ -504,7 +507,7 @@ int player_queue(player *p, track *out, int max, int *current) {
     return n;
 }
 
-double player_position(player *p) { return p->now ? gs_stream_position(p->now->stream) : 0; }
+double player_position(player *p) { return p->now ? p->now->skip_to + gs_stream_position(p->now->stream) : 0; }
 double player_duration(player *p) { return p->now ? p->now->duration : 0; }
 bool player_paused(player *p) { return p->now && gs_stream_paused(p->now->stream); }
 

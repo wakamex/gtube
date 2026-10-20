@@ -25,6 +25,7 @@ void player_add_track(player *p, const track *t);  // queues a known track witho
 // Replaces the queue and plays tracks[start], unless that song is already playing, which goes on.
 void player_set_queue(player *p, const track *tracks, int n, int start);
 void player_play(player *p, int index);
+void player_play_at(player *p, int index, double seconds);  // from `seconds` into the track
 void player_next(player *p);
 void player_previous(player *p);  // restarts the track if more than 3 s in
 void player_toggle_pause(player *p);  // or plays the current track when nothing is playing

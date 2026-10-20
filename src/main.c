@@ -97,7 +97,7 @@ typedef struct {
     int saved_version;    // the queue as last saved
     uint64_t next_save;
     gs_update *update;    // a published build looking for the next one (see start_update)
-    uint64_t idle_since;  // when playback last stopped or paused, for starting a new build then
+    double resume_at;     // --resume: where the build before stopped the playing song, to go on from there
     bool restart;         // a new build is in place: start it as this one ends
     int argc;
     char **argv;
@@ -317,7 +317,7 @@ static const char usage[] =
 
 // A build published by tools/publish-update keeps itself up to date from the server below, where
 // each commit published goes; a release or one's own build (no -Dbuild name) never looks. It starts
-// the new build once nothing has played for a minute, so that no song is cut off.
+// the new build as soon as it is in place, which goes on with the song that was playing, where it was.
 #define UPDATE_SERVER "http://updates.waka.mx/gtube/manifest.txt"
 #ifdef _WIN32
 #define PROGRAM "gtube.exe"
@@ -386,23 +386,20 @@ static void media_command(app *a, int code) {
     }
 }
 
-// Whether to end now for the new build: one is in place, and nothing has played for a minute.
-static bool update_due(app *a) {
-    if (!a->update || !gs_update_ready(a->update)) return false;
-    if (playing(a)) return a->idle_since = 0, false;
-    if (!a->idle_since) a->idle_since = SDL_GetTicks();
-    return SDL_GetTicks() - a->idle_since >= 60000;
-}
+// Whether to end now for the new build: at once, since a test build is for testing the latest one.
+static bool update_due(app *a) { return a->update && gs_update_ready(a->update); }
 
 // Starts the new build with this run's arguments, and --restarted, so its window does not take the
 // keyboard from whatever has it now.
 static void start_new_build(app *a) {
-    char **args = SDL_calloc((size_t)a->argc + 2, sizeof *args);
+    char **args = SDL_calloc((size_t)a->argc + 4, sizeof *args), at[32];
     if (!args) return;
     int n = 0;
     for (int i = 0; i < a->argc; i++)
-        if (strcmp(a->argv[i], "--restarted")) args[n++] = a->argv[i];
+        if (!strcmp(a->argv[i], "--resume")) i++;
+        else if (strcmp(a->argv[i], "--restarted")) args[n++] = a->argv[i];
     args[n++] = "--restarted";
+    if (playing(a)) snprintf(at, sizeof at, "%.2f", player_position(a->player)), args[n++] = "--resume", args[n++] = at;
     if (!gs_update_restart(NULL, PROGRAM, n, args)) SDL_Log("update: could not start the new build: %s", SDL_GetError());
     SDL_free(args);
 }
@@ -439,6 +436,7 @@ SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
         else if (!strcmp(argv[i], "--sign-out")) sign_out = true;
         else if (!strcmp(argv[i], "--sign-in")) open_signin = true;
         else if (!strcmp(argv[i], "--restarted")) SDL_SetHint(SDL_HINT_WINDOW_ACTIVATE_WHEN_SHOWN, "0");
+        else if (!strcmp(argv[i], "--resume") && i + 1 < argc) a->resume_at = SDL_atof(argv[++i]);
         else if (!strcmp(argv[i], "--view") && i + 1 < argc) {
             int v = SDL_atoi(argv[++i]) - 1;  // (SDL_clamp is a macro that evaluates its argument more than once)
             a->view = SDL_clamp(v, 0, 3), view_given = true;
@@ -1068,6 +1066,12 @@ SDL_AppResult SDL_AppIterate(void *state) {
     if (cap != a->pace_cap) gs_pace_set(&a->pace, a->win, a->ren, !a->uncapped, a->pace_cap = cap);
     viz_set_vsync(a->viz, a->pace.vsync != 0 && !a->pace.vsync_suspect);
     gs_stats_frame_begin(&a->stats);
+    if (a->resume_at > 0 && SDL_GetAtomicInt(&a->tools.state) == 1) {  // the song the build before was playing
+        int cur;
+        player_queue(a->player, NULL, 0, &cur);
+        if (cur >= 0) player_play_at(a->player, cur, a->resume_at);
+        a->resume_at = 0;
+    }
     if (!a->demo) player_update(a->player), show_media(a), follow_playing(a);
     if (update_due(a)) return SDL_Log("update: a new build is in place; starting it"), a->restart = true, SDL_APP_SUCCESS;
     if (a->signin) {  // signing in: done when the page reaches YouTube signed in, or the window is closed
