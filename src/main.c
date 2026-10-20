@@ -1163,6 +1163,11 @@ SDL_AppResult SDL_AppIterate(void *state) {
         draw_volume(a, u, x + w, y + 52 * u, dim);
     }
 
+#ifdef GTUBE_BUILD
+    // A test build names its commit in the top-right corner, to tell which one is running.
+    gs_fontset_draw(a->glyphs, a->fonts, 12 * u, x + w - gs_fontset_width(a->fonts, 12 * u, GTUBE_BUILD), 18 * u, GTUBE_BUILD, faint);
+#endif
+
     // Tabs.
     static const char *const tab_names[4] = { "Queue", "Liked", "Playlists", "Visualizer" };  // search opens with /
     float tx = x, ty = 150 * u;
