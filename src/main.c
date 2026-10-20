@@ -1306,7 +1306,7 @@ drawn:
         }
     }
     if (a->quit_at > 0 && SDL_GetTicks() - a->started >= a->quit_at * 1000) return SDL_APP_SUCCESS;
-    if (a->shot && SDL_GetTicks() - a->started >= a->shot_at * 1000) {
+    if (a->shot && SDL_GetTicks() - a->started >= a->shot_at * 1000 && !gs_glyphs_waiting(a->glyphs)) {  // (text new to the frame comes in the next)
         SDL_Surface *s = SDL_RenderReadPixels(a->ren, NULL), *c = s ? SDL_ConvertSurface(s, SDL_PIXELFORMAT_RGBA32) : NULL;
         bool ok = c && stbi_write_png(a->shot, c->w, c->h, 4, c->pixels, c->pitch);
         SDL_DestroySurface(c), SDL_DestroySurface(s);
