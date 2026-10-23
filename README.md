@@ -129,7 +129,7 @@ The Bend effects draw every pixel on a thread of their own. With a Vulkan GPU th
 
 ## Saving played audio
 
-Off by default. Put a file named `cache.txt` in the data folder (see `--data` above) and every song that gtube receives whole is saved as `<video id>.webm`, the [Opus](https://opus-codec.org/) audio exactly as YouTube sends it, with `<video id>.meta.json` beside it holding the id, title, artist, duration and whether the song is liked. The audio goes in an `audio` folder in the data folder, or in the folder named on the first line of `cache.txt`. The metadata file is written last, so a song with one is complete; a skipped song is not saved, and a song already saved is not saved again. Delete `cache.txt` to stop.
+Off by default. Put a file named `cache.txt` in the data folder (see `--data` above) and every song that gtube receives whole is saved as `<video id>.webm`, the Opus audio exactly as YouTube sends it, with `<video id>.meta.json` beside it holding the id, title, artist, duration and whether the song is liked. The audio goes in an `audio` folder in the data folder, or in the folder named on the first line of `cache.txt`. The metadata file is written last, so a song with one is complete; a skipped song is not saved, and a song already saved is not saved again. Delete `cache.txt` to stop.
 
 ## Troubleshooting
 
