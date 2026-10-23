@@ -7,6 +7,7 @@
 #include "account.h"
 #include "gs_mix.h"
 #include "gs_http.h"
+#include "gs_json.h"
 #include "gs_opus.h"
 #include "gs_webm.h"
 
@@ -33,6 +34,8 @@ typedef struct {
     double duration;
     double skip_to;  // seconds into the track where it starts (player_play_at); earlier audio is dropped
     char id[32], url[256], cookies[1200];
+    SDL_IOStream *cache;  // the WebM as it comes, into the cache folder (player_cache), or NULL
+    bool whole;           // the WebM came to its end
     long long received;  // bytes of WebM taken from the address
     char errors[2048];
     size_t nerrors;
@@ -54,7 +57,60 @@ struct player {
     char expected[PREFETCH_WANTS][32];  // the app's own guesses (player_expect)
     int nexpected;
     int failures;  // tracks in a row that failed to play
+    char cache_dir[1024];  // player_cache's folder, or empty
+    bool (*liked)(void *user, const char *id);
+    void *liked_user;
 };
+
+// ---- The audio cache ----
+
+static void cache_path(const playback *pb, const char *ext, char *out, size_t size) {
+    SDL_snprintf(out, size, "%s%s%s", pb->p->cache_dir, pb->id, ext);
+}
+
+// Starts the track's file, unless caching is off or the track is in the cache already.
+static void cache_open(playback *pb) {
+    char path[1200];
+    if (!pb->p->cache_dir[0]) return;
+    cache_path(pb, ".meta.json", path, sizeof path);
+    if (SDL_GetPathInfo(path, NULL)) return;
+    cache_path(pb, ".webm.part", path, sizeof path);
+    pb->cache = SDL_IOFromFile(path, "wb");
+}
+
+static void cache_write(playback *pb, const void *data, size_t len) {
+    if (pb->cache && SDL_WriteIO(pb->cache, data, len) != len) SDL_CloseIO(pb->cache), pb->cache = NULL;
+}
+
+// A whole track becomes <id>.webm and then <id>.meta.json, which marks it complete; any other is dropped.
+static void cache_close(playback *pb, bool keep) {
+    char part[1200], path[1200];
+    if (!pb->cache) return;
+    keep = SDL_CloseIO(pb->cache) && keep;
+    pb->cache = NULL;
+    cache_path(pb, ".webm.part", part, sizeof part);
+    cache_path(pb, ".webm", path, sizeof path);
+    if (!keep || !SDL_RenamePath(part, path)) { SDL_RemovePath(part); return; }
+    track t = { 0 };  // as the queue has it now: a link's title comes in after its audio starts
+    SDL_LockMutex(pb->p->lock);
+    for (int i = 0; i < pb->p->n; i++)
+        if (!strcmp(pb->p->queue[i].id, pb->id)) { t = pb->p->queue[i]; break; }
+    SDL_UnlockMutex(pb->p->lock);
+    gs_jval *meta = gs_jval_object();
+    gs_jval_set(meta, "id", gs_jval_str(pb->id));
+    gs_jval_set(meta, "title", gs_jval_str(t.title));
+    gs_jval_set(meta, "artist", gs_jval_str(t.artist));
+    if (pb->duration > 0) gs_jval_set(meta, "duration", gs_jval_num(pb->duration));
+    if (pb->p->liked) gs_jval_set(meta, "liked", gs_jval_bool(pb->p->liked(pb->p->liked_user, pb->id)));
+    cache_path(pb, ".meta.json", path, sizeof path);
+    gs_jval_save(path, meta, true);
+    gs_jval_free(meta);
+}
+
+void player_cache(player *p, const char *dir, bool (*liked)(void *user, const char *id), void *user) {
+    SDL_strlcpy(p->cache_dir, dir, sizeof p->cache_dir);
+    p->liked = liked, p->liked_user = user;
+}
 
 // ---- Listing a link ----
 
@@ -238,6 +294,7 @@ static void on_frame(void *user, const uint8_t *data, size_t len, double seconds
 static bool feed(void *user, const uint8_t *data, size_t len) {
     playback *pb = user;
     pb->received += (long long)len;
+    cache_write(pb, data, len);
     return gs_webm_feed(pb->webm, data, len) && !pb->bad && !SDL_GetAtomicInt(&pb->stop);
 }
 
@@ -255,8 +312,11 @@ static bool play_address(playback *pb, char *url, size_t size) {
     for (int tries = 0; tries < 3 && !SDL_GetAtomicInt(&pb->stop) && !pb->bad;) {
         long long before = pb->received;
         int status = gs_http_stream(&r, pb->received, feed, pb, &pb->stop);
-        if (SDL_GetAtomicInt(&pb->stop) || pb->bad || (total && pb->received >= total)) break;
-        if (status >= 200 && status < 300 && !total) break;  // the end, as far as can be told
+        if (SDL_GetAtomicInt(&pb->stop) || pb->bad) break;
+        if ((total && pb->received >= total) || (status >= 200 && status < 300 && !total)) {  // the end, as far as can be told
+            pb->whole = true;
+            break;
+        }
         if (!SDL_GetAtomicInt(&pb->got_audio)) return false;
         if (pb->received > before) tries = 0; else tries++;
         if (status < 200 || status >= 300) {  // expired, most likely: a new address for the same track
@@ -290,12 +350,16 @@ static void play_pipe(playback *pb) {
         if (!n) {
             SDL_IOStatus st = SDL_GetIOStatus(out);
             if (st == SDL_IO_STATUS_NOT_READY) { SDL_Delay(5); continue; }
-            break;  // the end of the stream, or yt-dlp stopped
+            pb->whole = true;  // the end of the stream, or yt-dlp stopped (told apart by its exit code)
+            break;
         }
+        cache_write(pb, buf, n);
         if (!gs_webm_feed(pb->webm, buf, n) || pb->bad) bad = true;
     }
     free(buf);
-    if (pb->proc && !SDL_GetAtomicInt(&pb->stop)) SDL_WaitProcess(pb->proc, true, NULL);
+    int code = -1;
+    if (pb->proc && !SDL_GetAtomicInt(&pb->stop)) SDL_WaitProcess(pb->proc, true, &code);
+    if (code != 0) pb->whole = false;
     pb->nerrors = tools_errors(pb->proc, pb->errors, sizeof pb->errors, pb->nerrors);
     if (!started) SDL_strlcpy(pb->errors, why, sizeof pb->errors);
     if (pb->errors[0] && !SDL_GetAtomicInt(&pb->stop)) SDL_Log("yt-dlp: %s", pb->errors);
@@ -310,6 +374,7 @@ static int SDLCALL play_thread(void *user) {
     SDL_SetAtomicInt(&pb->waiting, 0);
     char *url = malloc(8192);
     bool played = false;
+    cache_open(pb);
     if (prefetch_address(pf, pb->id, url, 8192)) {
         played = play_address(pb, url, 8192);
         if (!played && !SDL_GetAtomicInt(&pb->stop)) {
@@ -317,7 +382,8 @@ static int SDLCALL play_thread(void *user) {
             prefetch_forget(pf, pb->id);
             gs_webm_free(pb->webm);
             gs_opus_free(pb->opus);
-            pb->webm = gs_webm_new(on_frame, pb), pb->opus = NULL, pb->bad = false, pb->received = 0;
+            pb->webm = gs_webm_new(on_frame, pb), pb->opus = NULL, pb->bad = false, pb->received = 0, pb->whole = false;
+            cache_close(pb, false), cache_open(pb);  // (from the start again)
         }
     }
     free(url);
@@ -325,6 +391,7 @@ static int SDLCALL play_thread(void *user) {
     gs_webm_free(pb->webm);
     pb->webm = NULL;
     if (pb->bad || !SDL_GetAtomicInt(&pb->got_audio)) SDL_SetAtomicInt(&pb->failed, 1);
+    cache_close(pb, pb->whole && !pb->bad && !SDL_GetAtomicInt(&pb->stop) && SDL_GetAtomicInt(&pb->got_audio));
     gs_stream_end(pb->stream);
     return 0;
 }

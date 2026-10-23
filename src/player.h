@@ -19,6 +19,10 @@ typedef struct {
 typedef struct player player;
 
 player *player_new(tools *t, account *a, gs_jobs *jobs, bool audio);
+// Saves each track whose audio came whole to `dir` (ending in a separator): <id>.webm as YouTube
+// sends it, then <id>.meta.json with its id, title, artist, duration and, with `liked`, whether it is
+// liked (called from the playing thread). A track already there is not written again.
+void player_cache(player *p, const char *dir, bool (*liked)(void *user, const char *id), void *user);
 void player_free(player *p);
 void player_add(player *p, const char *url);  // lists the link's tracks in the background, then plays if idle
 void player_add_track(player *p, const track *t);  // queues a known track without listing it

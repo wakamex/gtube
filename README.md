@@ -127,6 +127,10 @@ The Bend effects draw every pixel on a thread of their own. With a Vulkan GPU th
 | `--stats FILE [--quit S]` | Add the performance overlay's text to a file each second, and quit after S seconds |
 | `--help` | List the options |
 
+## Saving played audio
+
+Off by default. Put a file named `cache.txt` in the data folder (see `--data` above) and every song that gtube receives whole is saved as `<video id>.webm`, the [Opus](https://opus-codec.org/) audio exactly as YouTube sends it, with `<video id>.meta.json` beside it holding the id, title, artist, duration and whether the song is liked. The audio goes in an `audio` folder in the data folder, or in the folder named on the first line of `cache.txt`. The metadata file is written last, so a song with one is complete; a skipped song is not saved, and a song already saved is not saved again. Delete `cache.txt` to stop.
+
 ## Troubleshooting
 
 - "YouTube wants a signed-in session": YouTube asked for an account before playing that track. Sign in (see Sign-in) and play it again.

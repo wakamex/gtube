@@ -240,6 +240,35 @@ static void save_window(app *a) {
     gs_window_state_save(path, &ws);
 }
 
+// Saving played audio is on when cache.txt is in the data folder: into the folder its first line
+// names, or audio/ in the data folder when it names none (see player_cache).
+static bool liked_now(void *user, const char *id) {
+    library *l = user;
+    SDL_LockMutex(l->lock);
+    bool liked = library_liked(l, id);
+    SDL_UnlockMutex(l->lock);
+    return liked;
+}
+
+static void start_cache(app *a) {
+    char path[1200], folder[1024];
+    snprintf(path, sizeof path, "%scache.txt", a->dir);
+    char *text = SDL_LoadFile(path, NULL);
+    if (!text) return;
+    size_t n = strcspn(text, "\r\n");
+    while (n && (text[n - 1] == ' ' || text[n - 1] == '\t')) n--;
+    if (n) snprintf(folder, sizeof folder, "%.*s%s", (int)n, text, text[n - 1] == '/' || text[n - 1] == '\\' ? "" : "/");
+    else snprintf(folder, sizeof folder, "%saudio/", a->dir);
+    SDL_free(text);
+    if (!SDL_CreateDirectory(folder)) { SDL_Log("cache: cannot make %s: %s", folder, SDL_GetError()); return; }
+    int n_parts = 0;
+    char **parts = SDL_GlobDirectory(folder, "*.part", 0, &n_parts);  // left by a run that did not end
+    for (int i = 0; i < n_parts; i++) snprintf(path, sizeof path, "%s%s", folder, parts[i]), SDL_RemovePath(path);
+    SDL_free(parts);
+    SDL_Log("cache: saving played audio in %s", folder);
+    player_cache(a->player, folder, liked_now, &a->library);
+}
+
 // The volume between runs, in volume.txt in the data folder.
 static void volume_path(const app *a, char *out, size_t size) { snprintf(out, size, "%svolume.txt", a->dir); }
 
@@ -530,6 +559,7 @@ SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
     if (a->persist) load_volume(a);
     a->player = player_new(&a->tools, &a->account, a->jobs, a->audio);
     if (a->audio && !a->demo) start_media(a);
+    if (a->persist) start_cache(a);
     a->glyphs = gs_glyphs_new(a->ren, 1024);
     a->fonts = gs_fontset_system();
     if (a->persist && !nurls && !radio) {  // links given to play take its place
