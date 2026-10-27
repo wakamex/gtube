@@ -383,7 +383,7 @@ static void start_update(app *a, const char *data) {
     char state[1200];
     snprintf(state, sizeof state, "%supdate.txt", a->dir);
     gs_update_config c = { .build = GTUBE_BUILD, .manifest = from && *from ? from : UPDATE_SERVER, .key = update_key,
-                           .program = PROGRAM, .agent = "gtube", .state = state };
+                           .program = PROGRAM, .agent = "gtube", .state = state, .gap_ms = 1 };  // (no wait between restarts)
     a->update = gs_update_start(&c);
     if (gs_update_consent(a->update) == GS_UPDATE_ASK) {  // asked once; until yes it does not look
         const SDL_MessageBoxButtonData buttons[] = { { SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT, 1, "Keep it up to date" }, { SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT, 0, "Not now" } };
@@ -443,9 +443,10 @@ static void media_command(app *a, int code) {
     }
 }
 
-// Whether to end now for the new build: one is in place, nothing plays, no search is being typed and
-// no sign-in is open, and gtube has been left alone for two minutes (and not restarted for 15).
-static bool update_due(app *a) { return a->update && gs_update_due(a->update, playing(a) || a->typing || a->signin, a->input_at); }
+// Whether to end now for the new build: one is in place, no search is being typed and no sign-in is
+// open, and gtube has been left alone for two minutes. A playing song does not hold it back, since
+// test builds are for working on gtube: the new build goes on with the song where it was.
+static bool update_due(app *a) { return a->update && gs_update_due(a->update, a->typing || a->signin, a->input_at); }
 
 // Starts the new build with this run's arguments (gs_update_restart_as adds --restarted), and the
 // playing song's place, which it goes on from.
