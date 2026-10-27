@@ -1,1 +1,23 @@
 1 ICON "gtube.ico"
+
+// The name Windows shows for gtube, as in the media overlay. build.zig defines the version.
+1 VERSIONINFO
+FILEVERSION GTUBE_VERSION_NUM
+PRODUCTVERSION GTUBE_VERSION_NUM
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "FileDescription", "gtube"
+            VALUE "ProductName", "gtube"
+            VALUE "FileVersion", GTUBE_VERSION_STR
+            VALUE "ProductVersion", GTUBE_VERSION_STR
+            VALUE "OriginalFilename", "gtube.exe"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

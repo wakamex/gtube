@@ -3,6 +3,7 @@
 //   zig build --fork=../gesso              build against a local gesso checkout
 //   zig build -Doptimize=ReleaseFast -Dtarget=x86_64-windows-gnu -p zig-out/windows
 const std = @import("std");
+const zon = @import("build.zig.zon");
 
 const flags: []const []const u8 = &.{ "-std=c11", "-ffp-contract=off", "-Wall", "-Wextra", "-Wno-unused-parameter", "-Wno-missing-field-initializers" };
 
@@ -36,7 +37,11 @@ pub fn build(b: *std.Build) void {
     }
     if (target.result.os.tag == .windows) {
         exe.subsystem = .windows;
-        mod.addWin32ResourceFile(.{ .file = b.path("assets/icon/gtube.rc") });
+        const version_num = std.mem.replaceOwned(u8, b.allocator, zon.version, ".", ",") catch @panic("OOM");
+        mod.addWin32ResourceFile(.{ .file = b.path("assets/icon/gtube.rc"), .flags = &.{
+            b.fmt("/dGTUBE_VERSION_NUM={s},0", .{version_num}),
+            "/dGTUBE_VERSION_STR=\"" ++ zon.version ++ "\"",
+        } });
         for ([_][]const u8{ "ole32", "advapi32", "crypt32" }) |lib| mod.linkSystemLibrary(lib, .{});
     }
     b.installArtifact(exe);
