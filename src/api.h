@@ -32,7 +32,8 @@ typedef enum { SEARCH_SONGS, SEARCH_ALBUMS, SEARCH_PLAYLISTS } search_kind;
 bool api_search(account *a, const char *query, search_kind kind, page *out);
 bool api_browse(account *a, const char *browse_id, const char *more, page *out);  // `more` NULL for the first page
 bool api_radio(account *a, const char *video_id, const char *more, page *out);
-bool api_like(account *a, const char *video_id, bool like, char *error, size_t size);
+typedef enum { RATE_NONE, RATE_LIKE, RATE_DISLIKE } rating;
+bool api_rate(account *a, const char *video_id, rating r, char *error, size_t size);
 void page_free(page *p);
 
 #define LIKED_MUSIC "VLLM"                     // browse id of the Liked music playlist

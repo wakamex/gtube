@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-typedef enum { LOAD_BROWSE, LOAD_SEARCH, LOAD_RADIO, LOAD_LIKE, LOAD_UNLIKE } load_kind;
+typedef enum { LOAD_BROWSE, LOAD_SEARCH, LOAD_RADIO, LOAD_RATE } load_kind;
 
 typedef struct {
     library *l;
@@ -11,7 +11,8 @@ typedef struct {
     int shelf, gen;
     char arg[256];
     char more[2048];
-    item song;  // for liking
+    item song;  // for rating
+    rating rate, was;
 } load;
 
 // ---- Liked songs ----
@@ -34,6 +35,20 @@ static void liked_remove(library *l, const char *id) {
     for (int i = 0; i < l->nliked; i++)
         if (!strcmp(l->liked[i], id)) l->liked[i][0] = 0;  // an empty id sorts first and matches nothing
     l->sorted = false;
+}
+
+bool library_disliked(library *l, const char *id) {
+    for (int i = 0; i < l->ndisliked; i++)
+        if (!strcmp(l->disliked[i], id)) return true;
+    return false;
+}
+
+static void disliked_set(library *l, const char *id, bool on) {
+    for (int i = 0; i < l->ndisliked; i++)
+        if (!strcmp(l->disliked[i], id)) { if (!on) SDL_memmove(l->disliked + i, l->disliked + i + 1, sizeof *l->disliked * (size_t)(--l->ndisliked - i)); return; }
+    if (!on) return;
+    l->disliked = realloc(l->disliked, sizeof *l->disliked * (size_t)(l->ndisliked + 1));
+    SDL_strlcpy(l->disliked[l->ndisliked++], id, sizeof *l->disliked);
 }
 
 // ---- Shelves ----
@@ -107,13 +122,14 @@ static void run(void *user) {
         deliver(j, &pg, api_radio(l->account, j->arg, j->more[0] ? j->more : NULL, &pg));
         page_free(&pg);
         break;
-    case LOAD_LIKE: case LOAD_UNLIKE: {
-        bool like = j->kind == LOAD_LIKE;
+    case LOAD_RATE: {
+        static const char *const verbs[] = { "clear the rating of", "like", "dislike" };
         char error[160];
-        if (!api_like(l->account, j->song.id, like, error, sizeof error)) {  // undo what was shown
+        if (!api_rate(l->account, j->song.id, j->rate, error, sizeof error)) {  // undo what was shown
             SDL_LockMutex(l->lock);
-            if (like) liked_remove(l, j->song.id); else liked_add(l, j->song.id);
-            SDL_snprintf(l->note, sizeof l->note, "could not %s %s: %s", like ? "like" : "unlike", j->song.title, error);
+            if (j->was == RATE_LIKE) liked_add(l, j->song.id); else liked_remove(l, j->song.id);
+            disliked_set(l, j->song.id, j->was == RATE_DISLIKE);
+            SDL_snprintf(l->note, sizeof l->note, "could not %s %s: %s", verbs[j->rate], j->song.title, error);
             SDL_UnlockMutex(l->lock);
         }
         free(j);
@@ -148,6 +164,7 @@ void library_init(library *l, account *a, gs_jobs *jobs) {
 void library_free(library *l) {
     for (int i = 0; i < SHELVES; i++) free(l->shelves[i].items);
     free(l->liked);
+    free(l->disliked);
     SDL_DestroyMutex(l->lock);
 }
 
@@ -187,11 +204,14 @@ void library_radio_more(library *l) {
     if (j) gs_jobs_add(l->jobs, run, j);
 }
 
-void library_like(library *l, const item *song, bool like) {
+void library_rate(library *l, const item *song, rating r) {
     load *j = calloc(1, sizeof *j);
-    j->l = l, j->kind = like ? LOAD_LIKE : LOAD_UNLIKE, j->song = *song;
+    j->l = l, j->kind = LOAD_RATE, j->song = *song, j->rate = r;
     SDL_LockMutex(l->lock);  // shown at once; undone if YouTube refuses
+    j->was = library_liked(l, song->id) ? RATE_LIKE : library_disliked(l, song->id) ? RATE_DISLIKE : RATE_NONE;
+    bool like = r == RATE_LIKE;
     if (like) liked_add(l, song->id); else liked_remove(l, song->id);
+    disliked_set(l, song->id, r == RATE_DISLIKE);
     shelf *s = &l->shelves[SHELF_LIKED];
     if (like && s->gen) {  // newest first, as YouTube lists them
         if (s->n + 1 > s->cap) s->items = realloc(s->items, sizeof *s->items * (size_t)(s->cap = (s->n + 1) * 2));

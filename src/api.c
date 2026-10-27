@@ -275,11 +275,11 @@ bool api_radio(account *a, const char *video_id, const char *more, page *out) {
     return out->n > 0;
 }
 
-bool api_like(account *a, const char *video_id, bool like, char *error, size_t size) {
+bool api_rate(account *a, const char *video_id, rating r, char *error, size_t size) {
     char fields[200] = "\"target\":{\"videoId\":";
     json_quote(fields, sizeof fields, video_id);
     SDL_strlcat(fields, "}", sizeof fields);
-    gs_json *doc = request(a, like ? "like/like" : "like/removelike", fields, error, size);
+    gs_json *doc = request(a, r == RATE_LIKE ? "like/like" : r == RATE_DISLIKE ? "like/dislike" : "like/removelike", fields, error, size);
     gs_json_free(doc);
     return doc != NULL;
 }

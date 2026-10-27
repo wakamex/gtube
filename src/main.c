@@ -26,6 +26,7 @@
 #include "gs_text.h"
 #include "gs_ui.h"
 #include "gs_update.h"
+#include "hotkeys.h"
 #include "stb_image_write.h"
 #include "account.h"
 #include "api.h"
@@ -102,6 +103,7 @@ typedef struct {
     int argc;
     char **argv;
     Uint32 media;     // the event type the system's media controls send (0 without them)
+    Uint32 hotkeys;   // and the one Ctrl+Alt+L and Ctrl+Alt+D come as (hotkeys.h)
     int media_version, media_state;  // what was last given to them (version -1 to give it again)
     char media_title[256], media_artist[160];
     uint64_t media_check;  // when to look again for a title that came in after its song started
@@ -559,7 +561,7 @@ SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
     if (a->persist) load_volume(a);
     a->player = player_new(&a->tools, &a->account, a->jobs, a->audio);
     if (a->audio && !a->demo) start_media(a);
-    if (a->persist) start_cache(a);
+    if (a->persist) start_cache(a), a->hotkeys = hotkeys_init();
     a->glyphs = gs_glyphs_new(a->ren, 1024);
     a->fonts = gs_fontset_system();
     if (a->persist && !nurls && !radio) {  // links given to play take its place
@@ -751,17 +753,23 @@ static void start_radio(app *a) {
     show(a, V_QUEUE);
 }
 
-static void toggle_like(app *a) {
+// l and d like or dislike the selected song, or else the playing one; Ctrl+Alt+L and Ctrl+Alt+D
+// (`playing`) the playing one. Each again clears it. A song disliked while it plays is skipped.
+static void rate(app *a, rating r, bool playing) {
     item song;
-    if (!account_signed_in(&a->account)) { note(a, "Press s to sign in and like songs"); return; }
-    if (!chosen_song(a, &song)) return;
+    if (!account_signed_in(&a->account)) { note(a, "Press s to sign in and rate songs"); return; }
+    int cur, n = player_queue(a->player, queue_copy, 2000, &cur);
+    bool is_playing = cur >= 0 && cur < n;
+    if (playing ? !is_playing : !chosen_song(a, &song)) return;
+    if (playing) song_from_track(&queue_copy[cur], &song);
     SDL_LockMutex(a->library.lock);
-    bool liked = library_liked(&a->library, song.id);
+    bool had = r == RATE_LIKE ? library_liked(&a->library, song.id) : library_disliked(&a->library, song.id);
     SDL_UnlockMutex(a->library.lock);
-    library_like(&a->library, &song, !liked);
+    library_rate(&a->library, &song, had ? RATE_NONE : r);
     char msg[320];
-    snprintf(msg, sizeof msg, "%s %s", liked ? "Unliked" : "Liked", song.title);
+    snprintf(msg, sizeof msg, "%s %s", r == RATE_LIKE ? (had ? "Unliked" : "Liked") : (had ? "No longer disliked:" : "Disliked"), song.title);
     note(a, msg);
+    if (r == RATE_DISLIKE && !had && is_playing && !strcmp(queue_copy[cur].id, song.id)) player_next(a->player);
 }
 
 // Whether `artists` names the first artist of `other` ("A & B", "A, B", "A feat. B").
@@ -907,6 +915,7 @@ SDL_AppResult SDL_AppEvent(void *state, SDL_Event *e) {
     if (!a->ren) return SDL_APP_CONTINUE;
     signin_event(a->signin, e);
     if (a->media && e->type == a->media) return media_command(a, e->user.code), SDL_APP_CONTINUE;
+    if (a->hotkeys && e->type == a->hotkeys) return rate(a, e->user.code == HOTKEY_LIKE ? RATE_LIKE : RATE_DISLIKE, true), SDL_APP_CONTINUE;
     if (e->type >= SDL_EVENT_WINDOW_FIRST && e->type <= SDL_EVENT_WINDOW_LAST && e->window.windowID != SDL_GetWindowID(a->win)) return SDL_APP_CONTINUE;
     if ((e->type == SDL_EVENT_KEY_DOWN || e->type == SDL_EVENT_MOUSE_BUTTON_DOWN) && e->key.windowID != SDL_GetWindowID(a->win)) return SDL_APP_CONTINUE;
     SDL_ConvertEventToRenderCoordinates(a->ren, e);
@@ -989,7 +998,8 @@ SDL_AppResult SDL_AppEvent(void *state, SDL_Event *e) {
         case SDLK_END: *sel = 1 << 30; break;
         case SDLK_RETURN: case SDLK_KP_ENTER: activate(a, *sel); break;
         case SDLK_R: if (!ctrl) start_radio(a); break;
-        case SDLK_L: if (!ctrl) toggle_like(a); break;
+        case SDLK_L: if (!ctrl) rate(a, RATE_LIKE, false); break;
+        case SDLK_D: if (!ctrl) rate(a, RATE_DISLIKE, false); break;
         case SDLK_MINUS: case SDLK_KP_MINUS: set_volume(a, a->volume - 0.1f); break;
         case SDLK_EQUALS: case SDLK_PLUS: case SDLK_KP_PLUS: set_volume(a, a->volume + 0.1f); break;
         case SDLK_S: if (!ctrl) sign_in(a); break;
@@ -1359,6 +1369,7 @@ void SDL_AppQuit(void *state, SDL_AppResult result) {
     if (a->persist && a->player) save_queue(a);
     if (a->persist && a->volume != a->saved_volume) save_volume(a);
     gs_nowplaying_quit();
+    hotkeys_quit();
     gs_update_free(a->update);
     if (a->restart) start_new_build(a);
     gs_mix_close();

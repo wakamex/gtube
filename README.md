@@ -79,6 +79,8 @@ gtube keeps only the youtube.com and google.com cookies from the file and renews
 | The media keys | Play, pause, next and previous, also while gtube is in the background; the system's media overlay shows the song |
 | r | Start a radio from the selected or playing song |
 | l | Like or unlike the selected song |
+| d | Dislike the selected song, skipping it if it is playing, or take the dislike back |
+| Ctrl+Alt+L, Ctrl+Alt+D | Like or dislike the playing song from any program (Windows) |
 | Ctrl+V, or drop a link | Play a link: a track, an album or a playlist |
 | - and +, or the volume slider | Volume (the slider is under the now-playing times; drag or scroll on it) |
 | s | Sign in |

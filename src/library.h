@@ -30,7 +30,9 @@ typedef struct {
     char (*liked)[16];  // ids of liked songs, sorted when `sorted`
     int nliked, liked_cap;
     bool sorted;
-    char note[160];     // the last like or unlike that failed
+    char (*disliked)[16];  // ids of songs disliked in this run (YouTube does not list them)
+    int ndisliked;
+    char note[160];     // the last rating that failed
 } library;
 
 void library_init(library *l, account *a, gs_jobs *jobs);
@@ -45,4 +47,6 @@ void library_radio_more(library *l);  // the radio's next page, if it has one an
 int library_radio_resume(library *l, const char *video_id, const char *title, const char *more);
 
 bool library_liked(library *l, const char *video_id);  // call under the lock
-void library_like(library *l, const item *song, bool like);
+bool library_disliked(library *l, const char *video_id);  // call under the lock
+// Likes, dislikes or clears the song, shown at once and undone if YouTube refuses.
+void library_rate(library *l, const item *song, rating r);
