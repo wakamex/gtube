@@ -104,6 +104,9 @@ typedef struct {
     gs_update *update;    // a published build looking for the next one (see start_update)
     double resume_at;     // --resume: where the build before stopped the playing song, to go on from there
     bool restart;         // a new build is in place: start it as this one ends
+    bool restarted;       // started by the build before, for an update (--restarted)
+    uint64_t input_at;    // the last key or pointer press, for restarting only when left alone
+    SDL_FRect build_label;  // a test build's corner label, clicked to restart into a new build
     int argc;
     char **argv;
     Uint32 media;     // the event type the system's media controls send (0 without them)
@@ -117,6 +120,7 @@ typedef struct {
 
 static void sign_in(app *a);
 static void start_media(app *a);
+static void note(app *a, const char *msg);
 
 // Whether a saved window position is still on a connected display (monitors come and go).
 static void start_radio(app *a);
@@ -190,9 +194,15 @@ static bool write_wav(const char *path, const float *lr, int frames) {
 // effect's frames never leave the GPU, otherwise on SDL's default renderer.
 // A shot's window is drawn in memory by the software renderer, and says it brings its own graphics
 // context: otherwise SDL gives a macOS window OpenGL, which the offscreen driver there cannot load.
+#ifdef GTUBE_BUILD
+#define WINDOW_TITLE "gtube (test build " GTUBE_BUILD ")"
+#else
+#define WINDOW_TITLE "gtube"
+#endif
+
 static SDL_Window *new_window(app *a, SDL_WindowFlags flags) {
     SDL_PropertiesID p = SDL_CreateProperties();
-    SDL_SetStringProperty(p, SDL_PROP_WINDOW_CREATE_TITLE_STRING, "gtube");
+    SDL_SetStringProperty(p, SDL_PROP_WINDOW_CREATE_TITLE_STRING, WINDOW_TITLE);
     SDL_SetNumberProperty(p, SDL_PROP_WINDOW_CREATE_WIDTH_NUMBER, a->window.w);
     SDL_SetNumberProperty(p, SDL_PROP_WINDOW_CREATE_HEIGHT_NUMBER, a->window.h);
     SDL_SetNumberProperty(p, SDL_PROP_WINDOW_CREATE_FLAGS_NUMBER, flags);
@@ -219,7 +229,7 @@ static void set_icon(SDL_Window *w) {
 
 static bool make_window(app *a, bool bend) {
     SDL_WindowFlags wf = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN;
-    if (!(bend && bend_vk_window("gtube", a->window.w, a->window.h, wf, &a->win, &a->ren))) {
+    if (!(bend && bend_vk_window(WINDOW_TITLE, a->window.w, a->window.h, wf, &a->win, &a->ren))) {
         if (!(a->win = new_window(a, wf))) return false;
         if (!(a->ren = SDL_CreateRenderer(a->win, NULL))) return SDL_DestroyWindow(a->win), a->win = NULL, false;
     }
@@ -370,9 +380,21 @@ static void start_update(app *a, const char *data) {
 #ifdef GTUBE_BUILD
     const char *from = SDL_getenv("GTUBE_UPDATE_FROM");
     if (data && !(from && *from)) return;
+    char state[1200];
+    snprintf(state, sizeof state, "%supdate.txt", a->dir);
     gs_update_config c = { .build = GTUBE_BUILD, .manifest = from && *from ? from : UPDATE_SERVER, .key = update_key,
-                           .program = PROGRAM, .agent = "gtube" };
+                           .program = PROGRAM, .agent = "gtube", .state = state };
     a->update = gs_update_start(&c);
+    if (gs_update_consent(a->update) == GS_UPDATE_ASK) {  // asked once; until yes it does not look
+        const SDL_MessageBoxButtonData buttons[] = { { SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT, 1, "Keep it up to date" }, { SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT, 0, "Not now" } };
+        const SDL_MessageBoxData box = { SDL_MESSAGEBOX_INFORMATION, a->win, "gtube test build " GTUBE_BUILD,
+                                         GS_UPDATE_NOTICE " Press u in gtube to turn it on or off.", 2, buttons, NULL };
+        int yes = 0;
+        SDL_ShowMessageBox(&box, &yes);
+        gs_update_set_consent(a->update, yes == 1);
+    }
+    if (gs_update_rolled_back(a->update)) note(a, "The newest test build kept failing to start, so gtube went back to the one before");
+    else if (a->restarted) note(a, "Updated to test build " GTUBE_BUILD);
 #else
     (void)a, (void)data;
 #endif
@@ -421,21 +443,21 @@ static void media_command(app *a, int code) {
     }
 }
 
-// Whether to end now for the new build: at once, since a test build is for testing the latest one.
-static bool update_due(app *a) { return a->update && gs_update_ready(a->update); }
+// Whether to end now for the new build: one is in place, nothing plays, no search is being typed and
+// no sign-in is open, and gtube has been left alone for two minutes (and not restarted for 15).
+static bool update_due(app *a) { return a->update && gs_update_due(a->update, playing(a) || a->typing || a->signin, a->input_at); }
 
-// Starts the new build with this run's arguments, and --restarted, so its window does not take the
-// keyboard from whatever has it now.
+// Starts the new build with this run's arguments (gs_update_restart_as adds --restarted), and the
+// playing song's place, which it goes on from.
 static void start_new_build(app *a) {
-    char **args = SDL_calloc((size_t)a->argc + 4, sizeof *args), at[32];
+    char **args = SDL_calloc((size_t)a->argc + 3, sizeof *args), at[32];
     if (!args) return;
     int n = 0;
     for (int i = 0; i < a->argc; i++)
         if (!strcmp(a->argv[i], "--resume")) i++;
         else if (strcmp(a->argv[i], "--restarted")) args[n++] = a->argv[i];
-    args[n++] = "--restarted";
     if (playing(a)) snprintf(at, sizeof at, "%.2f", player_position(a->player)), args[n++] = "--resume", args[n++] = at;
-    if (!gs_update_restart(NULL, PROGRAM, n, args)) SDL_Log("update: could not start the new build: %s", SDL_GetError());
+    if (!gs_update_restart_as(a->update, n, args)) SDL_Log("update: could not start the new build: %s", SDL_GetError());
     SDL_free(args);
 }
 
@@ -443,6 +465,7 @@ SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
     app *a = SDL_calloc(1, sizeof *a);
     *state = a;
     a->argc = argc, a->argv = argv;
+    a->restarted = gs_update_restarted(argc, argv);  // (its window then does not take the keyboard)
     SDL_SetHint(SDL_HINT_WINDOWS_INTRESOURCE_ICON, "1");  // the icon resource in assets/icon/gtube.rc
     SDL_SetHint(SDL_HINT_WINDOWS_INTRESOURCE_ICON_SMALL, "1");
     const char *data = NULL, *probe = NULL, *wav = NULL, *import = NULL, *api_kind = NULL, *api_arg = NULL, *radio = NULL, *urls[16];
@@ -470,7 +493,7 @@ SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
         else if (!strcmp(argv[i], "--refresh")) refresh = true;
         else if (!strcmp(argv[i], "--sign-out")) sign_out = true;
         else if (!strcmp(argv[i], "--sign-in")) open_signin = true;
-        else if (!strcmp(argv[i], "--restarted")) SDL_SetHint(SDL_HINT_WINDOW_ACTIVATE_WHEN_SHOWN, "0");
+        else if (!strcmp(argv[i], "--restarted")) {}  // (gs_update_restarted)
         else if (!strcmp(argv[i], "--resume") && i + 1 < argc) a->resume_at = SDL_atof(argv[++i]);
         else if (!strcmp(argv[i], "--view") && i + 1 < argc) {
             int v = SDL_atoi(argv[++i]) - 1;  // (SDL_clamp is a macro that evaluates its argument more than once)
@@ -926,6 +949,7 @@ SDL_AppResult SDL_AppEvent(void *state, SDL_Event *e) {
     if (a->hotkeys && e->type == a->hotkeys) return rate(a, e->user.code == HOTKEY_LIKE ? RATE_LIKE : RATE_DISLIKE, true), SDL_APP_CONTINUE;
     if (e->type >= SDL_EVENT_WINDOW_FIRST && e->type <= SDL_EVENT_WINDOW_LAST && e->window.windowID != SDL_GetWindowID(a->win)) return SDL_APP_CONTINUE;
     if ((e->type == SDL_EVENT_KEY_DOWN || e->type == SDL_EVENT_MOUSE_BUTTON_DOWN) && e->key.windowID != SDL_GetWindowID(a->win)) return SDL_APP_CONTINUE;
+    if (e->type == SDL_EVENT_KEY_DOWN || e->type == SDL_EVENT_MOUSE_BUTTON_DOWN || e->type == SDL_EVENT_MOUSE_WHEEL) a->input_at = SDL_GetTicks();
     SDL_ConvertEventToRenderCoordinates(a->ren, e);
     if (e->type == SDL_EVENT_QUIT || e->type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) return SDL_APP_SUCCESS;
     if (gs_window_state_track(&a->window, a->win, e)) a->window_changed = true;
@@ -1011,10 +1035,21 @@ SDL_AppResult SDL_AppEvent(void *state, SDL_Event *e) {
         case SDLK_MINUS: case SDLK_KP_MINUS: set_volume(a, a->volume - 0.1f); break;
         case SDLK_EQUALS: case SDLK_PLUS: case SDLK_KP_PLUS: set_volume(a, a->volume + 0.1f); break;
         case SDLK_S: if (!ctrl) sign_in(a); break;
+        case SDLK_U:  // a test build's updating, on or off
+            if (!ctrl && a->update) {
+                bool on = gs_update_consent(a->update) != GS_UPDATE_YES;
+                gs_update_set_consent(a->update, on);
+                note(a, on ? "Updates on: gtube restarts into each new test build once left alone" : "Updates off: this test build stays as it is");
+            }
+            break;
         case SDLK_F1: case SDLK_GRAVE: a->show_stats = !a->show_stats; break;
         }
     } else if (e->type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
         float x = e->button.x, y = e->button.y;
+        if (e->button.button == SDL_BUTTON_LEFT && a->update && gs_update_ready(a->update) && inside(a->build_label, x, y)) {
+            a->restart = true;  // "restart now"
+            return SDL_APP_SUCCESS;
+        }
         if (e->button.button == SDL_BUTTON_LEFT && inside(a->volume_bar, x, y)) {
             a->volume_drag = true;
             volume_from_x(a, x);
@@ -1232,8 +1267,15 @@ SDL_AppResult SDL_AppIterate(void *state) {
     }
 
 #ifdef GTUBE_BUILD
-    // A test build names its commit in the top-right corner, to tell which one is running.
-    gs_fontset_draw(a->glyphs, a->fonts, 12 * u, x + w - gs_fontset_width(a->fonts, 12 * u, GTUBE_BUILD), 18 * u, GTUBE_BUILD, faint);
+    // A test build says so in the top-right corner, with its commit and whether it updates itself.
+    {
+        bool ready = a->update && gs_update_ready(a->update), on = a->update && gs_update_consent(a->update) == GS_UPDATE_YES;
+        const char *label = ready ? "test build " GTUBE_BUILD ": a new one is ready, click to restart"
+                          : on ? "test build " GTUBE_BUILD ", updates on (u)" : "test build " GTUBE_BUILD ", updates off (u)";
+        float lw = gs_fontset_width(a->fonts, 12 * u, label);
+        gs_fontset_draw(a->glyphs, a->fonts, 12 * u, x + w - lw, 18 * u, label, ready ? accent : faint);
+        a->build_label = (SDL_FRect){ x + w - lw - 6 * u, 4 * u, lw + 12 * u, 20 * u };
+    }
 #endif
 
     // Tabs.
@@ -1394,8 +1436,8 @@ void SDL_AppQuit(void *state, SDL_AppResult result) {
     if (a->persist && a->volume != a->saved_volume) save_volume(a);
     gs_nowplaying_quit();
     hotkeys_quit();
-    gs_update_free(a->update);
     if (a->restart) start_new_build(a);
+    gs_update_free(a->update);  // (a run that ends without it counts against a build on trial)
     gs_mix_close();
     signin_close(a->signin);
     player_free(a->player);
