@@ -20,6 +20,7 @@
 #include "gs_http.h"
 #include "gs_jobs.h"
 #include "gs_mix.h"
+#include "gs_nowplaying.h"
 #include "gs_pace.h"
 #include "gs_stats.h"
 #include "gs_text.h"
@@ -100,9 +101,14 @@ typedef struct {
     bool restart;         // a new build is in place: start it as this one ends
     int argc;
     char **argv;
+    Uint32 media;     // the event type the system's media controls send (0 without them)
+    int media_version, media_state;  // what was last given to them (version -1 to give it again)
+    char media_title[256], media_artist[160];
+    uint64_t media_check;  // when to look again for a title that came in after its song started
 } app;
 
 static void sign_in(app *a);
+static void start_media(app *a);
 
 // Whether a saved window position is still on a connected display (monitors come and go).
 static void start_radio(app *a);
@@ -275,6 +281,7 @@ static bool move_to_bend(app *a) {
     gs_glyphs_free(a->glyphs);
     if (a->typing) SDL_StopTextInput(old_win);
     if (!make_window(a, true)) return false;
+    if (a->media) start_media(a);
     SDL_DestroyRenderer(old_ren);
     SDL_DestroyWindow(old_win);
     show_window(a);
@@ -334,10 +341,53 @@ static void start_update(app *a, const char *data) {
 #endif
 }
 
+static track queue_copy[2000];  // the queue as the player last gave it
+
+// The system's media controls (gs_nowplaying): its media keys and overlay play, pause and skip from
+// the background too, and the overlay shows the song. They belong to a window, so a new window takes
+// them over.
+static void start_media(app *a) {
+    gs_nowplaying_quit();
+    a->media = gs_nowplaying_init(a->win, "gtube", "gtube");
+    a->media_version = -1;
+}
+
+static bool playing(app *a) {
+    return player_loading(a->player) || (player_duration(a->player) > 0 && !player_paused(a->player));
+}
+
+// Gives the controls the current song and whether it plays, when either changed: at once when the
+// queue or the state did, and within a second when a song's title came in after it started. A song
+// shown but not started (a restored queue) counts as paused, so that the play key starts it.
+static void show_media(app *a) {
+    if (!a->media) return;
+    int version = player_version(a->player), state = playing(a) ? GS_NOWPLAYING_PLAYING : GS_NOWPLAYING_PAUSED;
+    uint64_t now = SDL_GetTicks();
+    if (version == a->media_version && state == a->media_state && now < a->media_check) return;
+    a->media_check = now + 1000;
+    int cur, n = player_queue(a->player, queue_copy, 2000, &cur);
+    const track *t = cur >= 0 && cur < n ? &queue_copy[cur] : &(track){ 0 };
+    if (!t->id[0]) state = GS_NOWPLAYING_STOPPED;
+    if (version != a->media_version || state != a->media_state || strcmp(t->title, a->media_title) || strcmp(t->artist, a->media_artist))
+        gs_nowplaying_set(t->title, t->artist, state);
+    a->media_version = version, a->media_state = state;
+    SDL_strlcpy(a->media_title, t->title, sizeof a->media_title), SDL_strlcpy(a->media_artist, t->artist, sizeof a->media_artist);
+}
+
+static void media_command(app *a, int code) {
+    switch (code) {
+    case GS_NOWPLAYING_PLAY: if (!playing(a)) player_toggle_pause(a->player); break;
+    case GS_NOWPLAYING_PAUSE: case GS_NOWPLAYING_STOP: if (playing(a)) player_toggle_pause(a->player); break;
+    case GS_NOWPLAYING_TOGGLE: player_toggle_pause(a->player); break;
+    case GS_NOWPLAYING_NEXT: player_next(a->player); break;
+    case GS_NOWPLAYING_PREVIOUS: player_previous(a->player); break;
+    }
+}
+
 // Whether to end now for the new build: one is in place, and nothing has played for a minute.
 static bool update_due(app *a) {
     if (!a->update || !gs_update_ready(a->update)) return false;
-    if (player_loading(a->player) || (player_duration(a->player) > 0 && !player_paused(a->player))) return a->idle_since = 0, false;
+    if (playing(a)) return a->idle_since = 0, false;
     if (!a->idle_since) a->idle_since = SDL_GetTicks();
     return SDL_GetTicks() - a->idle_since >= 60000;
 }
@@ -479,6 +529,7 @@ SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
     a->volume = a->saved_volume = 1;
     if (a->persist) load_volume(a);
     a->player = player_new(&a->tools, &a->account, a->jobs, a->audio);
+    if (a->audio && !a->demo) start_media(a);
     a->glyphs = gs_glyphs_new(a->ren, 1024);
     a->fonts = gs_fontset_system();
     if (a->persist && !nurls && !radio) {  // links given to play take its place
@@ -551,7 +602,6 @@ static void sign_in(app *a) {
 // ---- Views ----
 
 static const int view_shelf[VIEWS] = { -1, SHELF_LIKED, SHELF_PLAYLISTS, -1, SHELF_SEARCH, SHELF_OPEN };
-static track queue_copy[2000];
 
 static void song_from_track(const track *t, item *out) {
     memset(out, 0, sizeof *out);
@@ -798,6 +848,7 @@ SDL_AppResult SDL_AppEvent(void *state, SDL_Event *e) {
     app *a = state;
     if (!a->ren) return SDL_APP_CONTINUE;
     signin_event(a->signin, e);
+    if (a->media && e->type == a->media) return media_command(a, e->user.code), SDL_APP_CONTINUE;
     if (e->type >= SDL_EVENT_WINDOW_FIRST && e->type <= SDL_EVENT_WINDOW_LAST && e->window.windowID != SDL_GetWindowID(a->win)) return SDL_APP_CONTINUE;
     if ((e->type == SDL_EVENT_KEY_DOWN || e->type == SDL_EVENT_MOUSE_BUTTON_DOWN) && e->key.windowID != SDL_GetWindowID(a->win)) return SDL_APP_CONTINUE;
     SDL_ConvertEventToRenderCoordinates(a->ren, e);
@@ -843,6 +894,9 @@ SDL_AppResult SDL_AppEvent(void *state, SDL_Event *e) {
     }
     if (e->type == SDL_EVENT_KEY_DOWN) {
         bool ctrl = e->key.mod & (SDL_KMOD_CTRL | SDL_KMOD_GUI);
+        SDL_Keycode k = e->key.key;
+        if (a->media && (k == SDLK_MEDIA_PLAY_PAUSE || k == SDLK_MEDIA_PLAY || k == SDLK_MEDIA_PAUSE || k == SDLK_MEDIA_NEXT_TRACK || k == SDLK_MEDIA_PREVIOUS_TRACK))
+            return SDL_APP_CONTINUE;  // these come as the controls' commands instead (twice otherwise)
         int page = a->visible > 1 ? a->visible - 1 : 1;
         switch (e->key.key) {
         case SDLK_ESCAPE: case SDLK_BACKSPACE:
@@ -984,7 +1038,7 @@ SDL_AppResult SDL_AppIterate(void *state) {
     if (cap != a->pace_cap) gs_pace_set(&a->pace, a->win, a->ren, !a->uncapped, a->pace_cap = cap);
     viz_set_vsync(a->viz, a->pace.vsync != 0 && !a->pace.vsync_suspect);
     gs_stats_frame_begin(&a->stats);
-    if (!a->demo) player_update(a->player);
+    if (!a->demo) player_update(a->player), show_media(a);
     if (update_due(a)) return SDL_Log("update: a new build is in place; starting it"), a->restart = true, SDL_APP_SUCCESS;
     if (a->signin) {  // signing in: done when the page reaches YouTube signed in, or the window is closed
         char *jar = NULL, why[200];
@@ -1235,6 +1289,7 @@ void SDL_AppQuit(void *state, SDL_AppResult result) {
     if (a->persist && a->win) save_window(a);
     if (a->persist && a->player) save_queue(a);
     if (a->persist && a->volume != a->saved_volume) save_volume(a);
+    gs_nowplaying_quit();
     gs_update_free(a->update);
     if (a->restart) start_new_build(a);
     gs_mix_close();

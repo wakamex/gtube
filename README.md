@@ -75,7 +75,8 @@ gtube keeps only the youtube.com and google.com cookies from the file and renews
 | Enter or click | Play a song and the rest of its list, or open an album or playlist |
 | Esc or Backspace | Leave search, or go back from an album or playlist |
 | Space | Pause or resume |
-| n, p (or the media keys) | Next and previous track |
+| n and p | Next and previous track |
+| The media keys | Play, pause, next and previous, also while gtube is in the background; the system's media overlay shows the song |
 | r | Start a radio from the selected or playing song |
 | l | Like or unlike the selected song |
 | Ctrl+V, or drop a link | Play a link: a track, an album or a playlist |
