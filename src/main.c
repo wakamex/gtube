@@ -388,7 +388,7 @@ static void start_update(app *a, const char *data) {
     if (gs_update_consent(a->update) == GS_UPDATE_ASK) {  // asked once; until yes it does not look
         const SDL_MessageBoxButtonData buttons[] = { { SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT, 1, "Keep it up to date" }, { SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT, 0, "Not now" } };
         const SDL_MessageBoxData box = { SDL_MESSAGEBOX_INFORMATION, a->win, "gtube test build " GTUBE_BUILD,
-                                         GS_UPDATE_NOTICE " Press u in gtube to turn it on or off.", 2, buttons, NULL };
+                                         GS_UPDATE_NOTICE "\n\nPress u in gtube to turn it on or off.", 2, buttons, NULL };
         int yes = 0;
         SDL_ShowMessageBox(&box, &yes);
         gs_update_set_consent(a->update, yes == 1);
