@@ -90,6 +90,10 @@ typedef struct {
     float volume, saved_volume;  // 0 to 1.5, and as volume.txt in the data folder last held it
     SDL_FRect volume_bar;  // the clickable track in the now-playing header
     bool volume_drag;
+    SDL_FRect seek_bar;  // the progress bar's clickable track, while a song with a known length plays
+    double seek_dur;     // that song's length
+    bool seek_drag;
+    float seek_frac;     // where the drag is, 0 to 1: the song goes there when the button is let go
     SDL_FRect rows[64];
     int row_index[64], nrows;
     bool persist;         // remembers the window and queue (not in test modes)
@@ -890,6 +894,10 @@ static void set_volume(app *a, float v) {
     gs_mix_set_volume(a->volume);
 }
 
+static void seek_from_x(app *a, float mx) {
+    a->seek_frac = fminf(1, fmaxf(0, (mx - a->seek_bar.x) / a->seek_bar.w));
+}
+
 static void volume_from_x(app *a, float mx) {
     if (a->volume_bar.w <= 0) return;
     set_volume(a, (mx - a->volume_bar.x) / a->volume_bar.w * 1.5f);
@@ -1012,6 +1020,11 @@ SDL_AppResult SDL_AppEvent(void *state, SDL_Event *e) {
             volume_from_x(a, x);
             return SDL_APP_CONTINUE;
         }
+        if (e->button.button == SDL_BUTTON_LEFT && a->seek_bar.w > 0 && inside(a->seek_bar, x, y)) {
+            a->seek_drag = true;
+            seek_from_x(a, x);
+            return SDL_APP_CONTINUE;
+        }
         for (int i = 0; i < 4; i++)
             if (inside(a->tabs[i], x, y)) {
                 show(a, i);
@@ -1023,8 +1036,16 @@ SDL_AppResult SDL_AppEvent(void *state, SDL_Event *e) {
             if (inside(a->rows[i], x, y)) *sel = a->row_index[i], activate(a, a->row_index[i]);
     } else if (e->type == SDL_EVENT_MOUSE_BUTTON_UP && e->button.button == SDL_BUTTON_LEFT) {
         a->volume_drag = false;
+        if (a->seek_drag) {  // (the song starts again from there: player_play_at)
+            int cur;
+            player_queue(a->player, NULL, 0, &cur);
+            if (cur >= 0) player_play_at(a->player, cur, a->seek_frac * a->seek_dur);
+            a->seek_drag = false;
+        }
     } else if (e->type == SDL_EVENT_MOUSE_MOTION && a->volume_drag) {
         volume_from_x(a, e->motion.x);
+    } else if (e->type == SDL_EVENT_MOUSE_MOTION && a->seek_drag) {
+        seek_from_x(a, e->motion.x);
     } else if (e->type == SDL_EVENT_MOUSE_WHEEL) {
         if (inside(a->volume_bar, e->wheel.mouse_x, e->wheel.mouse_y)) {
             set_volume(a, a->volume + e->wheel.y * 0.05f);
@@ -1180,6 +1201,7 @@ SDL_AppResult SDL_AppIterate(void *state) {
     }
 
     // Now playing.
+    a->seek_bar = (SDL_FRect){ 0 };
     SDL_LockMutex(l->lock);
     if (cur >= 0 && cur < qn) {
         track *t = &queue_copy[cur];
@@ -1191,6 +1213,8 @@ SDL_AppResult SDL_AppIterate(void *state) {
         double pos = player_position(a->player), dur = player_duration(a->player);
         if (!dur) dur = t->duration;
         float by = y + 52 * u;
+        if (dur > 0) a->seek_bar = (SDL_FRect){ x, by - 8 * u, w, 18 * u }, a->seek_dur = dur;
+        if (a->seek_drag) pos = a->seek_frac * dur;  // where it will go
         SDL_SetRenderDrawColor(a->ren, 60, 57, 54, 255);
         SDL_RenderFillRect(a->ren, &(SDL_FRect){ x, by, w, 4 * u });
         SDL_SetRenderDrawColor(a->ren, 255, 92, 70, 255);

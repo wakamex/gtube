@@ -83,6 +83,7 @@ gtube keeps only the youtube.com and google.com cookies from the file and renews
 | Ctrl+Alt+L, Ctrl+Alt+D | Like or dislike the playing song from any program (Windows) |
 | Ctrl+V, or drop a link | Play a link: a track, an album or a playlist |
 | - and +, or the volume slider | Volume (the slider is under the now-playing times; drag or scroll on it) |
+| Click or drag the progress bar | Go to that point in the song |
 | s | Sign in |
 | F1 | Performance overlay |
 | f, Alt+Enter or F11 | Full screen |
