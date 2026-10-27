@@ -393,7 +393,7 @@ static void start_update(app *a, const char *data) {
         SDL_ShowMessageBox(&box, &yes);
         gs_update_set_consent(a->update, yes == 1);
     }
-    if (gs_update_rolled_back(a->update)) note(a, "The newest test build kept failing to start, so gtube went back to the one before");
+    if (gs_update_rolled_back(a->update)) note(a, "Back on the previous build: the newest kept failing");
     else if (a->restarted) note(a, "Updated to test build " GTUBE_BUILD);
 #else
     (void)a, (void)data;
@@ -1040,7 +1040,7 @@ SDL_AppResult SDL_AppEvent(void *state, SDL_Event *e) {
             if (!ctrl && a->update) {
                 bool on = gs_update_consent(a->update) != GS_UPDATE_YES;
                 gs_update_set_consent(a->update, on);
-                note(a, on ? "Updates on: gtube restarts into each new test build once left alone" : "Updates off: this test build stays as it is");
+                note(a, on ? "Updates on: new test builds install themselves" : "Updates off: this build stays as it is");
             }
             break;
         case SDLK_F1: case SDLK_GRAVE: a->show_stats = !a->show_stats; break;
