@@ -40,6 +40,10 @@ void library_free(library *l);  // after the jobs have finished
 
 void library_signed_in(library *l);  // (re)loads Liked music and the playlists
 void library_open(library *l, int shelf, const char *browse_id, const char *title);
+// A copy of a shelf as it is (free its items), and one put back in its place, which takes the copy's
+// items; a shelf copied while it was loading is opened again instead.
+void library_copy(library *l, int which, shelf *out);
+void library_put(library *l, int which, shelf *copy);
 void library_search(library *l, const char *query, search_kind kind);
 void library_radio(library *l, const char *video_id, const char *title);
 void library_radio_more(library *l);  // the radio's next page, if it has one and is not loading

@@ -74,7 +74,7 @@ gtube keeps only the youtube.com and google.com cookies from the file and renews
 | / or Ctrl+F | Search YouTube Music: everything, ranked as the site ranks it |
 | Tab, Shift+Tab, or click a name in the search box | Search only songs, albums, artists or playlists, or everything again |
 | Enter or click | Play a song and the rest of its list, or open an album, playlist or artist |
-| Esc or Backspace | Leave search, or go back from an album or playlist |
+| Esc or Backspace | Leave search, or go back from an album, playlist or artist to the list it was opened from |
 | Space | Pause or resume |
 | n and p | Next and previous track |
 | The media keys | Play, pause, next and previous, also while gtube is in the background; the system's media overlay shows the song |

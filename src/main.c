@@ -47,6 +47,8 @@ typedef struct {
     tools tools;
     library library;
     int view, back;  // the view shown, and the one an opened album or playlist goes back to
+    struct { shelf list; int sel, scroll; } trail[16];  // the lists opened from opened lists, to go back through
+    int ntrail;
     int selected[VIEWS], scroll[VIEWS], visible;
     uint64_t wheel_until;
     bool typing;     // the search box has the keyboard
@@ -770,11 +772,28 @@ static void activate(app *a, int i) {
         player_set_queue(a->player, tracks, n, start);
         SDL_free(tracks);
     } else if (it.kind == ITEM_ALBUM || it.kind == ITEM_PLAYLIST || it.kind == ITEM_ARTIST) {
-        if (a->view != V_OPEN) a->back = a->view;
+        if (a->view != V_OPEN) {  // opened from a tab or the search: a new trail
+            a->back = a->view;
+            while (a->ntrail) free(a->trail[--a->ntrail].list.items);
+        } else {  // from an opened list: it is kept, to go back to as it was
+            if (a->ntrail == SDL_arraysize(a->trail)) free(a->trail[0].list.items), SDL_memmove(a->trail, a->trail + 1, sizeof a->trail[0] * (size_t)--a->ntrail);
+            library_copy(l, SHELF_OPEN, &a->trail[a->ntrail].list);
+            a->trail[a->ntrail].sel = a->selected[V_OPEN], a->trail[a->ntrail].scroll = a->scroll[V_OPEN];
+            a->ntrail++;
+        }
         library_open(l, SHELF_OPEN, it.id, it.title);
         a->selected[V_OPEN] = a->scroll[V_OPEN] = 0;
         show(a, V_OPEN);
     }
+}
+
+// Esc, Backspace or a click on the header of an opened list: the list it was opened from, or else
+// the view it was opened from.
+static void go_back(app *a) {
+    if (!a->ntrail) { show(a, a->back); return; }
+    a->ntrail--;
+    library_put(&a->library, SHELF_OPEN, &a->trail[a->ntrail].list);
+    a->selected[V_OPEN] = a->trail[a->ntrail].sel, a->scroll[V_OPEN] = a->trail[a->ntrail].scroll;
 }
 
 static void start_radio(app *a) {
@@ -1014,7 +1033,7 @@ SDL_AppResult SDL_AppEvent(void *state, SDL_Event *e) {
         int page = a->visible > 1 ? a->visible - 1 : 1;
         switch (e->key.key) {
         case SDLK_ESCAPE: case SDLK_BACKSPACE:
-            if (a->view == V_OPEN) show(a, a->back);
+            if (a->view == V_OPEN) go_back(a);
             else if (e->key.key == SDLK_ESCAPE && a->fullscreen) SDL_SetWindowFullscreen(a->win, a->fullscreen = false);
             break;
         case SDLK_V: if (ctrl) { char *t = SDL_GetClipboardText(); paste(a, t); SDL_free(t); } break;
@@ -1084,7 +1103,7 @@ SDL_AppResult SDL_AppEvent(void *state, SDL_Event *e) {
             for (int i = 0; i < SEARCH_KINDS; i++)
                 if (inside(a->filters[i], x, y)) { set_search(a, i); return SDL_APP_CONTINUE; }
         if (a->view == V_SEARCH && inside(a->header, x, y)) start_typing(a);
-        else if (a->view == V_OPEN && inside(a->header, x, y)) show(a, a->back);
+        else if (a->view == V_OPEN && inside(a->header, x, y)) go_back(a);
         for (int i = 0; i < a->nrows; i++)
             if (inside(a->rows[i], x, y)) *sel = a->row_index[i], activate(a, a->row_index[i]);
     } else if (e->type == SDL_EVENT_MOUSE_BUTTON_UP && e->button.button == SDL_BUTTON_LEFT) {
@@ -1470,6 +1489,7 @@ void SDL_AppQuit(void *state, SDL_AppResult result) {
     signin_close(a->signin);
     player_free(a->player);
     if (a->jobs) gs_jobs_wait(a->jobs), gs_jobs_free(a->jobs);
+    while (a->ntrail) free(a->trail[--a->ntrail].list.items);
     library_free(&a->library);
     viz_free(a->viz);
     gs_fontset_free(a->fonts);

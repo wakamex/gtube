@@ -170,6 +170,29 @@ void library_signed_in(library *l) {
 }
 
 void library_open(library *l, int which, const char *id, const char *title) { start(l, which, LOAD_BROWSE, id, title); }
+
+void library_copy(library *l, int which, shelf *out) {
+    SDL_LockMutex(l->lock);
+    *out = l->shelves[which];
+    out->items = malloc(sizeof *out->items * (size_t)(out->cap = out->n ? out->n : 1));
+    memcpy(out->items, l->shelves[which].items, sizeof *out->items * (size_t)out->n);
+    SDL_UnlockMutex(l->lock);
+}
+
+void library_put(library *l, int which, shelf *copy) {
+    if (copy->loading) {
+        library_open(l, which, copy->source, copy->title);
+        free(copy->items);
+        return;
+    }
+    SDL_LockMutex(l->lock);
+    shelf *s = &l->shelves[which];
+    free(s->items);
+    int gen = s->gen + 1;  // (a load still under way for it drops its pages)
+    *s = *copy;
+    s->gen = gen;
+    SDL_UnlockMutex(l->lock);
+}
 void library_search(library *l, const char *query, search_kind kind) {
     load *j = prepare(l, SHELF_SEARCH, LOAD_SEARCH, query, query);
     j->search = kind;
