@@ -71,8 +71,9 @@ gtube keeps only the youtube.com and google.com cookies from the file and renews
 | Key | Action |
 |---|---|
 | 1 to 4, or Left and Right | Queue, liked music, your playlists, visualizer |
-| / or Ctrl+F | Search songs, albums and playlists |
-| Enter or click | Play a song and the rest of its list, or open an album or playlist |
+| / or Ctrl+F | Search YouTube Music: everything, ranked as the site ranks it |
+| Tab, Shift+Tab, or click a name in the search box | Search only songs, albums, artists or playlists, or everything again |
+| Enter or click | Play a song and the rest of its list, or open an album, playlist or artist |
 | Esc or Backspace | Leave search, or go back from an album or playlist |
 | Space | Pause or resume |
 | n and p | Next and previous track |
@@ -125,7 +126,7 @@ The Bend effects draw every pixel on a thread of their own. With a Vulkan GPU th
 | `--data DIR` | Keep the tools and session elsewhere (default: `%APPDATA%\wakamex\gtube` on Windows, `~/.local/share/wakamex/gtube` on Linux, `~/Library/Application Support/wakamex/gtube` on macOS; a `gesso-gtube` folder from earlier versions moves there at first launch) |
 | `--wav F.wav [--seconds S] URL` | Render the first track to a file |
 | `--shot F.png [--at S]` | Render one frame to a file |
-| `--api search\|albums\|playlists\|browse\|radio ARG` | Print one API answer |
+| `--api search\|songs\|albums\|artists\|playlists\|browse\|radio ARG` | Print one API answer (search is everything, ranked as the site ranks it) |
 | `--tools [--probe URL]` | Only get or update yt-dlp and its JavaScript runtime, and optionally show what yt-dlp makes of a link |
 | `--stats FILE [--quit S]` | Add the performance overlay's text to a file each second, and quit after S seconds |
 | `--help` | List the options |

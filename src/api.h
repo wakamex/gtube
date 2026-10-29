@@ -7,13 +7,13 @@
 
 #include "account.h"
 
-typedef enum { ITEM_SONG, ITEM_ALBUM, ITEM_PLAYLIST, ITEM_HEADING } item_kind;
+typedef enum { ITEM_SONG, ITEM_ALBUM, ITEM_PLAYLIST, ITEM_HEADING, ITEM_ARTIST } item_kind;
 
 typedef struct {
     item_kind kind;
-    char id[64];  // a song's video id, or an album's or playlist's browse id
+    char id[64];  // a song's video id, or an album's, playlist's or artist's browse id
     char title[256];
-    char artist[160];  // for a song; an album's or playlist's subtitle
+    char artist[160];  // for a song; an album's, playlist's or artist's subtitle
     double duration;   // seconds, 0 if unknown
 } item;
 
@@ -25,12 +25,15 @@ typedef struct {
     char error[160];
 } page;
 
-typedef enum { SEARCH_SONGS, SEARCH_ALBUMS, SEARCH_PLAYLISTS } search_kind;
+// Everything, as the site's search ranks it, or one kind, as its filters give it.
+typedef enum { SEARCH_ALL, SEARCH_SONGS, SEARCH_ALBUMS, SEARCH_ARTISTS, SEARCH_PLAYLISTS, SEARCH_KINDS } search_kind;
 
 // Each blocks (run them as jobs) and fills `out`, which the caller frees with page_free. False on
 // failure, with out->error saying why.
-bool api_search(account *a, const char *query, search_kind kind, page *out);
-bool api_browse(account *a, const char *browse_id, const char *more, page *out);  // `more` NULL for the first page
+// `more` NULL for the first page. An artist's page (a browse id starting UC) gives its shelves,
+// each under a heading: top songs, albums, singles, playlists it is on and artists like it.
+bool api_search(account *a, const char *query, search_kind kind, const char *more, page *out);
+bool api_browse(account *a, const char *browse_id, const char *more, page *out);
 bool api_radio(account *a, const char *video_id, const char *more, page *out);
 typedef enum { RATE_NONE, RATE_LIKE, RATE_DISLIKE } rating;
 bool api_rate(account *a, const char *video_id, rating r, char *error, size_t size);

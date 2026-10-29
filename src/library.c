@@ -11,6 +11,7 @@ typedef struct {
     int shelf, gen;
     char arg[256];
     char more[2048];
+    search_kind search;
     item song;  // for rating
     rating rate, was;
 } load;
@@ -61,12 +62,6 @@ static void append(library *l, shelf *s, const item *items, int n) {
         for (int i = 0; i < n; i++) liked_add(l, items[i].id);
 }
 
-static void heading(library *l, shelf *s, const char *text) {
-    item h = { .kind = ITEM_HEADING };
-    SDL_strlcpy(h.title, text, sizeof h.title);
-    append(l, s, &h, 1);
-}
-
 // Keeps the page if its shelf has not been refilled since; returns whether to go on.
 static bool deliver(load *j, page *pg, bool ok) {
     library *l = j->l;
@@ -104,18 +99,14 @@ static void run(void *user) {
         page_free(&pg);
         break;
     }
-    case LOAD_SEARCH: {
-        static const char *const titles[] = { "Songs", "Albums", "Playlists" };
-        for (int k = SEARCH_SONGS; k <= SEARCH_PLAYLISTS; k++) {
-            bool ok = api_search(l->account, j->arg, (search_kind)k, &pg);
-            SDL_LockMutex(l->lock);
-            if (l->shelves[j->shelf].gen == j->gen && ok && pg.n) heading(l, &l->shelves[j->shelf], titles[k]);
-            SDL_UnlockMutex(l->lock);
-            pg.more[0] = 0;  // a search shows its first page of each kind
-            bool go = deliver(j, &pg, ok);
+    case LOAD_SEARCH: {  // up to five pages of one kind (everything comes as one)
+        const char *more = NULL;
+        for (int pages = 1; deliver(j, &pg, api_search(l->account, j->arg, j->search, more, &pg)) && pg.more[0] && pages < 5; pages++) {
+            SDL_strlcpy(j->more, pg.more, sizeof j->more);
+            more = j->more;
             page_free(&pg);
-            if (!go) break;
         }
+        page_free(&pg);
         break;
     }
     case LOAD_RADIO:
@@ -139,8 +130,8 @@ static void run(void *user) {
     finish(j);
 }
 
-// Empties a shelf and starts loading it.
-static void start(library *l, int which, load_kind kind, const char *arg, const char *title) {
+// Empties a shelf for a load, which the caller starts.
+static load *prepare(library *l, int which, load_kind kind, const char *arg, const char *title) {
     load *j = calloc(1, sizeof *j);
     SDL_LockMutex(l->lock);
     shelf *s = &l->shelves[which];
@@ -152,7 +143,12 @@ static void start(library *l, int which, load_kind kind, const char *arg, const 
     SDL_UnlockMutex(l->lock);
     j->l = l, j->kind = kind, j->shelf = which;
     SDL_strlcpy(j->arg, arg, sizeof j->arg);
-    gs_jobs_add(l->jobs, run, j);
+    return j;
+}
+
+// Empties a shelf and starts loading it.
+static void start(library *l, int which, load_kind kind, const char *arg, const char *title) {
+    gs_jobs_add(l->jobs, run, prepare(l, which, kind, arg, title));
 }
 
 void library_init(library *l, account *a, gs_jobs *jobs) {
@@ -174,7 +170,11 @@ void library_signed_in(library *l) {
 }
 
 void library_open(library *l, int which, const char *id, const char *title) { start(l, which, LOAD_BROWSE, id, title); }
-void library_search(library *l, const char *query) { start(l, SHELF_SEARCH, LOAD_SEARCH, query, query); }
+void library_search(library *l, const char *query, search_kind kind) {
+    load *j = prepare(l, SHELF_SEARCH, LOAD_SEARCH, query, query);
+    j->search = kind;
+    gs_jobs_add(l->jobs, run, j);
+}
 void library_radio(library *l, const char *id, const char *title) { start(l, SHELF_RADIO, LOAD_RADIO, id, title); }
 
 int library_radio_resume(library *l, const char *id, const char *title, const char *more) {

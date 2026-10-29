@@ -56,6 +56,8 @@ typedef struct {
     int radio_gen, radio_taken;
     bool radio_replace;  // the radio's first tracks become the queue (a restored radio appends instead)
     SDL_FRect tabs[4], header;
+    search_kind search;      // what the search looks for: everything, or one kind (Tab)
+    SDL_FRect filters[SEARCH_KINDS];  // the kinds' names in the search box, to click
     viz *viz;
     bool fullscreen;
     double pace_cap;
@@ -126,22 +128,24 @@ static void note(app *a, const char *msg);
 static void start_radio(app *a);
 
 static bool api_test(account *acc, const char *kind, const char *arg) {
-    static const char *const kinds[] = { "song", "album", "playlist", "heading" };
+    static const char *const kinds[] = { "song", "album", "playlist", "heading", "artist" };
+    static const char *const searches[SEARCH_KINDS] = { "search", "songs", "albums", "artists", "playlists" };
+    int search = -1;
+    for (int i = 0; i < SEARCH_KINDS; i++)
+        if (!strcmp(kind, searches[i])) search = i;
     page pg;
     char more[2048] = "";
     int total = 0, pages = 0;
     uint64_t start = SDL_GetTicks();
     do {
-        bool ok = !strcmp(kind, "search") ? api_search(acc, arg, SEARCH_SONGS, &pg)
-                : !strcmp(kind, "albums") ? api_search(acc, arg, SEARCH_ALBUMS, &pg)
-                : !strcmp(kind, "playlists") ? api_search(acc, arg, SEARCH_PLAYLISTS, &pg)
+        bool ok = search >= 0 ? api_search(acc, arg, (search_kind)search, more[0] ? more : NULL, &pg)
                 : !strcmp(kind, "radio") ? api_radio(acc, arg, more[0] ? more : NULL, &pg)
                 : api_browse(acc, arg, more[0] ? more : NULL, &pg);
         if (!ok) { printf("failed: %s\n", pg.error); page_free(&pg); return false; }
         for (int i = 0; i < pg.n; i++, total++)
             if (total < 8 || i == pg.n - 1)
                 printf("%4d %-8s %-24s %s | %s | %.0f s\n", total, kinds[pg.items[i].kind], pg.items[i].id, pg.items[i].title, pg.items[i].artist, pg.items[i].duration);
-        SDL_strlcpy(more, !strcmp(kind, "browse") || (!strcmp(kind, "radio") && pages < 2) ? pg.more : "", sizeof more);
+        SDL_strlcpy(more, !strcmp(kind, "browse") || ((search >= 0 || !strcmp(kind, "radio")) && pages < 2) ? pg.more : "", sizeof more);
         pages++;
         page_free(&pg);
     } while (more[0]);
@@ -358,7 +362,7 @@ static const char usage[] =
     "  --shot F.png [--at S]                     render one frame at S seconds, headless, and quit\n"
     "  --stats FILE [--quit S]                   add the performance overlay's text to FILE each second;\n"
     "                                            quit after S seconds\n"
-    "  --api search|albums|playlists|browse|radio ARG   print one YouTube Music API answer\n";
+    "  --api search|songs|albums|artists|playlists|browse|radio ARG   print one YouTube Music API answer\n";
 
 // A build published by tools/publish-update keeps itself up to date from the server below, where
 // each commit published goes; a release or one's own build (no -Dbuild name) never looks. It starts
@@ -612,7 +616,7 @@ SDL_AppResult SDL_AppInit(void **state, int argc, char **argv) {
     if (!a->shot && !demo && account_signed_in(&a->account)) a->next_refresh = SDL_GetTicks();  // renew at launch
     if (open_signin) sign_in(a);
     if (!demo && account_signed_in(&a->account)) library_signed_in(&a->library);
-    if (a->query[0]) library_search(&a->library, a->query);
+    if (a->query[0]) library_search(&a->library, a->query, a->search);
     if (radio) {
         track seed = { 0 };
         SDL_strlcpy(seed.id, radio, sizeof seed.id);
@@ -724,6 +728,12 @@ static void follow_playing(app *a) {
     a->playing_at = cur;
 }
 
+// Tab, Shift+Tab or a click on its name: the search looks for another kind, at once if there is a query.
+static void set_search(app *a, int kind) {
+    a->search = (search_kind)((kind + SEARCH_KINDS) % SEARCH_KINDS);
+    if (a->query[0]) library_search(&a->library, a->query, a->search), a->selected[V_SEARCH] = a->scroll[V_SEARCH] = 0;
+}
+
 static void show(app *a, int view) {
     a->view = view;
     a->typing = false;
@@ -759,7 +769,7 @@ static void activate(app *a, int i) {
         a->radio = false;
         player_set_queue(a->player, tracks, n, start);
         SDL_free(tracks);
-    } else if (it.kind == ITEM_ALBUM || it.kind == ITEM_PLAYLIST) {
+    } else if (it.kind == ITEM_ALBUM || it.kind == ITEM_PLAYLIST || it.kind == ITEM_ARTIST) {
         if (a->view != V_OPEN) a->back = a->view;
         library_open(l, SHELF_OPEN, it.id, it.title);
         a->selected[V_OPEN] = a->scroll[V_OPEN] = 0;
@@ -961,11 +971,15 @@ SDL_AppResult SDL_AppEvent(void *state, SDL_Event *e) {
         return SDL_APP_CONTINUE;
     }
     if (e->type == SDL_EVENT_TEXT_INPUT && a->typing) paste_query(a, e->text.text);
+    if (e->type == SDL_EVENT_KEY_DOWN && e->key.key == SDLK_TAB && a->view == V_SEARCH) {
+        set_search(a, a->search + (e->key.mod & SDL_KMOD_SHIFT ? -1 : 1));
+        return SDL_APP_CONTINUE;
+    }
     if (e->type == SDL_EVENT_KEY_DOWN && a->typing) {  // the search box has the keyboard
         bool ctrl = e->key.mod & (SDL_KMOD_CTRL | SDL_KMOD_GUI);
         switch (e->key.key) {
         case SDLK_RETURN: case SDLK_KP_ENTER:
-            if (a->query[0]) library_search(&a->library, a->query), *sel = a->scroll[V_SEARCH] = 0;
+            if (a->query[0]) library_search(&a->library, a->query, a->search), *sel = a->scroll[V_SEARCH] = 0;
             show(a, V_SEARCH);
             break;
         case SDLK_ESCAPE: case SDLK_DOWN: show(a, V_SEARCH); break;
@@ -1066,6 +1080,9 @@ SDL_AppResult SDL_AppEvent(void *state, SDL_Event *e) {
                 show(a, i);
                 return SDL_APP_CONTINUE;
             }
+        if (a->view == V_SEARCH)
+            for (int i = 0; i < SEARCH_KINDS; i++)
+                if (inside(a->filters[i], x, y)) { set_search(a, i); return SDL_APP_CONTINUE; }
         if (a->view == V_SEARCH && inside(a->header, x, y)) start_typing(a);
         else if (a->view == V_OPEN && inside(a->header, x, y)) show(a, a->back);
         for (int i = 0; i < a->nrows; i++)
@@ -1311,9 +1328,19 @@ SDL_AppResult SDL_AppIterate(void *state) {
     if (a->view == V_SEARCH) {
         SDL_SetRenderDrawColor(a->ren, a->typing ? 52 : 36, a->typing ? 48 : 34, a->typing ? 45 : 32, 255);
         SDL_RenderFillRect(a->ren, &a->header);
+        // The kinds to look for, on the right, the chosen one lit (Tab moves on).
+        static const char *const names[SEARCH_KINDS] = { "All", "Songs", "Albums", "Artists", "Playlists" };
+        float fx = x + w;
+        for (int i = SEARCH_KINDS - 1; i >= 0; i--) {
+            float fw = gs_fontset_width(a->fonts, 13 * u, names[i]);
+            fx -= fw;
+            gs_fontset_draw(a->glyphs, a->fonts, 13 * u, fx, hy, names[i], i == (int)a->search ? accent : faint);
+            a->filters[i] = (SDL_FRect){ fx - 6 * u, hy - 18 * u, fw + 12 * u, 26 * u };
+            fx -= 14 * u;
+        }
         bool blink = a->typing && SDL_GetTicks() / 500 % 2 == 0;
         snprintf(buf, sizeof buf, "%s%s", a->query, blink ? "|" : "");
-        fit(a, 16 * u, x, hy, w, a->query[0] || a->typing ? buf : "Press / to search songs, albums and playlists", a->query[0] ? ink : dim);
+        fit(a, 16 * u, x, hy, fx - x - 10 * u, a->query[0] || a->typing ? buf : "Press / to search", a->query[0] ? ink : dim);
     } else if (signed_out) {
         fit(a, 15 * u, x, hy, w, a->view == V_LIKED ? "Press s to sign in and see your liked music" : "Press s to sign in and see your playlists", dim);
     } else if (a->view == V_QUEUE) {

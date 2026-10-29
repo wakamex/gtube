@@ -40,7 +40,7 @@ void library_free(library *l);  // after the jobs have finished
 
 void library_signed_in(library *l);  // (re)loads Liked music and the playlists
 void library_open(library *l, int shelf, const char *browse_id, const char *title);
-void library_search(library *l, const char *query);
+void library_search(library *l, const char *query, search_kind kind);
 void library_radio(library *l, const char *video_id, const char *title);
 void library_radio_more(library *l);  // the radio's next page, if it has one and is not loading
 // A radio saved from an earlier run: nothing loaded yet, continued from `more`. Returns its generation.

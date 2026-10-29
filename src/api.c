@@ -165,6 +165,7 @@ static void list_item(page *pg, int *cap, gs_jv r) {
     if (!video) video = gs_json_str(gs_json_path(r, "overlay.musicItemThumbnailOverlayRenderer.content.musicPlayButtonRenderer.playNavigationEndpoint.watchEndpoint.videoId"), NULL);
     gs_jv nav = gs_json_get(r, "navigationEndpoint");
     const char *type = page_type(nav);
+    if (!strncmp(cols[1], "Episode", 7) || !strncmp(cols[1], "Podcast", 7) || !strncmp(cols[1], "Profile", 7)) return;  // (in mixed results)
     if (video && !strstr(type, "ALBUM") && !strstr(type, "PLAYLIST") && !strstr(type, "ARTIST")) {
         item *it = add(pg, cap);
         it->kind = ITEM_SONG;
@@ -174,22 +175,22 @@ static void list_item(page *pg, int *cap, gs_jv r) {
         char fixed[64];
         runs_text(gs_json_path(r, "fixedColumns.0.musicResponsiveListItemFixedColumnRenderer.text.runs"), fixed, sizeof fixed);
         if (parse_duration(fixed) > 0) it->duration = parse_duration(fixed);
-    } else if (strstr(type, "ALBUM") || strstr(type, "PLAYLIST")) {
+    } else if (strstr(type, "ALBUM") || strstr(type, "PLAYLIST") || strstr(type, "ARTIST")) {
         item *it = add(pg, cap);
-        it->kind = strstr(type, "ALBUM") ? ITEM_ALBUM : ITEM_PLAYLIST;
+        it->kind = strstr(type, "ALBUM") ? ITEM_ALBUM : strstr(type, "ARTIST") ? ITEM_ARTIST : ITEM_PLAYLIST;
         SDL_strlcpy(it->id, gs_json_str(gs_json_path(nav, "browseEndpoint.browseId"), ""), sizeof it->id);
         SDL_strlcpy(it->title, cols[0], sizeof it->title);
         SDL_strlcpy(it->artist, cols[1], sizeof it->artist);
     }
 }
 
-// A tile in the library's grid of playlists.
+// A tile in the library's grid of playlists, or on an artist's page.
 static void tile(page *pg, int *cap, gs_jv r) {
     gs_jv nav = gs_json_get(r, "navigationEndpoint");
     const char *type = page_type(nav), *id = gs_json_str(gs_json_path(nav, "browseEndpoint.browseId"), NULL);
-    if (!id || (!strstr(type, "ALBUM") && !strstr(type, "PLAYLIST"))) return;  // such as "New playlist"
+    if (!id || (!strstr(type, "ALBUM") && !strstr(type, "PLAYLIST") && !strstr(type, "ARTIST"))) return;  // such as "New playlist"
     item *it = add(pg, cap);
-    it->kind = strstr(type, "ALBUM") ? ITEM_ALBUM : ITEM_PLAYLIST;
+    it->kind = strstr(type, "ALBUM") ? ITEM_ALBUM : strstr(type, "ARTIST") ? ITEM_ARTIST : ITEM_PLAYLIST;
     SDL_strlcpy(it->id, id, sizeof it->id);
     runs_text(gs_json_path(r, "title.runs"), it->title, sizeof it->title);
     runs_text(gs_json_path(r, "subtitle.runs"), it->artist, sizeof it->artist);
@@ -211,10 +212,50 @@ static void queue_item(page *pg, int *cap, gs_jv r) {
     it->duration = parse_duration(len);
 }
 
-static void walk(page *pg, int *cap, gs_jv v, char *owner, size_t osize) {
+// The top result of a mixed search: an album, artist, playlist or song, in a card of its own.
+static void card(page *pg, int *cap, gs_jv r) {
+    gs_jv first = gs_json_path(r, "title.runs.0");
+    gs_jv nav = gs_json_get(first, "navigationEndpoint");
+    const char *type = page_type(nav), *video = gs_json_str(gs_json_path(nav, "watchEndpoint.videoId"), NULL);
+    const char *id = video ? video : gs_json_str(gs_json_path(nav, "browseEndpoint.browseId"), NULL);
+    if (!id || (!video && !strstr(type, "ALBUM") && !strstr(type, "PLAYLIST") && !strstr(type, "ARTIST"))) return;
+    item *it = add(pg, cap);
+    it->kind = video ? ITEM_SONG : strstr(type, "ALBUM") ? ITEM_ALBUM : strstr(type, "ARTIST") ? ITEM_ARTIST : ITEM_PLAYLIST;
+    SDL_strlcpy(it->id, id, sizeof it->id);
+    runs_text(gs_json_get(gs_json_get(r, "title"), "runs"), it->title, sizeof it->title);
+    char sub[512];
+    runs_text(gs_json_path(r, "subtitle.runs"), sub, sizeof sub);
+    if (video) byline(sub, it->artist, sizeof it->artist, &it->duration);
+    else SDL_strlcpy(it->artist, sub, sizeof it->artist);
+}
+
+// What a page holds besides its list's items: on a search, the top result and the list's next page;
+// on an artist's page, its shelves under headings.
+enum { PAGE_LIST, PAGE_SEARCH, PAGE_ARTIST };
+
+static void walk(page *pg, int *cap, gs_jv v, char *owner, size_t osize, int mode);
+
+// A shelf's title as a heading over its items, dropped when none of them is kept (a shelf of videos).
+static void shelf(page *pg, int *cap, gs_jv r, gs_jv title, char *owner, size_t osize, int mode) {
+    int before = pg->n;
+    item *h = add(pg, cap);
+    h->kind = ITEM_HEADING;
+    runs_text(title, h->title, sizeof h->title);
+    walk(pg, cap, r, owner, osize, mode);
+    if (pg->n == before + 1) pg->n = before;
+}
+
+static void walk(page *pg, int *cap, gs_jv v, char *owner, size_t osize, int mode) {
     for (gs_jv c = gs_json_first(v); c; c = gs_json_next(c)) {
         const char *k = gs_json_key(c);
         if (k && !strcmp(k, "musicResponsiveListItemRenderer")) list_item(pg, cap, c);
+        else if (k && !strcmp(k, "musicCardShelfRenderer")) card(pg, cap, c), walk(pg, cap, gs_json_get(c, "contents"), owner, osize, mode);
+        else if (k && mode == PAGE_ARTIST && !strcmp(k, "musicShelfRenderer"))
+            shelf(pg, cap, gs_json_get(c, "contents"), gs_json_path(c, "title.runs"), owner, osize, mode);
+        else if (k && mode == PAGE_ARTIST && !strcmp(k, "musicCarouselShelfRenderer"))
+            shelf(pg, cap, gs_json_get(c, "contents"), gs_json_path(c, "header.musicCarouselShelfBasicHeaderRenderer.title.runs"), owner, osize, mode);
+        else if (k && mode == PAGE_SEARCH && !strcmp(k, "nextContinuationData"))  // a search's next page
+            SDL_strlcpy(pg->more, gs_json_str(gs_json_get(c, "continuation"), ""), sizeof pg->more);
         else if (k && !strcmp(k, "straplineTextOne")) runs_text(gs_json_get(c, "runs"), owner, osize);  // an album page's artist
         else if (k && !strcmp(k, "musicTwoRowItemRenderer")) tile(pg, cap, c);
         else if (k && !strcmp(k, "playlistPanelVideoRenderer")) queue_item(pg, cap, c);
@@ -224,14 +265,14 @@ static void walk(page *pg, int *cap, gs_jv v, char *owner, size_t osize) {
             SDL_strlcpy(pg->more, gs_json_str(gs_json_get(c, "continuation"), ""), sizeof pg->more), pg->radio = true;
         else if (k && (!strcmp(k, "musicCarouselShelfRenderer") || !strcmp(k, "nextContinuationData")))
             continue;  // related shelves and suggestions under a playlist
-        else if (gs_json_kind(c) == GS_JSON_OBJECT || gs_json_kind(c) == GS_JSON_ARRAY) walk(pg, cap, c, owner, osize);
+        else if (gs_json_kind(c) == GS_JSON_OBJECT || gs_json_kind(c) == GS_JSON_ARRAY) walk(pg, cap, c, owner, osize, mode);
     }
 }
 
-static bool read_page(gs_json *doc, page *out) {
+static bool read_page(gs_json *doc, page *out, int mode) {
     int cap = 0;
     char owner[160] = "";
-    walk(out, &cap, gs_json_root(doc), owner, sizeof owner);
+    walk(out, &cap, gs_json_root(doc), owner, sizeof owner, mode);
     for (int i = 0; i < out->n; i++)  // album tracks name their artist once, in the page's header
         if (out->items[i].kind == ITEM_SONG && !out->items[i].artist[0]) SDL_strlcpy(out->items[i].artist, owner, sizeof out->items[i].artist);
     gs_json_free(doc);
@@ -240,17 +281,22 @@ static bool read_page(gs_json *doc, page *out) {
 
 // ---- The calls ----
 
-bool api_search(account *a, const char *query, search_kind kind, page *out) {
-    // The filters the page's own search tabs use.
-    static const char *const params[] = { "EgWKAQIIAWoKEAkQBRAKEAMQBA%3D%3D", "EgWKAQIYAWoKEAkQAxAEEAoQBQ%3D%3D", "EgeKAQQoAEABagoQAxAEEAkQChAF" };
+bool api_search(account *a, const char *query, search_kind kind, const char *more, page *out) {
+    // The filters the page's own search chips use (none for everything).
+    static const char *const params[SEARCH_KINDS] = { NULL, "EgWKAQIIAWoKEAkQBRAKEAMQBA%3D%3D", "EgWKAQIYAWoKEAkQAxAEEAoQBQ%3D%3D",
+                                                      "EgWKAQIgAWoKEAkQChAFEAMQBA%3D%3D", "EgeKAQQoAEABagoQAxAEEAkQChAF" };
     memset(out, 0, sizeof *out);
-    char fields[1500] = "\"query\":";
-    json_quote(fields, sizeof fields, query);
-    SDL_strlcat(fields, ",\"params\":\"", sizeof fields);
-    SDL_strlcat(fields, params[kind], sizeof fields);
-    SDL_strlcat(fields, "\"", sizeof fields);
+    char fields[2500] = "";
+    if (more) {
+        SDL_strlcat(fields, "\"continuation\":", sizeof fields);
+        json_quote(fields, sizeof fields, more);
+    } else {
+        SDL_strlcat(fields, "\"query\":", sizeof fields);
+        json_quote(fields, sizeof fields, query);
+        if (params[kind]) SDL_strlcat(fields, ",\"params\":\"", sizeof fields), SDL_strlcat(fields, params[kind], sizeof fields), SDL_strlcat(fields, "\"", sizeof fields);
+    }
     gs_json *doc = request(a, "search", fields, out->error, sizeof out->error);
-    return doc && read_page(doc, out);
+    return doc && read_page(doc, out, PAGE_SEARCH);
 }
 
 bool api_browse(account *a, const char *browse_id, const char *more, page *out) {
@@ -259,7 +305,7 @@ bool api_browse(account *a, const char *browse_id, const char *more, page *out) 
     SDL_strlcat(fields, more ? "\"continuation\":" : "\"browseId\":", sizeof fields);
     json_quote(fields, sizeof fields, more ? more : browse_id);
     gs_json *doc = request(a, "browse", fields, out->error, sizeof out->error);
-    return doc && read_page(doc, out);
+    return doc && read_page(doc, out, !more && !strncmp(browse_id, "UC", 2) ? PAGE_ARTIST : PAGE_LIST);
 }
 
 bool api_radio(account *a, const char *video_id, const char *more, page *out) {
@@ -270,7 +316,7 @@ bool api_radio(account *a, const char *video_id, const char *more, page *out) {
     SDL_strlcat(fields, more ? ",\"continuation\":" : ",\"videoId\":", sizeof fields);
     json_quote(fields, sizeof fields, more ? more : video_id);
     gs_json *doc = request(a, "next", fields, out->error, sizeof out->error);
-    if (!doc || !read_page(doc, out)) return false;
+    if (!doc || !read_page(doc, out, PAGE_LIST)) return false;
     if (!out->n && !out->error[0]) SDL_strlcpy(out->error, "no radio for that song", sizeof out->error);
     return out->n > 0;
 }
