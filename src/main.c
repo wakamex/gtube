@@ -143,7 +143,7 @@ static bool api_test(account *acc, const char *kind, const char *arg) {
                 : api_browse(acc, arg, more[0] ? more : NULL, &pg);
         if (!ok) { printf("failed: %s\n", pg.error); page_free(&pg); return false; }
         for (int i = 0; i < pg.n; i++, total++)
-            if (total < 8 || i == pg.n - 1)
+            if (total < 8 || i == pg.n - 1 || pg.items[i].kind == ITEM_HEADING)
                 printf("%4d %-8s %-24s %s | %s | %.0f s\n", total, kinds[pg.items[i].kind], pg.items[i].id, pg.items[i].title, pg.items[i].artist, pg.items[i].duration);
         SDL_strlcpy(more, !strcmp(kind, "browse") || ((search >= 0 || !strcmp(kind, "radio")) && pages < 2) ? pg.more : "", sizeof more);
         pages++;
