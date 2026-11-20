@@ -788,8 +788,7 @@ static void activate(app *a, int i, bool shuffled) {
     if (a->view == V_QUEUE) {  // the queue itself, reordered
         int cur, n = player_queue(a->player, queue_copy, 2000, &cur);
         if (!n) return;
-        shuffle_tracks(queue_copy, n, i >= 0 ? i : cur);  // (from the header, the playing song stays first, and plays on)
-        a->radio = false;
+        shuffle_tracks(queue_copy, n, i >= 0 ? i : cur);  // (from the header, the playing song stays first, and plays on; a radio goes on adding)
         player_set_queue(a->player, queue_copy, n, 0);
         a->selected[V_QUEUE] = 0;
         return;

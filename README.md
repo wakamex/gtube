@@ -74,7 +74,7 @@ gtube keeps only the youtube.com and google.com cookies from the file and renews
 | / or Ctrl+F | Search YouTube Music: everything, ranked as the site ranks it |
 | Tab, Shift+Tab, or click a name in the search box | Search only songs, albums, artists or playlists, or everything again |
 | Enter or click | Play a song and the rest of its list, or open an album, playlist or artist |
-| Shift+Enter, or "shuffle" on the list's header | Play the list in a random order: from the selected song, or (shuffle) from a random one; in the queue, shuffle the queue |
+| Shift+Enter, or "shuffle" on the list's header | Play the list in a random order: from the selected song, or (shuffle) from a random one; in the queue, shuffle the queue (a radio goes on adding songs) |
 | Esc or Backspace | Leave search, or go back from an album, playlist or artist to the list it was opened from |
 | Space | Pause or resume |
 | n and p | Next and previous track |
