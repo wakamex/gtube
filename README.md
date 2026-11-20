@@ -150,6 +150,8 @@ Titles render in Latin, Cyrillic, Japanese, Chinese, Korean, Devanagari and Arab
 
 ## Development
 
+`zig build test` runs the tests (`tests/`), which CI runs on every pull request.
+
 To work on gesso alongside gtube, build against a local checkout with `zig build --fork=../gesso`. `build.zig.zon` pins a gesso commit; `zig fetch --save=gesso git+https://github.com/wakamex/gesso#main` moves it to the latest.
 
 The Bend effects live in `src/bend/viz.bend`. The generated C (`src/bend/viz_bend.c`) and its GPU program (`src/bend/viz.gpu`) are committed; regenerating them with `src/bend/build.sh` needs a Bend compiler with the Vulkan backend.
